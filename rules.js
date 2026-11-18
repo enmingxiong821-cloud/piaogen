@@ -279,7 +279,9 @@
       deposit: `你好，我在${merchant}支付的${ticket.product || "装修定金"}（${amount}，${when}）想确认退还或转尾款的条件。${cite}请提供合同里的定金条款。`,
       prepaid: `你好，我在${merchant}办理的${ticket.product || "预付卡"}（${amount}，${when}）还有余额未消费。${cite}请说明剩余金额的退还方式和时限。`
     };
-    return map[window.type] || `你好，我想咨询${merchant}这笔订单（${amount}）的售后处理方式。`;
+    const text = map[window.type] || `你好，我想咨询${merchant}这笔订单（${amount}）的售后处理方式。`;
+    const helper = ticket.helper && ticket.helper.forWhom ? `我帮${ticket.helper.forWhom}问的，` : "";
+    return helper ? text.replace("你好，", `你好，${helper}`) : text;
   }
 
   function checklistFor(window) {

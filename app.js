@@ -806,8 +806,10 @@
 
     $("#resultActions").innerHTML = `
       <button class="btn primary" id="goAction" type="button">${nearest ? `去办：${escapeHtml(nearest.label)}` : "补充证据"}</button>
+      ${nearest && nearest.end ? `<button class="btn ghost" id="toCalendar" type="button">加到日历</button>` : ""}
       <button class="btn ghost" id="backToday" type="button">回到今天</button>
       <button class="link-btn" id="deleteTicket" type="button">删除这张票</button>`;
+    if ($("#toCalendar")) $("#toCalendar").addEventListener("click", () => addToCalendar(ticket, nearest));
     $("#goAction").addEventListener("click", () => {
       if (nearest) openAction(ticket, nearest);
       else toast("先补一张带金额/日期/商品名的票");
@@ -819,6 +821,88 @@
       toast("已删除");
       show("today");
     });
+
+    renderHelper(ticket);
+    renderEmptyReason(ticket, actionable);
+  }
+
+  function renderHelper(ticket) {
+    const host = $("#resultHelper");
+    if (!host) return;
+    const h = ticket.helper;
+    if (h && h.forWhom) {
+      host.innerHTML = `<div class="helper-card"><span>代办 · ${escapeHtml(h.name || "家人")} 为 ${escapeHtml(h.forWhom)} 办</span><button class="link-btn" id="editHelper" type="button">修改</button></div>`;
+    } else {
+      host.innerHTML = `<button class="helper-add" id="editHelper" type="button">帮家人办 →</button>`;
+    }
+    $("#editHelper").addEventListener("click", () => openHelperSheet(ticket));
+  }
+
+  function openHelperSheet(ticket) {
+    const h = ticket.helper || {};
+    $("#sheetTitle").textContent = "帮家人办";
+    $("#sheetBody").innerHTML = `
+      <p class="sheet-hint">填了之后，陪办话术会变成“我帮家人问的”，导出也会带上。</p>
+      <label class="field"><span>这是谁的票</span><input id="helperFor" value="${escapeHtml(h.forWhom || "")}" placeholder="母亲 / 父亲 / 家人" /></label>
+      <label class="field"><span>代办人</span><input id="helperName" value="${escapeHtml(h.name || "")}" placeholder="女儿 / 儿子 / 本人" /></label>
+      <label class="field"><span>联系电话（可留空）</span><input id="helperPhone" value="${escapeHtml(h.phone || "")}" placeholder="138****" /></label>
+      <div class="sheet-actions">
+        <button class="btn primary" id="helperSave" type="button">保存</button>
+        <button class="btn ghost" id="helperCancel" type="button">取消</button>
+      </div>`;
+    $("#sheetOverlay").hidden = false;
+    $("#helperCancel").addEventListener("click", closeSheet);
+    $("#helperSave").addEventListener("click", () => {
+      const forWhom = $("#helperFor").value.trim();
+      const name = $("#helperName").value.trim();
+      const phone = $("#helperPhone").value.trim();
+      ticket.helper = forWhom ? { forWhom, name, phone } : null;
+      save();
+      closeSheet();
+      renderHelper(ticket);
+      toast(forWhom ? `已记为 ${name || "家人"} 代办` : "已清除代办");
+    });
+  }
+
+  function renderEmptyReason(ticket, actionable) {
+    const host = $("#resultHelper");
+    if (!host) return;
+    if (actionable.length) return;
+    host.innerHTML = `<div class="empty-reason">
+      <b>这张票暂时没有可主张的权利</b>
+      <p>${ticket.date ? "可能已经过了所有期限，或者品类不在法定范围内。" : "缺购买日期，无法计算起止时间。"}</p>
+      <button class="link-btn" id="fixTicket" type="button">${ticket.date ? "补一张新票" : "补日期后重算"}</button>
+    </div>`;
+    $("#fixTicket").addEventListener("click", () => {
+      if (ticket.date) { show("import"); return; }
+      openResult(ticket);
+      $("#editTicket")?.click();
+    });
+  }
+
+  function addToCalendar(ticket, win) {
+    const day = String(win.end || "").replace(/[.]/g, "-");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) { toast("这条没有确切截止日"); return; }
+    const stamp = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+    const lines = [
+      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Piaogen//V0//CN", "CALSCALE:GREGORIAN",
+      "BEGIN:VEVENT",
+      `UID:piaogen-${ticket.id}-${win.type}@local`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${day.replace(/-/g, "")}`,
+      `SUMMARY:票根 · ${ticket.merchant} ${win.label}截止`,
+      `DESCRIPTION:${String(win.source || "").replace(/[\r\n]/g, " ")}`,
+      "BEGIN:VALARM", "TRIGGER:-P3D", "ACTION:DISPLAY", "DESCRIPTION:还有 3 天", "END:VALARM",
+      "END:VEVENT", "END:VCALENDAR"
+    ];
+    const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `piaogen-${ticket.id}-${win.type}.ics`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast("已生成日历文件");
   }
 
   function openAction(ticket, win) {
@@ -865,6 +949,16 @@
       ${outcome.note ? `<div class="row"><span>备注</span><b>${escapeHtml(outcome.note)}</b></div>` : ""}`;
     const remaining = (ticket.windows || []).filter((w) => w.status !== "closed" && w.daysLeft !== null && w.daysLeft >= 0);
     $("#doneRemaining").innerHTML = remaining.length ? `<div class="section-head"><h2>这张票还剩</h2></div>` + remaining.slice(0, 3).map((w) => `<div class="window"><div class="window-top"><b>${escapeHtml(w.label)}</b><span><b>${w.daysLeft} 天</b></span></div><p>${escapeHtml(w.source)}</p></div>`).join("") : "";
+    const next = $("#doneNext");
+    if (next) {
+      next.innerHTML = outcome.status === "rejected"
+        ? `<h2>被拒之后还能做</h2>
+           <div class="obj"><b>平台介入</b><p>回到订单页申请平台客服介入，把这次被拒的理由一起写进去。</p></div>
+           <div class="obj"><b>12315</b><p>在全国 12315 平台提交投诉，写明诉求和依据条款，附上票据。</p></div>
+           <div class="obj"><b>留证再谈</b><p>记下拒绝理由、时间和客服工号，换一条路再来。</p></div>`
+        : "";
+    }
+
     $("#doneToday").onclick = () => show("today");
     $("#doneExport").onclick = () => exportTicket(ticket);
   }

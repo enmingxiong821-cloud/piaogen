@@ -566,10 +566,67 @@
     show("result");
   }
 
+  function renderDeposit(ticket) {
+    const host = $("#depositCalc");
+    const hasDeposit = ticket && (ticket.category === "renovation" || (ticket.windows || []).some((w) => w.type === "deposit"));
+    if (!hasDeposit) {
+      host.classList.add("hidden");
+      host.innerHTML = "";
+      return;
+    }
+    const seed = Math.round(Number(ticket.amount) || 5000);
+    host.classList.remove("hidden");
+    host.innerHTML = `
+      <div class="calc-head">
+        <h2>定金怎么算</h2>
+        <p>《民法典》第五百八十六条：定金不得超过合同标的额的 20%，超过部分不产生定金效力。</p>
+      </div>
+      <div class="calc-grid">
+        <label>合同总额<input id="calcTotal" type="number" inputmode="decimal" min="0" step="100" value="${seed}" /></label>
+        <label>已付定金<input id="calcPaid" type="number" inputmode="decimal" min="0" step="100" value="${seed}" /></label>
+      </div>
+      <div class="calc-seg" role="group" aria-label="谁违约">
+        <button type="button" data-side="counter" class="on">商家违约</button>
+        <button type="button" data-side="self">我违约</button>
+      </div>
+      <div class="calc-out" id="calcOut" aria-live="polite"></div>`;
+
+    const total = $("#calcTotal");
+    const paid = $("#calcPaid");
+    const out = $("#calcOut");
+    let side = "counter";
+    const money = (n) => `¥${Number(n).toFixed(2)}`;
+
+    const run = () => {
+      const r = PG.depositCalc(Number(total.value) || 0, Number(paid.value) || 0, side === "counter");
+      out.innerHTML = `
+        <div class="calc-row"><span>20% 上限</span><b>${money(r.cap)}</b></div>
+        <div class="calc-row"><span>有效定金</span><b>${money(r.valid)}</b></div>
+        <div class="calc-row"><span>超出部分（按预付款退）</span><b>${money(r.excess)}</b></div>
+        <div class="calc-row sum"><span>${side === "counter" ? "商家违约，应退" : "我违约，可退"}</span><b>${money(r.back)}</b></div>
+        <p class="calc-note">${side === "counter"
+          ? "《民法典》第五百八十七条：收受定金一方违约致合同目的不能实现，应双倍返还。"
+          : "定金不退，但超过 20% 的部分仍属预付款，应当退还。"}</p>`;
+    };
+
+    total.addEventListener("input", run);
+    paid.addEventListener("input", run);
+    host.querySelectorAll("[data-side]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        side = btn.dataset.side;
+        host.querySelectorAll("[data-side]").forEach((b) => b.classList.toggle("on", b === btn));
+        run();
+      });
+    });
+    run();
+  }
+
   function renderResult(ticket) {
-    const open = (ticket.windows || []).filter((w) => w.daysLeft !== null && w.daysLeft >= 0);
+    const actionable = (ticket.windows || []).filter((w) => w.status !== "closed");
     const nearest = PG.priority(ticket);
-    $("#resultTitle").textContent = nearest ? `${open.length} 件事还能做` : "这张票暂时没有截止日";
+    $("#resultTitle").textContent = actionable.length
+      ? `${actionable.length} 件事还能做`
+      : "这张票暂时没有可主张的权利";
     $("#resultTicket").innerHTML = `
       <div class="receipt-top"><div><b>${escapeHtml(ticket.merchant)}</b><div class="receipt-meta">${escapeHtml(ticket.date || "日期待确认")} · ${escapeHtml(PG.CATEGORY[ticket.category]?.label || "其他")}</div></div><div class="amt">${money(ticket.amount)}</div></div>
       <div class="receipt-no"><span>${escapeHtml(ticket.orderNo || "CP—" + ticket.id.slice(0, 6).toUpperCase())}</span><span>${ticket.source === "demo" ? "示例" : "已保存"}</span></div>
@@ -609,6 +666,8 @@
         <div class="window-bar"><i style="width:${width}%"></i></div>
       </div>`;
     }).join("");
+
+    renderDeposit(ticket);
 
     $("#resultEvidence").innerHTML = `<h2>证据</h2>` + (ticket.evidence || []).map((e) => `
       <div class="evidence-item">

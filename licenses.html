@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>开源许可 · 票根</title>
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+<main class="doc doc-shell">
+  <nav class="doc-nav" aria-label="页面导航">
+    <a class="doc-back" href="index.html"><span aria-hidden="true">&larr;</span> 返回票根</a>
+    <span class="doc-mark">票根</span>
+  </nav>
+
+  <p class="doc-kicker">票根 · V0 演示版</p>
+  <h1>开源许可</h1>
+  <p class="doc-meta">更新日期：2026 年 11 月 18 日　·　随站点本地发布，不依赖第三方 CDN</p>
+
+  <p class="lede">V0 使用了以下开源组件。它们以本地文件形式随站点发布，未修改源码；页面运行时不会向组件作者或 CDN 发送票据内容。</p>
+
+  <table>
+    <thead>
+      <tr><th>组件</th><th>版本</th><th>许可证</th><th>用途</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Tesseract.js</td><td data-label="版本">5.1.1</td><td data-label="许可证">Apache-2.0</td><td data-label="用途">浏览器本地 OCR</td></tr>
+      <tr><td>tesseract.js-core</td><td data-label="版本">5.x</td><td data-label="许可证">Apache-2.0</td><td data-label="用途">WASM OCR 内核</td></tr>
+      <tr><td>tessdata（chi_sim / eng）</td><td data-label="版本">官方模型</td><td data-label="许可证">Apache-2.0</td><td data-label="用途">中英文识别</td></tr>
+      <tr><td>PDF.js</td><td data-label="版本">3.11.174</td><td data-label="许可证">Apache-2.0</td><td data-label="用途">PDF 文字层解析</td></tr>
+      <tr><td>JSZip</td><td data-label="版本">3.10.1</td><td data-label="许可证">MIT（双许可中选 MIT）</td><td data-label="用途">读取 OFD / XML 压缩包</td></tr>
+    </tbody>
+  </table>
+
+  <h2>完整许可证文本</h2>
+  <ul>
+    <li><a href="licenses/Apache-2.0.txt">Apache License 2.0</a>（Tesseract.js、tesseract.js-core、tessdata、PDF.js）</li>
+    <li><a href="licenses/MIT-JSZip.txt">MIT License</a>（JSZip）</li>
+    <li><a href="vendor/tesseract.min.js.LICENSE.txt">Tesseract.js 打包内附带的许可声明</a></li>
+  </ul>
+
+  <h2>项目自身</h2>
+  <ul>
+    <li>界面、业务代码和文案：© 2026 票根项目，保留所有权利。</li>
+    <li>比赛评审、安全审查与学习用途可直接阅读；商业使用需书面授权。</li>
+    <li>若你 fork 或再分发，请保留本页与第三方许可证文本。</li>
+  </ul>
+
+  <h2>没有使用的东西</h2>
+  <p>V0 没有接入云端 OCR、用户画像、广告 SDK 或统计 SDK。票据图片只在浏览器内处理。</p>
+
+  <p class="doc-foot">票根 · 消费权利 OS　|　第三方组件许可见上，项目代码著作权保留</p>
+</main>
+</body>
+</html>

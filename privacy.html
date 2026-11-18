@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>隐私政策 · 票根</title>
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+<main class="doc doc-shell">
+  <nav class="doc-nav" aria-label="页面导航">
+    <a class="doc-back" href="index.html"><span aria-hidden="true">&larr;</span> 返回票根</a>
+    <span class="doc-mark">票根</span>
+  </nav>
+
+  <p class="doc-kicker">票根 · V0 演示版</p>
+  <h1>隐私政策</h1>
+  <p class="doc-meta">更新日期：2026 年 11 月 18 日　·　适用范围：本演示站点</p>
+
+  <p class="lede">V0 是一个纯前端演示。你选择的票据图片、PDF、OFD，以及从中识别出的文字，都只在当前浏览器里处理；不上传到票根服务器，也没有账号、统计 SDK 或广告 SDK。</p>
+
+  <h2>1. 处理哪些信息</h2>
+  <ul>
+    <li>你主动选择的文件：小票照片、订单截图、电子发票（PDF / OFD / XML）。</li>
+    <li>从文件里识别出的字段：商家、金额、日期、商品、订单号、渠道、承诺。</li>
+    <li>你手动补充或修改的字段。</li>
+    <li>你的办理结果：已到账、已修好、被拒、今天不办，以及备注。</li>
+    <li>保存在本机的票据记录和偏好。</li>
+  </ul>
+
+  <h2>2. 在哪里处理</h2>
+  <ul>
+    <li><strong>图片 OCR</strong>：Tesseract.js 在浏览器 Web Worker 中运行，中英文语言包由本站提供。</li>
+    <li><strong>PDF</strong>：PDF.js 在当前页面读取文字层。</li>
+    <li><strong>OFD / XML</strong>：在当前页面按标签提取文字。</li>
+    <li><strong>票据记录</strong>：浏览器 localStorage。</li>
+  </ul>
+  <p>V0 不调用云端 OCR，不上传原图，不写入远端数据库。</p>
+
+  <h2>3. 保存多久</h2>
+  <ul>
+    <li>票据记录保存在当前浏览器，直到你删除单张票、清空全部数据、清除浏览器数据或更换设备。</li>
+    <li>原图只在本次识别期间读取，不长期保存；刷新后需要重新选择。</li>
+    <li>导出备份是你主动生成的 JSON 文件，保存在你选择的位置，票根无法访问。</li>
+  </ul>
+
+  <h2>4. 你的控制</h2>
+  <ul>
+    <li>设置 → 导出备份 / 导入备份 / 清空全部票据。</li>
+    <li>删除单张票：结果页底部“删除这张票”。</li>
+    <li>无痕或隐私窗口关闭后，localStorage 通常会被清除。</li>
+    <li>共用电脑：用完请清空数据。</li>
+  </ul>
+
+  <h2>5. 第三方组件</h2>
+  <p>页面只从本站加载 Tesseract.js、PDF.js、JSZip 和语言包；这些组件不会主动向第三方发送你的票据内容。版本与许可见<a href="licenses.html">《开源许可》</a>。</p>
+
+  <h2>6. 请不要上传的内容</h2>
+  <ul>
+    <li>身份证、银行卡、支付密码、验证码、人脸照片等敏感信息。</li>
+    <li>包含他人隐私且未获授权的票据。</li>
+    <li>票据上的手机号、地址、订单号可按需遮挡后再识别。</li>
+  </ul>
+
+  <h2>7. 未成年人</h2>
+  <p>V0 不面向 14 周岁以下未成年人独立使用。</p>
+
+  <h2>8. 安全边界</h2>
+  <p>本地处理减少了上传风险，但不等于绝对安全。设备被他人使用、浏览器扩展或恶意软件都可能读取本机数据。请使用可信设备，并及时清理。</p>
+
+  <h2>9. 变更</h2>
+  <p>V0 为参赛演示版本。若未来接入账号、云端 OCR、订阅消息或支付能力，会在使用前说明并征得同意，同时更新本页。</p>
+
+  <h2>10. 联系</h2>
+  <p>本届大赛期间，请通过作品提交页的联系入口反馈隐私问题。</p>
+
+  <p class="doc-foot">票根 · 消费权利 OS　|　V0 演示版不收集服务器端数据</p>
+</main>
+</body>
+</html>

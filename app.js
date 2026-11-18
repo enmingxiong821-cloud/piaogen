@@ -819,9 +819,11 @@
     $("#resultActions").innerHTML = `
       <button class="btn primary" id="goAction" type="button">${nearest ? `去办：${escapeHtml(nearest.label)}` : "补充证据"}</button>
       ${nearest && nearest.end ? `<button class="btn ghost" id="toCalendar" type="button">加到日历</button>` : ""}
+      ${(ticket.windows || []).some((w) => w.basis) ? `<button class="btn ghost" id="toShareCard" type="button">生成分享图</button>` : ""}
       <button class="btn ghost" id="backToday" type="button">回到今天</button>
       <button class="link-btn" id="deleteTicket" type="button">删除这张票</button>`;
     if ($("#toCalendar")) $("#toCalendar").addEventListener("click", () => addToCalendar(ticket, nearest));
+    if ($("#toShareCard")) $("#toShareCard").addEventListener("click", () => shareCard(ticket));
     $("#goAction").addEventListener("click", () => {
       if (nearest) openAction(ticket, nearest);
       else toast("先补一张带金额/日期/商品名的票");
@@ -836,6 +838,98 @@
 
     renderHelper(ticket);
     renderEmptyReason(ticket, actionable);
+    renderTimeline(ticket);
+  }
+
+  function shareCard(ticket) {
+    const W = 1080, H = 1440;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const g = cv.getContext("2d");
+    g.fillStyle = "#F7F9F8"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#0E9C91"; g.fillRect(0, 0, W, 14);
+    g.fillStyle = "#0F1416";
+    g.font = '600 64px "Noto Serif SC","SimSun",serif';
+    g.fillText("票根", 88, 150);
+    g.fillStyle = "#0E9C91";
+    g.font = '600 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText("消费权利 OS", 88, 192);
+    g.strokeStyle = "#DFE8E7"; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(88, 236); g.lineTo(W - 88, 236); g.stroke();
+    g.fillStyle = "#0F1416";
+    g.font = '600 44px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText(String(ticket.merchant || "商家").slice(0, 16), 88, 320);
+    g.font = '600 68px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText(money(ticket.amount), 88, 404);
+    g.fillStyle = "#566263";
+    g.font = '400 26px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText(`${ticket.date || "日期待确认"} · ${PG.CATEGORY[ticket.category]?.label || "其他"}`, 88, 448);
+    const wins = (ticket.windows || []).filter((w) => w.basis).slice(0, 3);
+    let y = 540;
+    const wrap = (text, max) => {
+      const out = []; let line = "";
+      for (const ch of String(text)) {
+        if (g.measureText(line + ch).width > max) { out.push(line); line = ch; }
+        else line += ch;
+      }
+      if (line) out.push(line);
+      return out;
+    };
+    for (const w of wins) {
+      g.fillStyle = "#0F1416";
+      g.font = '600 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      g.fillText(`${w.label} · 还剩 ${w.daysLeft === null ? "待确认" : w.daysLeft + " 天"}`, 88, y);
+      y += 44;
+      g.fillStyle = "#566263";
+      g.font = '400 25px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      for (const ln of wrap(`${w.basis.law}${w.basis.article}`, W - 176)) { g.fillText(ln, 88, y); y += 38; }
+      g.fillStyle = "#8A9697";
+      g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      for (const ln of wrap(w.basis.text || "", W - 176).slice(0, 2)) { g.fillText(ln, 88, y); y += 34; }
+      y += 40;
+    }
+    g.strokeStyle = "#DFE8E7";
+    g.beginPath(); g.moveTo(88, H - 200); g.lineTo(W - 88, H - 200); g.stroke();
+    g.fillStyle = "#8A9697";
+    g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText("票根 · 拍一张小票，看清还能做什么", 88, H - 150);
+    g.fillText("依据以原文为准；价保属平台承诺", 88, H - 112);
+    cv.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `piaogen-card-${ticket.id}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("已生成分享图");
+    }, "image/png");
+  }
+
+  function renderTimeline(ticket) {
+    const host = $("#ticketTimeline");
+    if (!host) return;
+    const fmtDate = (v) => {
+      const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? `${m[2]}.${m[3]}` : "";
+    };
+    const events = [];
+    if (ticket.date) events.push({ d: ticket.date, t: "购买", s: `${ticket.merchant || "商家"} · ${money(ticket.amount)}` });
+    if ((ticket.evidence || []).length) events.push({ d: "", t: "收集证据", s: `${ticket.evidence.length} 件` });
+    const open = (ticket.windows || []).filter((w) => w.daysLeft !== null && w.daysLeft >= 0);
+    if ((ticket.windows || []).length) events.push({ d: "", t: "算出还能做什么", s: `${open.length} 件有截止日` });
+    const acts = (ticket.actions || []).slice().sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+    for (const a of acts) {
+      const label = a.status === "refunded" ? "已到账 / 已退款"
+        : a.status === "repaired" ? "已修好 / 已换货"
+        : a.status === "promise" ? "承诺已兑现"
+        : a.status === "rejected" ? "被拒"
+        : "今天不办";
+      const bits = [a.label || "", a.amount ? money(a.amount) : "", a.note || ""].filter(Boolean);
+      events.push({ d: String(a.createdAt || "").slice(0, 10), t: label, s: bits.join(" · ") });
+    }
+    host.innerHTML = `<h2>这张票的经历</h2><ol class="tl">` + events.map((e) => `
+      <li><span class="tl-date">${escapeHtml(fmtDate(e.d))}</span>
+        <div class="tl-body"><b>${escapeHtml(e.t)}</b><p>${escapeHtml(e.s)}</p></div></li>`).join("") + `</ol>`;
   }
 
   function renderHelper(ticket) {

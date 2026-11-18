@@ -451,3 +451,13 @@ h2{font-size:15px;font-weight:650;margin:0}
 .review-banner b{font-size:12.5px}
 .review-banner span{color:#9A6B2A}
 .review-banner .link-btn{margin-left:auto}
+.timeline-block{margin-top:22px}
+.timeline-block h2{font-size:15px;font-weight:600;margin:0 0 10px}
+.tl{list-style:none;margin:0;padding:0 0 0 13px;border-left:1px solid var(--rule)}
+.tl li{position:relative;padding:0 0 15px 16px}
+.tl li::before{content:"";position:absolute;left:-4.5px;top:6px;width:8px;height:8px;border-radius:50%;background:var(--surface);border:1.5px solid var(--ink-3)}
+.tl li:last-child::before{background:var(--teal);border-color:var(--teal)}
+.tl li:last-child{padding-bottom:0}
+.tl-date{display:block;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums;margin-bottom:2px}
+.tl-body b{font-size:13.5px;color:var(--ink)}
+.tl-body p{margin:2px 0 0;font-size:12.5px;color:var(--ink-2);line-height:1.6}

@@ -67,7 +67,7 @@
     const main = $("#main");
     main.scrollTop = 0;
     if (name === "today") renderToday();
-    if (name === "import") renderImport();
+    if (name === "import") { renderImport(); warmOcr(); }
     if (name === "triage") renderTriage();
     if (name === "settings") renderSettings();
   }
@@ -411,6 +411,15 @@
   function defaultWindows(ticket) {
     ticket.windows = PG.buildWindows(ticket).map((window) => ({ ...window, id: uid() }));
     return ticket;
+  }
+
+  function warmOcr() {
+    try { if (localStorage.getItem("pg.langWarm") === "1") return; } catch (e) { return; }
+    const files = ["vendor/lang/chi_sim.traineddata.gz", "vendor/lang/eng.traineddata.gz"];
+    Promise.all(files.map((f) => fetch(f).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null)))
+      .then((res) => {
+        if (res.every(Boolean)) { try { localStorage.setItem("pg.langWarm", "1"); } catch (e) {} }
+      });
   }
 
   function renderImport() {

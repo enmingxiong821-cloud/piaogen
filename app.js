@@ -604,7 +604,8 @@
       const value = w.daysLeft === null ? "待确认" : `${w.daysLeft} 天`;
       return `<div class="window ${cls}">
         <div class="window-top"><b>${escapeHtml(w.label)}</b><span><b>${value}</b></span></div>
-        <p>${escapeHtml(w.source)}${w.end ? ` · 截止 ${escapeHtml(w.end)}` : ""}</p>
+        <p>${escapeHtml(w.source)}${w.end ? ` · 截止 ${escapeHtml(w.end)}` : ""}${w.basis && w.basis.url ? ` · <a href="${escapeHtml(w.basis.url)}" target="_blank" rel="noopener noreferrer">查看原文</a>` : ""}</p>
+        ${w.note ? `<p class="window-note">${escapeHtml(w.note)}</p>` : ""}
         <div class="window-bar"><i style="width:${width}%"></i></div>
       </div>`;
     }).join("");

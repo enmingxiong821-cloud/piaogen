@@ -403,7 +403,7 @@
       state.pending = [ticket];
       state.selected = new Set();
       state.tab = "pending";
-      toast("没读出来，手动补 3 项就行");
+      toast(text);
       show("triage");
     }
   }
@@ -524,7 +524,9 @@
     host.innerHTML = `
       <span><b>${money(s.recovered)}</b> 已追回</span>
       <span><b>${s.done}</b> 件办成</span>
-      ${s.avg === null ? "" : `<span><b>${s.avg}</b> 天平均</span>`}`;
+      ${s.avg === null ? "" : `<span><b>${s.avg}</b> 天平均</span>`}
+      <button class="link-btn recover-more" id="recoverAnnual" type="button">年度账单 ›</button>`;
+    $("#recoverAnnual").onclick = () => { renderAnnual(); show("annual"); };
   }
 
   function openManual() {
@@ -797,6 +799,16 @@
     renderDeposit(ticket);
     renderTax(ticket);
 
+    const banner = $("#reviewBanner");
+    if (banner) {
+      if (ticket.review) {
+        banner.innerHTML = `<div class="review-banner"><b>OCR 置信度偏低</b><span>金额、日期请核对后再用</span><button class="link-btn" id="reviewFix" type="button">改字段</button></div>`;
+        $("#reviewFix").onclick = () => { const b = $("#editTicket"); if (b) b.click(); };
+      } else {
+        banner.innerHTML = "";
+      }
+    }
+
     $("#resultEvidence").innerHTML = `<h2>证据</h2>` + (ticket.evidence || []).map((e) => `
       <div class="evidence-item">
         <span class="ev-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7V3Z"/><path d="M14 3v5h5"/></svg></span>
@@ -1063,8 +1075,67 @@
     toast("已导出这张票");
   }
 
+  function renderAnnual() {
+    const year = new Date().getFullYear();
+    const months = new Array(12).fill(0);
+    let total = 0, count = 0, biggest = null;
+    for (const ticket of (state.tickets || [])) {
+      for (const action of (ticket.actions || [])) {
+        if (action.status !== "refunded" && action.status !== "promise") continue;
+        const d = new Date(action.createdAt || ticket.date);
+        if (Number.isNaN(d.getTime()) || d.getFullYear() !== year) continue;
+        const amt = Number(action.amount) || 0;
+        months[d.getMonth()] += amt;
+        total += amt;
+        count += 1;
+        if (!biggest || amt > biggest.amt) biggest = { amt, merchant: ticket.merchant };
+      }
+    }
+    const body = $("#annualBody");
+    if (!count) {
+      body.innerHTML = `<div class="empty-reason">
+        <b>${year} 年还没有追回记录</b>
+        <p>办完一张票并记录“已到账”，这里就会长出第一根柱子。</p>
+        <button class="link-btn" id="annualBack" type="button">回到今天</button>
+      </div>`;
+      $("#annualBack").onclick = () => show("today");
+      return;
+    }
+    const max = Math.max.apply(null, months.concat([1]));
+    body.innerHTML = `
+      <div class="annual-total">
+        <span>${year} 年追回</span>
+        <b>${money(total)}</b>
+        <small>${count} 笔 · 最大一笔 ${money(biggest.amt)}（${escapeHtml(biggest.merchant)}）</small>
+      </div>
+      <div class="annual-chart">
+        ${months.map((v, i) => `<div class="bar"><i style="height:${Math.round((v / max) * 100)}%"></i><span>${i + 1}</span></div>`).join("")}
+      </div>
+      <p class="annual-note">只统计记录为“已到账/已退款”或“承诺已兑现”的金额；已修好、已换货计入件数，不计金额。</p>`;
+  }
+
+  function openRulesSheet() {
+    const meta = PG.RULES_META;
+    const rows = Object.entries(PG.BASIS).map(([id, b]) => `
+      <div class="rule-row">
+        <b>${escapeHtml(b.law)}${escapeHtml(b.article)}</b>
+        <p>${escapeHtml(b.short)}</p>
+        <small>${escapeHtml(PG.EFFECTIVE[id] || "")}${b.url ? ` · <a href="${escapeHtml(b.url)}" target="_blank" rel="noopener noreferrer">原文</a>` : ""}</small>
+      </div>`).join("");
+    $("#sheetTitle").textContent = "规则库";
+    $("#sheetBody").innerHTML = `
+      <p class="sheet-hint">版本 ${escapeHtml(meta.version)} · 核对于 ${escapeHtml(meta.checkedAt)} · 共 ${Object.keys(PG.BASIS).length} 条</p>
+      ${rows}
+      <p class="annual-note">价保属平台承诺，天数和条件以订单页为准，不写成法定权利。</p>`;
+    $("#sheetOverlay").hidden = false;
+  }
+
   function renderSettings() {
     $("#settingCount").textContent = String(state.tickets.length);
+    const open = $("#openAnnual");
+    if (open) open.onclick = () => { renderAnnual(); show("annual"); };
+    const rules = $("#openRules");
+    if (rules) rules.onclick = openRulesSheet;
   }
 
   function exportAll() {

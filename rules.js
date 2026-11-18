@@ -51,6 +51,17 @@
     promise: { law: "商家承诺", article: "购买时页面或沟通记录", short: "承诺高于法定标准的，按承诺执行", url: "" }
   };
 
+  const RULES_META = { version: "2026.11", checkedAt: "2026-11-18" };
+
+  const EFFECTIVE = {
+    sanbao3: "1995-08-25", sanbao8: "1995-08-25", sanbao9: "1995-08-25",
+    sanbao10: "1995-08-25", sanbao11: "1995-08-25", sanbao12: "1995-08-25",
+    cpl23: "2014-03-15", cpl24: "2014-03-15", cpl25: "2014-03-15",
+    deposit20: "2021-01-01", depositDouble: "2021-01-01",
+    prepaid: "2024-07-01",
+    platform: "以页面为准", promise: "以承诺为准"
+  };
+
   function startOfDay(value) {
     const d = new Date(value);
     d.setHours(0, 0, 0, 0);
@@ -372,6 +383,8 @@
     CATEGORY,
     CHANNEL,
     BASIS,
+    RULES_META,
+    EFFECTIVE,
     categoryOf,
     channelOf,
     buildWindows,

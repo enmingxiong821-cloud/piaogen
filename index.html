@@ -180,6 +180,7 @@
               <h1 id="resultTitle">还能做什么</h1>
             </div>
           </div>
+          <div id="reviewBanner"></div>
           <div id="resultTicket" class="receipt-card"></div>
           <div id="resultWindows" class="windows"></div>
           <div id="depositCalc" class="calc hidden"></div>
@@ -239,13 +240,15 @@
           </div>
           <div class="settings-list">
             <div class="setting-row"><div><b>票据数量</b><small>只存在这台设备的浏览器里</small></div><span id="settingCount">0</span></div>
+            <button class="setting-row" id="openRules" type="button"><div><b>规则库</b><small>依据、条款号与施行日期</small></div><span>›</span></button>
+            <button class="setting-row" id="openAnnual" type="button"><div><b>年度账单</b><small>这一年追回了多少</small></div><span>›</span></button>
             <button class="setting-row" id="exportData" type="button"><div><b>导出备份</b><small>JSON，可换设备导入</small></div><span>›</span></button>
             <button class="setting-row" id="importData" type="button"><div><b>导入备份</b><small>从另一台设备恢复</small></div><span>›</span></button>
             <button class="setting-row danger" id="clearData" type="button"><div><b>清空全部票据</b><small>不可恢复</small></div><span>›</span></button>
             <div class="privacy-note">
               <b>隐私说明</b>
               <p>图片只在你的浏览器里做 OCR；不会上传到票根服务器。你手动填写的字段保存在本机 localStorage。原图不长期保存，刷新后可重新选择。</p>
-              <p>当前规则为示例规则；价保/三包/定金条款以订单页、发票和合同为准。</p>
+              <p>规则已换成三包、消保法、民法典的真实条款；价保属平台承诺，以订单页为准。</p>
             </div>
             <div class="doc-links">
               <a href="privacy.html">隐私政策</a>
@@ -253,6 +256,18 @@
               <a href="licenses.html">开源许可</a>
             </div>
           </div>
+        </section>
+        <section class="screen" data-screen="annual" aria-label="年度账单">
+          <div class="page-head">
+            <button class="icon-btn" data-back="today" type="button" aria-label="返回今天">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div>
+              <p class="eyebrow">这一年</p>
+              <h1>年度账单</h1>
+            </div>
+          </div>
+          <div id="annualBody"></div>
         </section>
       </main>
 

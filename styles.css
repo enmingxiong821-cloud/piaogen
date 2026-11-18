@@ -461,3 +461,66 @@ h2{font-size:15px;font-weight:650;margin:0}
 .tl-date{display:block;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums;margin-bottom:2px}
 .tl-body b{font-size:13.5px;color:var(--ink)}
 .tl-body p{margin:2px 0 0;font-size:12.5px;color:var(--ink-2);line-height:1.6}
+/* ---------- Soft Tech refresh ---------- */
+:root{
+  --ease-spring:cubic-bezier(.22,1.2,.36,1);
+  --shadow-soft:0 18px 40px -26px rgba(15,20,22,.38);
+}
+h1{font-family:var(--sans);font-size:34px;letter-spacing:-.035em;font-weight:700}
+.today-head h1{font-size:34px;line-height:1.1}
+.empty h1{font-size:40px;line-height:1.08}
+.page-head h1{font-size:29px}
+.page-head.compact h1{font-size:25px}
+
+.btn{border-radius:999px;font-weight:600}
+.btn.primary{background:var(--ink);box-shadow:0 14px 30px -18px rgba(15,20,22,.7)}
+.btn.primary:hover{background:#1C2426;filter:none}
+.btn.ghost{border-radius:999px}
+
+.focus-card{border-radius:28px;padding:24px 22px;box-shadow:var(--shadow-soft)}
+.focus-card .big{font-size:46px;letter-spacing:-.04em}
+.focus-card .k{font-size:11px;letter-spacing:.04em}
+.focus-card .btn{border-radius:999px;background:#fff;color:var(--ink);font-weight:600}
+.focus-card .btn:hover{background:rgba(255,255,255,.92);filter:none}
+
+.tabbar{
+  bottom:12px;width:calc(100% - 28px);max-width:480px;
+  border:1px solid rgba(15,20,22,.06);border-radius:999px;
+  background:rgba(255,255,255,.88);backdrop-filter:blur(20px) saturate(1.2);
+  box-shadow:0 16px 40px -22px rgba(15,20,22,.5);
+  padding:6px 10px calc(6px + env(safe-area-inset-bottom));
+}
+@media (min-width:760px){.tabbar{position:absolute;border-radius:999px}}
+.tabbar-item{border-radius:999px;transition:transform 180ms var(--ease-spring),color 160ms}
+.tabbar-item:active{transform:scale(.94)}
+.tabbar-item.on{color:var(--ink)}
+.tabbar-item.on svg{stroke:var(--teal)}
+
+.ticket-item{transition:transform 180ms var(--ease-spring),box-shadow 180ms}
+.ticket-item:active{transform:scale(.985)}
+.window{transition:transform 180ms var(--ease-spring)}
+
+.screen.on{animation:softIn 380ms var(--ease-spring) both}
+@keyframes softIn{from{opacity:0;transform:translateY(10px) scale(.995)}to{opacity:1;transform:none}}
+
+.ticket-item,.window,.stat,.recover{animation:rise 420ms var(--ease-spring) both}
+.ticket-item:nth-child(2){animation-delay:40ms}
+.ticket-item:nth-child(3){animation-delay:80ms}
+.ticket-item:nth-child(4){animation-delay:120ms}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ---------- 记账 ---------- */
+.money-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.money-cell{background:var(--surface);border:1px solid var(--rule);border-radius:18px;padding:14px 12px}
+.money-cell span{display:block;font-size:10.5px;color:var(--ink-3)}
+.money-cell b{display:block;font-family:var(--num);font-size:19px;font-variant-numeric:tabular-nums;margin-top:5px;letter-spacing:-.02em}
+.money-cell.gain b{color:var(--teal)}
+.cat-list{margin-top:16px}
+.cat-row{display:grid;grid-template-columns:72px 1fr 64px;align-items:center;gap:10px;padding:7px 0;font-size:12px;color:var(--ink-2)}
+.cat-row i{display:block;height:6px;border-radius:99px;background:var(--teal);opacity:.75}
+.cat-row em{font-style:normal;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}
+
+@media (prefers-reduced-motion:reduce){
+  .screen.on,.ticket-item,.window,.stat,.recover{animation:none!important}
+  .btn,.tabbar-item,.ticket-item,.window{transition:none!important}
+}

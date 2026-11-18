@@ -1268,11 +1268,31 @@
       return;
     }
     const max = Math.max.apply(null, months.concat([1]));
+    let spend = 0;
+    const catSum = {};
+    for (const t of (state.tickets || [])) {
+      const d = new Date(t.date);
+      if (Number.isNaN(d.getTime()) || d.getFullYear() !== year) continue;
+      const amt = Number(t.amount) || 0;
+      spend += amt;
+      const key = (PG.CATEGORY[t.category] && PG.CATEGORY[t.category].label) || "其他";
+      catSum[key] = (catSum[key] || 0) + amt;
+    }
+    const cats = Object.entries(catSum).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const catMax = Math.max.apply(null, cats.map((c) => c[1]).concat([1]));
     body.innerHTML = `
       <div class="annual-total">
         <span>${year} 年追回</span>
         <b>${money(total)}</b>
         <small>${count} 笔 · 最大一笔 ${money(biggest.amt)}（${escapeHtml(biggest.merchant)}）</small>
+      </div>
+      <div class="money-grid">
+        <div class="money-cell"><span>今年花在票上</span><b>${money(spend)}</b></div>
+        <div class="money-cell gain"><span>追回</span><b>${money(total)}</b></div>
+        <div class="money-cell"><span>净支出</span><b>${money(Math.max(0, spend - total))}</b></div>
+      </div>
+      <div class="cat-list">
+        ${cats.map(([k, v]) => `<div class="cat-row"><span>${escapeHtml(k)}</span><i style="width:${Math.round((v / catMax) * 100)}%"></i><em>${money(v)}</em></div>`).join("")}
       </div>
       <div class="annual-chart">
         ${months.map((v, i) => `<div class="bar"><i style="height:${Math.round((v / max) * 100)}%"></i><span>${i + 1}</span></div>`).join("")}

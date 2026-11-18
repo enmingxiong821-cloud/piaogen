@@ -385,7 +385,10 @@
   async function handleFile(file) {
     showParse("正在读这张票", "先看文件，再找出商家、金额、日期和截止日。");
     try {
-      const extracted = await fileToText(file);
+      const extracted = await Promise.race([
+        fileToText(file),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("识别包下载太慢，先手动填三项")), 90000))
+      ]);
       const text = extracted.text;
       if (!text || text.trim().length < 4) throw new Error("没有读到文字");
       const ticket = parseReceipt(text, file.name, extracted.confidence);

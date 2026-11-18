@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#F7F9F8" />
+  <title>票根 · 这张票还能做什么</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="vendor/tesseract.min.js" defer></script>
+  <script src="vendor/pdf.min.js" defer></script>
+  <script src="vendor/jszip.min.js" defer></script>
+  <script src="rules.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <div class="app" id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="seal" aria-hidden="true">票</span>
+          <span class="brand-name">票根</span>
+        </div>
+        <div class="top-actions">
+          <span class="edition">CONSUMER RIGHTS OS</span>
+          <button class="icon-btn" id="settingsBtn" type="button" aria-label="设置">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.09A1.7 1.7 0 0 0 8.95 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.09A1.7 1.7 0 0 0 4.6 8.95a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.95 4.6 1.7 1.7 0 0 0 9.98 3.04V3h4v.09A1.7 1.7 0 0 0 15.05 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.95a1.7 1.7 0 0 0 1.56 1.03H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main id="main">
+        <section class="screen on" data-screen="today" aria-label="今天">
+          <div id="todayEmpty" class="empty">
+            <div class="empty-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v17l-3-2-3 2-3-2-3 2V4Z"/><path d="M9 9h6M9 13h4"/></svg>
+            </div>
+            <p class="eyebrow">今天 · 还没有票</p>
+            <h1>拍一张小票，<br />看看还能做什么。</h1>
+            <p class="lede">只挑还有截止日的单，不导入全部流水。照片只在本机识别，不上传。</p>
+            <button class="btn primary" id="emptyCamera" type="button">
+              拍一张小票
+              <span class="btn-ico" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
+            </button>
+            <button class="btn ghost" id="emptyImport" type="button">导入订单 / 发票</button>
+            <button class="link-btn" id="emptyDemo" type="button">先用示例看看</button>
+            <p class="fine">不是法律/医疗结论；金额与日期以票据为准。</p>
+          </div>
+
+          <div id="todayContent" class="hidden">
+            <div class="today-head">
+              <div>
+                <p class="eyebrow" id="todayDate">今天</p>
+                <h1 id="todayHeadline">今天先办这一件。</h1>
+                <p class="lede" id="todaySub"></p>
+              </div>
+              <button class="icon-btn small" id="refreshBtn" type="button" aria-label="重新计算">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 1-2.34-5.66"/><path d="M20 4v7h-7"/></svg>
+              </button>
+            </div>
+            <div id="todayCard"></div>
+            <div class="stats" id="todayStats"></div>
+            <div class="section-head">
+              <h2>所有票</h2>
+              <button class="text-btn" id="addBtn" type="button">+ 再加一张</button>
+            </div>
+            <div class="ticket-list" id="ticketList"></div>
+          </div>
+        </section>
+
+        <section class="screen" data-screen="import" aria-label="导入">
+          <div class="page-head">
+            <button class="icon-btn" data-back="today" type="button" aria-label="返回今天">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div>
+              <p class="eyebrow">导入账单</p>
+              <h1>从哪儿导入？</h1>
+            </div>
+          </div>
+          <p class="lede">只挑出还有截止日的单，不导入全部流水。</p>
+          <div class="source-list">
+            <button class="source" data-source="camera" type="button">
+              <span class="source-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4V8Z"/><circle cx="12" cy="13" r="3.4"/></svg></span>
+              <span class="source-text"><b>拍线下小票 / 合同</b><small>拍照，或从相册选</small></span>
+              <span class="chev">›</span>
+            </button>
+            <button class="source" data-source="order" type="button">
+              <span class="source-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6V3Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></span>
+              <span class="source-text"><b>订单截图</b><small>淘宝 / 京东 / 支付宝</small></span>
+              <span class="chev">›</span>
+            </button>
+            <button class="source" data-source="invoice" type="button">
+              <span class="source-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h8l4 4v14H7V3Z"/><path d="M15 3v5h4"/><path d="M10 13h6M10 17h4"/></svg></span>
+              <span class="source-text"><b>电子发票</b><small>PDF / OFD / XML</small></span>
+              <span class="chev">›</span>
+            </button>
+            <button class="source" data-source="manual" type="button">
+              <span class="source-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+              <span class="source-text"><b>手动添加</b><small>只填商家、金额、日期</small></span>
+              <span class="chev">›</span>
+            </button>
+            <button class="source" data-source="demo" type="button">
+              <span class="source-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4V5Z"/><path d="M8 9h8M8 13h5"/></svg></span>
+              <span class="source-text"><b>示例数据</b><small>先看完整流程</small></span>
+              <span class="chev">›</span>
+            </button>
+          </div>
+          <p class="note">照片只在本机识别，不上传。金额/日期以票据为准。</p>
+          <input id="fileCamera" type="file" accept="image/*" capture="environment" hidden />
+          <input id="fileOrder" type="file" accept="image/*" hidden />
+          <input id="fileInvoice" type="file" accept=".pdf,.ofd,.xml,image/*" hidden />
+        </section>
+
+        <section class="screen" data-screen="parsing" aria-label="解析">
+          <div class="parse-wrap">
+            <div class="parse-spinner" aria-hidden="true"><span></span></div>
+            <p class="eyebrow">解析</p>
+            <h1 id="parseTitle">正在读这张票</h1>
+            <p class="lede" id="parseSub">先看文件，再找出商家、金额、日期和截止日。</p>
+            <div class="parse-bar"><i id="parseBar"></i></div>
+            <p class="parse-count" id="parseCount" aria-live="polite">准备中…</p>
+            <div class="parse-log" id="parseLog"></div>
+            <button class="link-btn" id="parseCancel" type="button">取消</button>
+          </div>
+        </section>
+
+        <section class="screen" data-screen="triage" aria-label="分拣">
+          <div class="page-head">
+            <button class="icon-btn" data-back="import" type="button" aria-label="返回导入">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div>
+              <p class="eyebrow">分拣</p>
+              <h1 id="triageTitle">找到 1 单</h1>
+            </div>
+          </div>
+          <p class="lede" id="triageSub">先确认字段，再决定导不导入。</p>
+          <div class="tabs" role="tablist" aria-label="分拣">
+            <button class="tab on" data-tab="window" role="tab" aria-selected="true" type="button">有截止日 <span id="tabWindow">0</span></button>
+            <button class="tab" data-tab="pending" role="tab" aria-selected="false" type="button">待确认 <span id="tabPending">0</span></button>
+            <button class="tab" data-tab="flow" role="tab" aria-selected="false" type="button">仅流水 <span id="tabFlow">0</span></button>
+            <button class="tab" data-tab="dup" role="tab" aria-selected="false" type="button">重复 <span id="tabDup">0</span></button>
+          </div>
+          <div id="triageList" class="triage-list"></div>
+          <div class="actionbar">
+            <div class="actionbar-meta"><span id="triageCount">已选 0 单</span><button class="text-btn" id="triageAll" type="button">全选本页</button></div>
+            <button class="btn primary" id="triageImport" type="button" disabled>导入 0 单</button>
+          </div>
+        </section>
+
+        <section class="screen" data-screen="result" aria-label="这张票">
+          <div class="page-head compact">
+            <button class="icon-btn" data-back="today" type="button" aria-label="返回今天">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div>
+              <p class="eyebrow">这张票</p>
+              <h1 id="resultTitle">还能做什么</h1>
+            </div>
+          </div>
+          <div id="resultTicket" class="receipt-card"></div>
+          <div id="resultWindows" class="windows"></div>
+          <div id="resultEvidence" class="evidence-block"></div>
+          <div id="resultActions" class="result-actions"></div>
+        </section>
+
+        <section class="screen" data-screen="action" aria-label="陪办">
+          <div class="page-head">
+            <button class="icon-btn" data-back="result" type="button" aria-label="返回结果">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div>
+              <p class="eyebrow">陪办</p>
+              <h1 id="actionTitle">先确认三件事</h1>
+            </div>
+          </div>
+          <div id="actionSteps" class="steps"></div>
+          <div id="actionChecklist" class="checklist"></div>
+          <div class="script-box">
+            <div class="script-head"><h2>话术</h2><button class="text-btn" id="copyScript" type="button">复制</button></div>
+            <p id="actionScript"></p>
+          </div>
+          <div id="actionPortal" class="portal"></div>
+          <div class="action-footer">
+            <button class="btn primary" id="actionDone" type="button">我办完了</button>
+            <button class="btn ghost" id="actionRejected" type="button">被拒了</button>
+          </div>
+        </section>
+
+        <section class="screen" data-screen="done" aria-label="办结">
+          <div class="done-wrap">
+            <div class="orb" aria-hidden="true"><svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div>
+            <p class="eyebrow">已保存</p>
+            <h1 id="doneTitle">办完了。</h1>
+            <p class="lede" id="doneSub"></p>
+            <div class="done-card" id="doneCard"></div>
+            <div id="doneRemaining" class="windows"></div>
+            <button class="btn primary" id="doneToday" type="button">回到今天</button>
+            <button class="btn ghost" id="doneExport" type="button">导出这张票</button>
+          </div>
+        </section>
+
+        <section class="screen" data-screen="settings" aria-label="设置">
+          <div class="page-head">
+            <button class="icon-btn" data-back="today" type="button" aria-label="返回今天">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div>
+              <p class="eyebrow">设置</p>
+              <h1>数据与隐私</h1>
+            </div>
+          </div>
+          <div class="settings-list">
+            <div class="setting-row"><div><b>票据数量</b><small>只存在这台设备的浏览器里</small></div><span id="settingCount">0</span></div>
+            <button class="setting-row" id="exportData" type="button"><div><b>导出备份</b><small>JSON，可换设备导入</small></div><span>›</span></button>
+            <button class="setting-row" id="importData" type="button"><div><b>导入备份</b><small>从另一台设备恢复</small></div><span>›</span></button>
+            <button class="setting-row danger" id="clearData" type="button"><div><b>清空全部票据</b><small>不可恢复</small></div><span>›</span></button>
+            <div class="privacy-note">
+              <b>隐私说明</b>
+              <p>图片只在你的浏览器里做 OCR；不会上传到票根服务器。你手动填写的字段保存在本机 localStorage。原图不长期保存，刷新后可重新选择。</p>
+              <p>当前规则为示例规则；价保/三包/定金条款以订单页、发票和合同为准。</p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <nav class="tabbar" aria-label="主导航">
+        <button class="tabbar-item on" data-nav="today" type="button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg>
+          <span>今天</span>
+        </button>
+        <button class="tabbar-item" data-nav="import" type="button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v10"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/></svg>
+          <span>导入</span>
+        </button>
+        <button class="tabbar-item" data-nav="settings" type="button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+          <span>设置</span>
+        </button>
+      </nav>
+
+      <div id="toast" role="status" aria-live="polite"></div>
+      <div class="sheet-overlay" id="sheetOverlay" hidden>
+        <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+          <div class="sheet-handle" aria-hidden="true"></div>
+          <div class="sheet-head"><h2 id="sheetTitle">编辑</h2><button class="icon-btn small" id="sheetClose" type="button" aria-label="关闭">×</button></div>
+          <div id="sheetBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

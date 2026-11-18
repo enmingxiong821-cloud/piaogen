@@ -1,0 +1,894 @@
+(function () {
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+  const STORE_KEY = "piaogen.v0.tickets";
+  const SETTINGS_KEY = "piaogen.v0.settings";
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const state = {
+    tickets: [],
+    pending: [],
+    tab: "window",
+    selected: new Set(),
+    current: null,
+    currentWindow: null,
+    editing: null,
+    demo: false
+  };
+
+  function uid() {
+    return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  }
+
+  function money(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "¥—";
+    return "¥" + n.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function todayLabel() {
+    const d = new Date();
+    return `今天 · ${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      state.tickets = raw ? JSON.parse(raw) : [];
+    } catch {
+      state.tickets = [];
+    }
+    if (!Array.isArray(state.tickets)) state.tickets = [];
+  }
+
+  function save() {
+    localStorage.setItem(STORE_KEY, JSON.stringify(state.tickets));
+  }
+
+  function toast(message) {
+    const el = $("#toast");
+    el.textContent = message;
+    el.classList.add("show");
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  function show(name) {
+    $$(".screen").forEach((screen) => screen.classList.toggle("on", screen.dataset.screen === name));
+    $$(".tabbar-item").forEach((item) => item.classList.toggle("on", item.dataset.nav === name));
+    const main = $("#main");
+    main.scrollTop = 0;
+    if (name === "today") renderToday();
+    if (name === "import") renderImport();
+    if (name === "triage") renderTriage();
+    if (name === "settings") renderSettings();
+  }
+
+  function openSheet(title, body, onMount) {
+    $("#sheetTitle").textContent = title;
+    $("#sheetBody").innerHTML = body;
+    $("#sheetOverlay").hidden = false;
+    if (onMount) onMount($("#sheetBody"));
+  }
+
+  function closeSheet() {
+    $("#sheetOverlay").hidden = true;
+  }
+
+  function field(label, name, value, type = "text", options) {
+    if (type === "select") {
+      return `<div class="field"><label for="f-${name}">${escapeHtml(label)}</label><select id="f-${name}" name="${name}">${options.map(([v, t]) => `<option value="${escapeHtml(v)}" ${String(value) === String(v) ? "selected" : ""}>${escapeHtml(t)}</option>`).join("")}</select></div>`;
+    }
+    if (type === "textarea") {
+      return `<div class="field"><label for="f-${name}">${escapeHtml(label)}</label><textarea id="f-${name}" name="${name}" placeholder="${escapeHtml(options || "")}">${escapeHtml(value || "")}</textarea></div>`;
+    }
+    return `<div class="field"><label for="f-${name}">${escapeHtml(label)}</label><input id="f-${name}" name="${name}" type="${type}" value="${escapeHtml(value || "")}" placeholder="${escapeHtml(options || "")}" /></div>`;
+  }
+
+  function categoryOptions(value) {
+    return Object.entries(PG.CATEGORY).map(([key, item]) => [key, item.label]).map(([key, label]) => [key, label]);
+  }
+
+  function channelOptions(value) {
+    return Object.entries(PG.CHANNEL).map(([key, item]) => [key, item.label]);
+  }
+
+  function editTicketSheet(ticket, onSave, title = "改这张票") {
+    const body = `
+      <form id="sheetForm">
+        ${field("商家", "merchant", ticket.merchant, "text", "例如：某家电卖场")}
+        ${field("金额", "amount", ticket.amount, "number", "399.00")}
+        ${field("购买日期", "date", ticket.date, "date")}
+        ${field("品类", "category", ticket.category, "select", categoryOptions())}
+        ${field("渠道", "channel", ticket.channel, "select", channelOptions())}
+        ${field("商品", "product", ticket.product, "text", "例如：空气炸锅")}
+        ${field("订单号", "orderNo", ticket.orderNo, "text", "可选")}
+        ${field("商家承诺（可选）", "promise", ticket.promise, "text", "例如：整机保修 3 年")}
+        <div class="sheet-actions">
+          <button class="btn primary" id="sheetSave" type="button">保存</button>
+          <button class="btn ghost" id="sheetCancel" type="button">取消</button>
+        </div>
+      </form>`;
+    openSheet(title, body, () => {
+      $("#sheetSave").addEventListener("click", () => {
+        const data = Object.fromEntries(new FormData($("#sheetForm")).entries());
+        const next = {
+          ...ticket,
+          merchant: String(data.merchant || "").trim(),
+          amount: Number(data.amount || 0),
+          date: data.date || ticket.date,
+          category: data.category,
+          channel: data.channel,
+          product: String(data.product || "").trim(),
+          orderNo: String(data.orderNo || "").trim(),
+          promise: String(data.promise || "").trim()
+        };
+        next.review = false;
+        next.needsConfirm = !next.merchant || !next.amount || !next.date;
+        next.windows = PG.buildWindows(next).map((w) => ({ ...w, id: uid() }));
+        onSave(next);
+        closeSheet();
+      });
+      $("#sheetCancel").addEventListener("click", closeSheet);
+    });
+  }
+
+  function outcomeSheet(ticket, win, status, onSave) {
+    const body = `
+      <form id="sheetForm">
+        ${field("结果", "status", status, "select", [["refunded", "已到账/已退款"], ["repaired", "已修好/已换货"], ["promise", "承诺已兑现"], ["rejected", "被拒了"], ["abandoned", "今天不办了"]])}
+        ${field("确认金额（可选）", "amount", "", "number", "例如：120.00")}
+        ${field("备注", "note", "", "textarea", "例如：平台客服说 3 天内到账")}
+        <div class="sheet-actions">
+          <button class="btn primary" id="outcomeSave" type="button">记录结果</button>
+          <button class="btn ghost" id="outcomeCancel" type="button">取消</button>
+        </div>
+      </form>`;
+    openSheet("记录结果", body, () => {
+      $("#outcomeSave").addEventListener("click", () => {
+        const data = Object.fromEntries(new FormData($("#sheetForm")).entries());
+        onSave({
+          status: data.status,
+          amount: data.amount ? Number(data.amount) : null,
+          note: String(data.note || "").trim()
+        });
+        closeSheet();
+      });
+      $("#outcomeCancel").addEventListener("click", closeSheet);
+    });
+  }
+
+  function parseDate(text) {
+    const normalized = String(text || "").replace(/[年月/.]/g, "-").replace(/日/g, "");
+    const match = normalized.match(/(20\d{2})[-\s]?(\d{1,2})[-\s]?(\d{1,2})/);
+    if (!match) return "";
+    const y = match[1];
+    const m = String(match[2]).padStart(2, "0");
+    const d = String(match[3]).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  function parseAmount(text) {
+    const value = String(text || "");
+    const patterns = [
+      /(?:实付|合计|总计|金额|应付|退款金额|价税合计)[:：\s]*[^\d]{0,3}([0-9]+(?:\.[0-9]{1,2})?)/,
+      /[¥￥]\s*([0-9]+(?:\.[0-9]{1,2})?)/,
+      /([0-9]+(?:\.[0-9]{1,2})?)\s*元/
+    ];
+    for (const re of patterns) {
+      const m = value.match(re);
+      if (m) return Number(m[1]);
+    }
+    const all = value.match(/[0-9]+(?:\.[0-9]{2})/g) || [];
+    if (all.length) return Math.max(...all.map(Number));
+    return null;
+  }
+
+  function parseMerchant(lines) {
+    const keywords = ["公司", "店", "商城", "卖场", "超市", "家具", "家电", "建材", "装饰", "装修", "商行", "门店", "品牌"];
+    for (const line of lines) {
+      const t = line.trim();
+      if (t.length < 2 || t.length > 30) continue;
+      if (keywords.some((k) => t.includes(k))) return t.replace(/^(商家|商户|销售方)[:：\s]*/, "");
+    }
+    return lines.find((line) => line.trim().length >= 2 && line.trim().length <= 24)?.trim() || "";
+  }
+
+  function parseProduct(lines) {
+    for (const line of lines) {
+      const t = line.trim();
+      if (/商品|品名|型号|规格|项目/.test(t)) {
+        return t.replace(/^(商品|品名|型号|规格|项目)[:：\s]*/, "").slice(0, 40);
+      }
+    }
+    return "";
+  }
+
+  function parseOrderNo(text) {
+    const m = String(text || "").match(/(?:订单号|订单编号|交易号|发票号码)[:：\s]*([A-Za-z0-9-]{6,})/);
+    return m ? m[1] : "";
+  }
+
+  function parsePromise(lines) {
+    for (const line of lines) {
+      const t = line.trim();
+      if (/保修|保价|赠品|安装|退款|承诺|延保|终身/.test(t) && t.length <= 80) return t;
+    }
+    return "";
+  }
+
+  function normalizeText(text) {
+    return String(text || "")
+      .replace(/\r/g, "\n")
+      .replace(/[ \t]+/g, " ")
+      .replace(/(?<=[\u4e00-\u9fa5])[ \t]+(?=[\u4e00-\u9fa5])/g, "")
+      .replace(/(?<=[\u4e00-\u9fa5])[ \t]+(?=\d)/g, "")
+      .replace(/(?<=\d)[ \t]+(?=[\u4e00-\u9fa5])/g, "")
+      .trim();
+  }
+
+  function parseReceipt(text, fileName = "", ocrConfidence = 100) {
+    const clean = normalizeText(text);
+    const lines = clean.split("\n").map((line) => line.trim()).filter(Boolean);
+    const amount = parseAmount(clean);
+    const date = parseDate(clean);
+    const merchant = parseMerchant(lines);
+    const product = parseProduct(lines);
+    const orderNo = parseOrderNo(clean);
+    const promise = parsePromise(lines);
+    const category = PG.categoryOf(clean);
+    let channel = PG.channelOf(clean);
+    if (channel === "other" && /^TB/i.test(orderNo)) channel = "taobao";
+    if (channel === "other" && /^JD/i.test(orderNo)) channel = "jd";
+    const missing = [];
+    if (!merchant) missing.push("商家");
+    if (!amount) missing.push("金额");
+    if (!date) missing.push("购买日期");
+    if (!product) missing.push("商品名");
+    const confidence = Math.max(10, Math.round(ocrConfidence - missing.length * 8));
+    const review = ocrConfidence < 82;
+    return {
+      id: uid(),
+      merchant: merchant || "待确认商家",
+      amount: amount || 0,
+      date: date || "",
+      category,
+      channel,
+      product,
+      orderNo,
+      promise,
+      evidence: [{
+        id: uid(),
+        type: fileName ? detectFileType(fileName) : "文本",
+        label: fileName || "导入的文本",
+        detail: clean.slice(0, 180),
+        confidence: confidence,
+        status: "active"
+      }],
+      missing,
+      review,
+      needsConfirm: missing.length > 0 || review,
+      source: "ocr",
+      createdAt: new Date().toISOString()
+    };
+  }
+
+  function detectFileType(name) {
+    const lower = String(name).toLowerCase();
+    if (lower.endsWith(".pdf")) return "PDF";
+    if (lower.endsWith(".ofd")) return "OFD";
+    if (lower.endsWith(".xml")) return "XML 发票";
+    if (/\.(png|jpe?g|webp|bmp)$/.test(lower)) return "图片";
+    return "文件";
+  }
+
+  function setParse(progress, text, logs = []) {
+    const bar = $("#parseBar");
+    const count = $("#parseCount");
+    const log = $("#parseLog");
+    if (bar) bar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+    if (count) count.textContent = text;
+    if (log) {
+      log.innerHTML = logs.map((item) => `<p class="${item.done ? "done" : "wait"}">${escapeHtml(item.text)}</p>`).join("");
+    }
+  }
+
+  function showParse(title, sub) {
+    $("#parseTitle").textContent = title;
+    $("#parseSub").textContent = sub;
+    setParse(4, "准备中…", [{ text: "读取文件", done: false }]);
+    show("parsing");
+  }
+
+  async function fileToText(file) {
+    const name = file.name || "";
+    const lower = name.toLowerCase();
+    if (lower.endsWith(".xml") || lower.endsWith(".txt")) {
+      setParse(22, "读取文字层…", [{ text: "读取文件", done: true }, { text: "提取文字层", done: false }]);
+      return { text: await file.text(), confidence: 100 };
+    }
+    if (lower.endsWith(".pdf")) {
+      if (!window.pdfjsLib) throw new Error("PDF 组件未加载");
+      setParse(18, "读取 PDF…", [{ text: "读取 PDF", done: false }]);
+      const buffer = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
+      const page = await pdf.getPage(1);
+      const content = await page.getTextContent();
+      const text = content.items.map((item) => item.str).join("\n");
+      if (text.trim().length > 24) {
+        setParse(42, "找到文字层…", [{ text: "读取 PDF", done: true }, { text: "提取文字层", done: true }]);
+        return { text, confidence: 100 };
+      }
+      setParse(38, "没有文字层，转图片识别…", [{ text: "读取 PDF", done: true }, { text: "转图片识别", done: false }]);
+      const viewport = page.getViewport({ scale: 2 });
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      return await ocrBlob(blob);
+    }
+    if (lower.endsWith(".ofd")) {
+      if (!window.JSZip) throw new Error("OFD 组件未加载");
+      setParse(18, "解开 OFD…", [{ text: "解开 OFD", done: false }]);
+      const zip = await window.JSZip.loadAsync(await file.arrayBuffer());
+      const parts = [];
+      for (const entry of Object.values(zip.files)) {
+        if (entry.dir || !entry.name.toLowerCase().endsWith(".xml")) continue;
+        const raw = await entry.async("string");
+        const text = raw
+          .replace(/<[^>]+>/g, "\n")
+          .split("\n")
+          .map((line) => line.replace(/\s+/g, " ").trim())
+          .filter(Boolean)
+          .join("\n");
+        if (text) parts.push(text);
+      }
+      if (!parts.length) throw new Error("OFD 里没有可读文字");
+      setParse(42, "找到 OFD 文字…", [{ text: "解开 OFD", done: true }, { text: "提取文字", done: true }]);
+      return { text: parts.join("\n"), confidence: 100 };
+    }
+    if (/\.(png|jpe?g|webp|bmp)$/i.test(name) || file.type.startsWith("image/")) {
+      return await ocrBlob(file);
+    }
+    throw new Error("暂不支持这种文件");
+  }
+
+  async function ocrBlob(blob) {
+    if (!window.Tesseract) throw new Error("OCR 组件未加载");
+    setParse(12, "加载中文识别…", [{ text: "加载中文识别", done: false }]);
+    const result = await window.Tesseract.recognize(blob, "chi_sim+eng", {
+      workerPath: "vendor/worker.min.js",
+      corePath: "vendor",
+      langPath: "vendor/lang",
+      logger: (m) => {
+        if (m.status === "recognizing text") {
+          setParse(25 + Math.round((m.progress || 0) * 65), `识别中 ${Math.round((m.progress || 0) * 100)}%`, [
+            { text: "加载中文识别", done: true },
+            { text: "识别文字", done: false }
+          ]);
+        }
+      }
+    });
+    setParse(96, "整理字段…", [{ text: "加载中文识别", done: true }, { text: "识别文字", done: true }]);
+    return { text: result.data.text || "", confidence: Math.round(result.data.confidence || 60) };
+  }
+
+  async function handleFile(file) {
+    showParse("正在读这张票", "先看文件，再找出商家、金额、日期和截止日。");
+    try {
+      const extracted = await fileToText(file);
+      const text = extracted.text;
+      if (!text || text.trim().length < 4) throw new Error("没有读到文字");
+      const ticket = parseReceipt(text, file.name, extracted.confidence);
+      state.pending = [ticket];
+      state.selected = new Set(ticket.needsConfirm ? [] : [ticket.id]);
+      state.tab = ticket.needsConfirm ? "pending" : "window";
+      setParse(100, "读完了", [{ text: "读取文件", done: true }, { text: "识别文字", done: true }, { text: "整理字段", done: true }]);
+      setTimeout(() => show("triage"), 260);
+    } catch (error) {
+      const text = `识别失败：${error.message || "未知错误"}`;
+      const ticket = parseReceipt("", file.name);
+      ticket.missing = ["商家", "金额", "购买日期", "商品名"];
+      ticket.needsConfirm = true;
+      ticket.evidence = [{ id: uid(), type: detectFileType(file.name), label: file.name, detail: text, confidence: 0, status: "needs" }];
+      state.pending = [ticket];
+      state.selected = new Set();
+      state.tab = "pending";
+      toast("没读出来，手动补 3 项就行");
+      show("triage");
+    }
+  }
+
+  function defaultWindows(ticket) {
+    ticket.windows = PG.buildWindows(ticket).map((window) => ({ ...window, id: uid() }));
+    return ticket;
+  }
+
+  function renderImport() {
+    $$("[data-source]").forEach((button) => {
+      button.onclick = () => {
+        const source = button.dataset.source;
+        if (source === "camera") $("#fileCamera").click();
+        if (source === "order") $("#fileOrder").click();
+        if (source === "invoice") $("#fileInvoice").click();
+        if (source === "manual") openManual();
+        if (source === "demo") addDemo();
+      };
+    });
+  }
+
+  function openManual() {
+    const blank = { merchant: "", amount: "", date: new Date().toISOString().slice(0, 10), category: "appliance", channel: "other", product: "", orderNo: "", promise: "" };
+    editTicketSheet(blank, (ticket) => {
+      state.pending = [{ ...ticket, id: uid(), evidence: [{ id: uid(), type: "手动", label: "手动添加", detail: "用户填写的字段", confidence: 100, status: "active" }], missing: ticket.needsConfirm ? ["商家", "金额", "购买日期"].filter((key) => !ticket[key === "购买日期" ? "date" : key]) : [], source: "manual", createdAt: new Date().toISOString() }];
+      state.selected = new Set(state.pending[0].needsConfirm ? [] : [state.pending[0].id]);
+      state.tab = state.pending[0].needsConfirm ? "pending" : "window";
+      show("triage");
+    }, "手动添加");
+  }
+
+  function addDemo() {
+    const demo = [
+      {
+        merchant: "某家电卖场",
+        amount: 399,
+        date: "2026-11-13",
+        category: "appliance",
+        channel: "taobao",
+        product: "某品牌空气炸锅",
+        orderNo: "TB202611130001",
+        promise: "",
+        evidence: [
+          { type: "订单截图", label: "淘宝订单截图", detail: "某家电卖场 · 实付 ¥399 · 2026-11-13", confidence: 96, status: "active" },
+          { type: "电子发票", label: "电子发票 PDF", detail: "销售方：某家电卖场 · 价税合计 ¥399", confidence: 94, status: "active" },
+          { type: "合同照片", label: "合同照片", detail: "保修条款：整机 3 年", confidence: 82, status: "active" }
+        ],
+        missing: ["保修卡"]
+      },
+      {
+        merchant: "某家具城",
+        amount: 1280,
+        date: "2026-11-08",
+        category: "furniture",
+        channel: "jd",
+        product: "实木餐桌",
+        orderNo: "JD202610240001",
+        promise: "整机保修 2 年，30 天内降价退差",
+        evidence: [
+          { type: "订单截图", label: "京东订单截图", detail: "某家具城 · 实付 ¥1,280 · 2026-11-08", confidence: 93, status: "active" },
+          { type: "电子发票", label: "电子发票 PDF", detail: "销售方：某家具城 · 价税合计 ¥1,280", confidence: 91, status: "active" }
+        ],
+        missing: ["承诺确认"]
+      },
+      {
+        merchant: "某装修公司",
+        amount: 5000,
+        date: "2026-11-01",
+        category: "renovation",
+        channel: "offline",
+        product: "厨房改造定金",
+        orderNo: "",
+        promise: "开工前可退定金，扣 10% 设计费",
+        evidence: [
+          { type: "合同照片", label: "定金收据", detail: "某装修公司 · 定金 ¥5,000 · 2026-11-01", confidence: 88, status: "active" },
+          { type: "合同照片", label: "合同第 3 页", detail: "退款约定：开工前可退，扣 10% 设计费", confidence: 79, status: "active" }
+        ],
+        missing: ["合同原件"]
+      }
+    ].map((item) => defaultWindows({
+      ...item,
+      id: uid(),
+      evidence: item.evidence.map((e) => ({ ...e, id: uid() })),
+      needsConfirm: false,
+      source: "demo",
+      createdAt: new Date().toISOString()
+    }));
+    state.tickets = demo.concat(state.tickets.filter((t) => t.source !== "demo"));
+    state.demo = true;
+    save();
+    toast("已加入 3 张示例票");
+    show("today");
+  }
+
+  function renderToday() {
+    const hasTickets = state.tickets.length > 0;
+    $("#todayEmpty").classList.toggle("hidden", hasTickets);
+    $("#todayContent").classList.toggle("hidden", !hasTickets);
+    $("#todayDate").textContent = todayLabel();
+    if (!hasTickets) return;
+
+    const ranked = state.tickets
+      .map((ticket) => ({ ticket, win: PG.priority(ticket) }))
+      .sort((a, b) => {
+        const av = a.win ? a.win.daysLeft : 9999;
+        const bv = b.win ? b.win.daysLeft : 9999;
+        return av - bv;
+      });
+    const first = ranked[0];
+    const open30 = state.tickets.filter((t) => (t.windows || []).some((w) => w.daysLeft !== null && w.daysLeft >= 0 && w.daysLeft <= 30)).length;
+    const pending = state.tickets.filter((t) => t.needsConfirm).length;
+    const warranties = state.tickets.flatMap((t) => (t.windows || []).filter((w) => w.type === "warranty" && w.daysLeft !== null)).sort((a, b) => a.daysLeft - b.daysLeft);
+
+    $("#todayHeadline").textContent = first && first.win ? "今天先办这一件。" : "这批票暂时没有快到期的。";
+    $("#todaySub").textContent = first && first.win
+      ? `${first.ticket.merchant} · ${first.win.label} ${first.win.daysLeft} 天后关闭`
+      : "可以先补充证据，或再加一张票。";
+
+    if (first && first.win) {
+      $("#todayCard").innerHTML = `
+        <div class="focus-card">
+          <div class="k">${escapeHtml(first.win.label)} · ${escapeHtml(first.win.end)} 关闭${first.ticket.source === "demo" ? " · 示例" : ""}</div>
+          <div class="big">${first.win.daysLeft} 天</div>
+          <div class="sub">${escapeHtml(first.ticket.merchant)} · ${escapeHtml(first.ticket.product || "这笔订单")} · ${money(first.ticket.amount)}</div>
+          <button class="btn" id="focusAction" type="button">看它还能做什么</button>
+        </div>`;
+      $("#focusAction").addEventListener("click", () => openResult(first.ticket, first.win));
+    } else {
+      $("#todayCard").innerHTML = `<div class="focus-card" style="background:linear-gradient(145deg,#33413F,#202B29)"><div class="k">当前没有快到期的窗口</div><div class="big">0 天</div><div class="sub">已导入 ${state.tickets.length} 张票；可以先补充证据，或等新的截止日。</div></div>`;
+    }
+
+    $("#todayStats").innerHTML = `
+      <div class="stat ${open30 ? "warn" : ""}"><b>${open30}</b><span>30 天内到期</span></div>
+      <div class="stat ok"><b>${warranties.length ? warranties[0].daysLeft : "—"}</b><span>天 · 保修剩余</span></div>
+      <div class="stat"><b>${pending}</b><span>待确认</span></div>`;
+
+    $("#ticketList").innerHTML = ranked.map(({ ticket, win }) => {
+      const days = win ? win.daysLeft : null;
+      const cls = win ? (win.status === "expiring" ? "warn" : win.status === "closed" ? "closed" : "") : "closed";
+      const label = win ? `${win.label} ${days} 天` : "暂无截止日";
+      return `<button class="ticket-item" data-ticket="${ticket.id}" type="button">
+        <div class="ticket-main"><b>${escapeHtml(ticket.merchant)}</b><small>${escapeHtml(ticket.product || "未填商品")} · ${escapeHtml(ticket.date || "日期待确认")} · ${money(ticket.amount)}</small></div>
+        <div class="ticket-days ${cls}">${win ? `<b>${days}</b> 天` : label}</div>
+      </button>`;
+    }).join("");
+
+    $$("[data-ticket]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const ticket = state.tickets.find((t) => t.id === button.dataset.ticket);
+        if (ticket) openResult(ticket, PG.priority(ticket));
+      });
+    });
+  }
+
+  function openResult(ticket, win) {
+    state.current = ticket;
+    state.currentWindow = win || PG.priority(ticket);
+    renderResult(ticket);
+    show("result");
+  }
+
+  function renderResult(ticket) {
+    const open = (ticket.windows || []).filter((w) => w.daysLeft !== null && w.daysLeft >= 0);
+    const nearest = PG.priority(ticket);
+    $("#resultTitle").textContent = nearest ? `${open.length} 件事还能做` : "这张票暂时没有截止日";
+    $("#resultTicket").innerHTML = `
+      <div class="receipt-top"><div><b>${escapeHtml(ticket.merchant)}</b><div class="receipt-meta">${escapeHtml(ticket.date || "日期待确认")} · ${escapeHtml(PG.CATEGORY[ticket.category]?.label || "其他")}</div></div><div class="amt">${money(ticket.amount)}</div></div>
+      <div class="receipt-no"><span>${escapeHtml(ticket.orderNo || "CP—" + ticket.id.slice(0, 6).toUpperCase())}</span><span>${ticket.source === "demo" ? "示例" : "已保存"}</span></div>
+      <div class="evidence-line"><span>证据 <b>${ticket.evidence?.length || 0}</b> 件${ticket.missing?.length ? ` · 还缺 ${escapeHtml(ticket.missing.join("、"))}` : ""}${ticket.review ? " · OCR 需复核" : ""}</span><button id="editTicket" type="button">改字段</button></div>
+      <div class="receipt-edit" id="inlineEdit" style="display:none">
+        <label>商家<input data-field="merchant" value="${escapeHtml(ticket.merchant)}" /></label>
+        <label>金额<input data-field="amount" type="number" value="${escapeHtml(ticket.amount || "")}" /></label>
+        <label>日期<input data-field="date" type="date" value="${escapeHtml(ticket.date || "")}" /></label>
+        <label>商品<input data-field="product" value="${escapeHtml(ticket.product || "")}" /></label>
+      </div>`;
+    $("#editTicket").addEventListener("click", () => {
+      const edit = $("#inlineEdit");
+      edit.style.display = edit.style.display === "grid" ? "none" : "grid";
+    });
+    $$("#inlineEdit input").forEach((input) => {
+      input.addEventListener("change", () => {
+        const field = input.dataset.field;
+        if (field === "amount") ticket.amount = Number(input.value || 0);
+        else if (field === "date") ticket.date = input.value;
+        else ticket[field] = input.value.trim();
+        ticket.needsConfirm = !ticket.merchant || !ticket.amount || !ticket.date;
+        ticket.windows = PG.buildWindows(ticket).map((w) => ({ ...w, id: uid() }));
+        save();
+        renderResult(ticket);
+        toast("已更新，期限重新算了");
+      });
+    });
+
+    $("#resultWindows").innerHTML = (ticket.windows || []).map((w) => {
+      const width = w.daysLeft === null ? 0 : Math.max(0, Math.min(100, Math.round((w.daysLeft / 365) * 100)));
+      const cls = w.status === "expiring" ? "warn" : w.status === "closed" ? "closed" : w.status === "unknown" ? "unknown" : "";
+      const value = w.daysLeft === null ? "待确认" : `${w.daysLeft} 天`;
+      return `<div class="window ${cls}">
+        <div class="window-top"><b>${escapeHtml(w.label)}</b><span><b>${value}</b></span></div>
+        <p>${escapeHtml(w.source)}${w.end ? ` · 截止 ${escapeHtml(w.end)}` : ""}</p>
+        <div class="window-bar"><i style="width:${width}%"></i></div>
+      </div>`;
+    }).join("");
+
+    $("#resultEvidence").innerHTML = `<h2>证据</h2>` + (ticket.evidence || []).map((e) => `
+      <div class="evidence-item">
+        <span class="ev-ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7V3Z"/><path d="M14 3v5h5"/></svg></span>
+        <div class="ev-main"><b>${escapeHtml(e.type)} · ${escapeHtml(e.label)}</b><small>${escapeHtml(e.detail || "")}</small></div>
+        <span class="${e.status === "needs" ? "ev-need" : "ev-ok"}">${e.status === "needs" ? "需确认" : e.confidence ? `${e.confidence}%` : "已记录"}</span>
+      </div>`).join("") + (ticket.missing || []).map((m) => `<div class="evidence-item"><span class="ev-ico">+</span><div class="ev-main"><b>还缺 ${escapeHtml(m)}</b><small>补上后重算保修/承诺</small></div><span class="ev-need">待补</span></div>`).join("");
+
+    $("#resultActions").innerHTML = `
+      <button class="btn primary" id="goAction" type="button">${nearest ? `去办：${escapeHtml(nearest.label)}` : "补充证据"}</button>
+      <button class="btn ghost" id="backToday" type="button">回到今天</button>
+      <button class="link-btn" id="deleteTicket" type="button">删除这张票</button>`;
+    $("#goAction").addEventListener("click", () => {
+      if (nearest) openAction(ticket, nearest);
+      else toast("先补一张带金额/日期/商品名的票");
+    });
+    $("#backToday").addEventListener("click", () => show("today"));
+    $("#deleteTicket").addEventListener("click", () => {
+      state.tickets = state.tickets.filter((t) => t.id !== ticket.id);
+      save();
+      toast("已删除");
+      show("today");
+    });
+  }
+
+  function openAction(ticket, win) {
+    state.current = ticket;
+    state.currentWindow = win;
+    $("#actionTitle").textContent = `${win.label} · 先确认三件事`;
+    $("#actionSteps").innerHTML = `<div class="step on"><i></i><span>1 看规则</span></div><div class="step"><i></i><span>2 备材料</span></div><div class="step"><i></i><span>3 去办理</span></div>`;
+    $("#actionChecklist").innerHTML = PG.checklistFor(win).map((item) => `<label class="check-item"><input type="checkbox" /><span>${escapeHtml(item)}</span></label>`).join("");
+    $("#actionScript").textContent = PG.scriptFor(ticket, win);
+    const portal = PG.portalFor(win);
+    $("#actionPortal").innerHTML = `<a href="${portal.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(portal.label)}<span>↗</span></a>`;
+    show("action");
+  }
+
+  function recordOutcome(ticket, win, outcome) {
+    const action = {
+      id: uid(),
+      type: win.type,
+      label: win.label,
+      status: outcome.status,
+      amount: outcome.amount,
+      note: outcome.note,
+      createdAt: new Date().toISOString()
+    };
+    ticket.actions = (ticket.actions || []).concat(action);
+    if (outcome.status === "refunded" || outcome.status === "repaired" || outcome.status === "promise") {
+      win.status = "closed";
+    }
+    save();
+    renderDone(ticket, win, outcome);
+    show("done");
+  }
+
+  function renderDone(ticket, win, outcome) {
+    const statusLabel = outcome.status === "refunded" ? "已到账/已退款" : outcome.status === "repaired" ? "已修好/已换货" : outcome.status === "promise" ? "承诺已兑现" : outcome.status === "rejected" ? "被拒了" : "今天不办了";
+    $("#doneTitle").textContent = outcome.status === "rejected" ? "被拒了，记录还在。" : outcome.status === "abandoned" ? "先放着，记录还在。" : "办完了。";
+    $("#doneSub").textContent = outcome.status === "rejected" ? "原记录保留；可以换一条路，或今天先不办。" : "结果已写进这张票。";
+    $("#doneCard").innerHTML = `
+      <div class="row"><span>${escapeHtml(win.label)}</span><b>${escapeHtml(statusLabel)}</b></div>
+      <div class="row"><span>确认金额</span><b>${outcome.amount ? money(outcome.amount) : "未填"}</b></div>
+      <div class="row"><span>商家</span><b>${escapeHtml(ticket.merchant)}</b></div>
+      ${outcome.note ? `<div class="row"><span>备注</span><b>${escapeHtml(outcome.note)}</b></div>` : ""}`;
+    const remaining = (ticket.windows || []).filter((w) => w.status !== "closed" && w.daysLeft !== null && w.daysLeft >= 0);
+    $("#doneRemaining").innerHTML = remaining.length ? `<div class="section-head"><h2>这张票还剩</h2></div>` + remaining.slice(0, 3).map((w) => `<div class="window"><div class="window-top"><b>${escapeHtml(w.label)}</b><span><b>${w.daysLeft} 天</b></span></div><p>${escapeHtml(w.source)}</p></div>`).join("") : "";
+    $("#doneToday").onclick = () => show("today");
+    $("#doneExport").onclick = () => exportTicket(ticket);
+  }
+
+  function renderTriage() {
+    const groups = { window: [], pending: [], flow: [], dup: [] };
+    for (const ticket of state.pending) {
+      const windows = PG.buildWindows(ticket).filter((w) => w.daysLeft !== null && w.daysLeft >= 0);
+      ticket.windows = windows.map((w) => ({ ...w, id: uid() }));
+      const duplicate = state.tickets.some((t) => t.merchant === ticket.merchant && Number(t.amount) === Number(ticket.amount) && t.date === ticket.date);
+      if (duplicate) groups.dup.push(ticket);
+      else if (ticket.needsConfirm) groups.pending.push(ticket);
+      else if (windows.length) groups.window.push(ticket);
+      else groups.flow.push(ticket);
+    }
+    $("#tabWindow").textContent = groups.window.length;
+    $("#tabPending").textContent = groups.pending.length;
+    $("#tabFlow").textContent = groups.flow.length;
+    $("#tabDup").textContent = groups.dup.length;
+    $("#triageTitle").textContent = `找到 ${state.pending.length} 单`;
+    $("#triageSub").textContent = state.pending.length ? "先确认字段，再决定导不导入。" : "没有待导入的单。";
+    $$(".tab").forEach((tab) => {
+      const on = tab.dataset.tab === state.tab;
+      tab.classList.toggle("on", on);
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    const list = groups[state.tab] || [];
+    $("#triageList").innerHTML = list.length ? list.map((ticket) => {
+      const checked = state.selected.has(ticket.id) ? "checked" : "";
+      const chips = (ticket.windows || []).slice(0, 3).map((w) => `<span class="chip ${w.status === "expiring" ? "warn" : w.status === "unknown" ? "pending" : "ok"}">${escapeHtml(w.label)} ${w.daysLeft === null ? "待确认" : `${w.daysLeft} 天`}</span>`).join("") + (ticket.review ? `<span class="chip pending">OCR 需复核</span>` : "");
+      return `<div class="triage-row" data-row="${ticket.id}">
+        <label class="check"><input type="checkbox" ${checked} data-check="${ticket.id}" aria-label="选择 ${escapeHtml(ticket.merchant)}" /><span class="box"></span></label>
+        <div class="triage-main">
+          <div class="triage-top"><b>${escapeHtml(ticket.merchant)}</b><span class="amt">${money(ticket.amount)}</span></div>
+          <div class="triage-meta">${escapeHtml(ticket.date || "日期待确认")} · ${escapeHtml(PG.CHANNEL[ticket.channel]?.label || "其他")}</div>
+          <div class="triage-product">${escapeHtml(ticket.product || "商品名待确认")}</div>
+          <div class="chips">${chips || `<span class="chip pending">待确认</span>`}</div>
+          <div class="triage-actions"><button data-edit="${ticket.id}" type="button">改字段</button><button data-remove="${ticket.id}" type="button">不是这次购买</button></div>
+        </div>
+      </div>`;
+    }).join("") : `<div class="empty" style="min-height:260px"><p class="lede">这一堆没有单。换一个 tab，或回导入。</p></div>`;
+
+    $$("[data-check]").forEach((input) => {
+      input.addEventListener("change", () => {
+        if (input.checked) state.selected.add(input.dataset.check);
+        else state.selected.delete(input.dataset.check);
+        updateTriageBar();
+      });
+    });
+    $$("[data-edit]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const ticket = state.pending.find((t) => t.id === button.dataset.edit);
+        if (ticket) editTicketSheet(ticket, (next) => {
+          const index = state.pending.findIndex((t) => t.id === ticket.id);
+          state.pending[index] = next;
+          state.tab = next.needsConfirm ? "pending" : "window";
+          renderTriage();
+        });
+      });
+    });
+    $$("[data-remove]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.pending = state.pending.filter((t) => t.id !== button.dataset.remove);
+        state.selected.delete(button.dataset.remove);
+        renderTriage();
+      });
+    });
+    updateTriageBar();
+  }
+
+  function updateTriageBar() {
+    const n = state.selected.size;
+    $("#triageCount").textContent = n ? `已选 ${n} 单` : "还没选单";
+    $("#triageImport").textContent = n ? `导入 ${n} 单` : "先选有截止日的单";
+    $("#triageImport").disabled = n === 0;
+  }
+
+  function importSelected() {
+    const chosen = state.pending.filter((t) => state.selected.has(t.id));
+    if (!chosen.length) return;
+    chosen.forEach((ticket) => {
+      ticket.windows = PG.buildWindows(ticket).map((w) => ({ ...w, id: uid() }));
+      ticket.source = ticket.source === "demo" ? "demo" : "real";
+      state.tickets.unshift(ticket);
+    });
+    state.pending = state.pending.filter((t) => !state.selected.has(t.id));
+    state.selected.clear();
+    save();
+    const first = chosen[0];
+    toast(`已导入 ${chosen.length} 单`);
+    openResult(first, PG.priority(first));
+  }
+
+  function exportTicket(ticket) {
+    const blob = new Blob([JSON.stringify(ticket, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `piaogen-${ticket.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast("已导出这张票");
+  }
+
+  function renderSettings() {
+    $("#settingCount").textContent = String(state.tickets.length);
+  }
+
+  function exportAll() {
+    const blob = new Blob([JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), tickets: state.tickets }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "piaogen-backup.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast("已导出备份");
+  }
+
+  function importAll(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        const tickets = Array.isArray(data) ? data : data.tickets;
+        if (!Array.isArray(tickets)) throw new Error("格式不对");
+        state.tickets = tickets.concat(state.tickets);
+        save();
+        renderSettings();
+        toast(`已导入 ${tickets.length} 张票`);
+      } catch {
+        toast("备份文件读不了");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function bind() {
+    $$("[data-nav]").forEach((button) => button.addEventListener("click", () => show(button.dataset.nav)));
+    $$("[data-back]").forEach((button) => button.addEventListener("click", () => show(button.dataset.back)));
+    $("#settingsBtn").addEventListener("click", () => show("settings"));
+    $("#emptyCamera").addEventListener("click", () => $("#fileCamera").click());
+    $("#emptyImport").addEventListener("click", () => show("import"));
+    $("#emptyDemo").addEventListener("click", addDemo);
+    $("#addBtn").addEventListener("click", () => show("import"));
+    $("#refreshBtn").addEventListener("click", () => {
+      state.tickets.forEach((ticket) => { ticket.windows = PG.buildWindows(ticket).map((w) => ({ ...w, id: uid() })); });
+      save();
+      renderToday();
+      toast("已重新计算");
+    });
+    $$("#fileCamera,#fileOrder,#fileInvoice").forEach((input) => {
+      input.addEventListener("change", () => {
+        const file = input.files && input.files[0];
+        input.value = "";
+        if (file) handleFile(file);
+      });
+    });
+    $("#triageImport").addEventListener("click", importSelected);
+    $("#triageAll").addEventListener("click", () => {
+      state.pending.forEach((ticket) => state.selected.add(ticket.id));
+      renderTriage();
+    });
+    $$(".tab").forEach((tab) => tab.addEventListener("click", () => {
+      state.tab = tab.dataset.tab;
+      renderTriage();
+    }));
+    $("#copyScript").addEventListener("click", async () => {
+      const text = $("#actionScript").textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        toast("话术已复制");
+      } catch {
+        toast("浏览器不允许复制，请手动选中");
+      }
+    });
+    $("#actionDone").addEventListener("click", () => {
+      if (state.current && state.currentWindow) outcomeSheet(state.current, state.currentWindow, "refunded", (outcome) => recordOutcome(state.current, state.currentWindow, outcome));
+    });
+    $("#actionRejected").addEventListener("click", () => {
+      if (state.current && state.currentWindow) outcomeSheet(state.current, state.currentWindow, "rejected", (outcome) => recordOutcome(state.current, state.currentWindow, outcome));
+    });
+    $("#exportData").addEventListener("click", exportAll);
+    $("#importData").addEventListener("click", () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "application/json";
+      input.onchange = () => input.files[0] && importAll(input.files[0]);
+      input.click();
+    });
+    $("#clearData").addEventListener("click", () => {
+      if (!confirm("清空全部票据？不可恢复。")) return;
+      state.tickets = [];
+      save();
+      renderSettings();
+      toast("已清空");
+    });
+    $("#sheetClose").addEventListener("click", closeSheet);
+    $("#sheetOverlay").addEventListener("click", (event) => { if (event.target === $("#sheetOverlay")) closeSheet(); });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !$("#sheetOverlay").hidden) closeSheet();
+    });
+  }
+
+  function init() {
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.min.js";
+    }
+    load();
+    bind();
+    renderToday();
+    renderImport();
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();

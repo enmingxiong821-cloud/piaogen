@@ -412,3 +412,10 @@ h2{font-size:15px;font-weight:650;margin:0}
 .obj{padding:10px 0;border-top:1px dashed var(--rule)}
 .obj b{display:block;font-size:13.5px;color:var(--ink);margin-bottom:4px;line-height:1.5}
 .obj p{margin:0;font-size:13px;color:var(--ink-2);line-height:1.7}
+.recover{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px;padding:10px 12px;border-radius:12px;background:var(--teal-soft);color:var(--ink-2);font-size:12.5px}
+.recover b{font-size:15px;color:var(--teal);font-variant-numeric:tabular-nums;margin-right:3px}
+.sheet-hint{margin:0 0 10px;font-size:13px;color:var(--ink-2);line-height:1.65}
+.sheet-textarea{width:100%;padding:12px;border:1px solid var(--rule);border-radius:12px;background:var(--surface);color:var(--ink);font-size:14px;line-height:1.65;resize:vertical;font-family:var(--sans)}
+.sheet-textarea:focus-visible{outline:2px solid var(--teal);outline-offset:1px;border-color:transparent}
+.sheet-actions{display:flex;gap:10px;margin-top:12px}
+.sheet-actions .btn{flex:1}

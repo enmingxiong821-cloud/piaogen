@@ -75,6 +75,7 @@
               </button>
             </div>
             <div id="todayCard"></div>
+            <div class="recover hidden" id="recoverLine"></div>
             <div class="stats" id="todayStats"></div>
             <div class="section-head">
               <h2>所有票</h2>
@@ -111,7 +112,11 @@
               <span class="source-text"><b>电子发票</b><small>PDF / OFD / XML</small></span>
               <span class="chev">›</span>
             </button>
-            <button class="source" data-source="manual" type="button">
+            <button class="source" data-source="bill" type="button">
+              <span class="source-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span>
+              <span class="source-text"><b>粘贴支付宝 / 微信账单</b><small>一行一单，自动拆成多张票</small></span>
+              <span class="chev">›</span>
+            </button>            <button class="source" data-source="manual" type="button">
               <span class="source-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
               <span class="source-text"><b>手动添加</b><small>只填商家、金额、日期</small></span>
               <span class="chev">›</span>

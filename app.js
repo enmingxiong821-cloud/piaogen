@@ -421,9 +421,110 @@
         if (source === "order") $("#fileOrder").click();
         if (source === "invoice") $("#fileInvoice").click();
         if (source === "manual") openManual();
+    if (source === "bill") openBill();
         if (source === "demo") addDemo();
       };
     });
+  }
+
+  function parseBillLine(line) {
+    const dm = line.match(/(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})/);
+    if (!dm) return null;
+    const date = `${dm[1]}-${String(dm[2]).padStart(2, "0")}-${String(dm[3]).padStart(2, "0")}`;
+    const nums = [];
+    const re = /([¥￥]\s*)?(-?\d+(?:\.\d{1,2})?)/g;
+    let m;
+    while ((m = re.exec(line)) !== null) {
+      if (/^20\d{2}$/.test(m[2])) continue;
+      nums.push({ currency: !!m[1], decimal: /\.\d/.test(m[2]), value: Math.abs(Number(m[2])) });
+    }
+    const cand = nums.filter((n) => n.currency || n.decimal);
+    const amount = cand.length ? cand[cand.length - 1].value : null;
+    if (!amount) return null;
+    const fields = line.split(/\s*[,\t|]\s*|\s{2,}/).map((s) => s.trim()).filter(Boolean);
+    let merchant = "";
+    for (const f of fields) {
+      if (/^20\d{2}/.test(f)) continue;
+      if (/^[¥￥]?-?\d/.test(f)) continue;
+      if (/^(支出|收入|不计收支|交易成功|已关闭|退款成功)$/.test(f)) continue;
+      if (f.length >= 2) { merchant = f; break; }
+    }
+    return { date, amount, merchant: merchant || "未知商家", product: "", channel: PG.channelOf(line) };
+  }
+
+  function parseBillText(text) {
+    return String(text || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !/^(交易时间|时间).*(金额)/.test(line))
+      .map(parseBillLine)
+      .filter(Boolean);
+  }
+
+  function openBill() {
+    $("#sheetTitle").textContent = "粘贴账单";
+    $("#sheetBody").innerHTML = `
+      <p class="sheet-hint">从支付宝或微信账单里复制一段时间，直接粘贴进来。一行一单，能认出日期、商家和金额的才会导入。</p>
+      <textarea id="billText" class="sheet-textarea" rows="8" placeholder="2026-11-13 12:30:00  某家电卖场  -399.00
+2026-11-08 09:12:44  某家具城  -1280.00
+2026-11-01 18:03:10  某装修公司  -5000.00"></textarea>
+      <div class="sheet-actions">
+        <button class="btn primary" id="billParse" type="button">解析并导入</button>
+        <button class="btn ghost" id="billCancel" type="button">取消</button>
+      </div>`;
+    $("#sheetOverlay").hidden = false;
+    $("#billCancel").addEventListener("click", closeSheet);
+    $("#billParse").addEventListener("click", () => {
+      const rows = parseBillText($("#billText").value);
+      if (!rows.length) { toast("没认出账单行，检查一下日期和金额"); return; }
+      state.pending = rows.map((row) => defaultWindows({
+        ...row,
+        id: uid(),
+        evidence: [{ id: uid(), type: "账单", label: "账单记录", detail: `${row.merchant} · ${row.date} · ¥${row.amount}`, confidence: 90, status: "active" }],
+        missing: [],
+        needsConfirm: !row.merchant || row.merchant === "未知商家",
+        source: "bill",
+        createdAt: new Date().toISOString()
+      }));
+      state.selected = new Set(state.pending.filter((p) => !p.needsConfirm).map((p) => p.id));
+      state.tab = state.pending.some((p) => p.needsConfirm) ? "pending" : "window";
+      closeSheet();
+      show("triage");
+      toast(`认出 ${rows.length} 单`);
+    });
+  }
+
+  function statsOf(tickets) {
+    let recovered = 0, done = 0, spans = [];
+    for (const ticket of tickets) {
+      for (const action of (ticket.actions || [])) {
+        if (action.status === "refunded" || action.status === "promise") {
+          recovered += Number(action.amount) || 0;
+          done += 1;
+        } else if (action.status === "repaired") {
+          done += 1;
+        }
+        if (ticket.date && action.createdAt) {
+          const a = new Date(ticket.date), b = new Date(action.createdAt);
+          const d = Math.round((b - a) / 86400000);
+          if (d >= 0 && d < 3650) spans.push(d);
+        }
+      }
+    }
+    const avg = spans.length ? Math.round(spans.reduce((s, x) => s + x, 0) / spans.length) : null;
+    return { recovered, done, avg };
+  }
+
+  function renderStats() {
+    const host = $("#recoverLine");
+    if (!host) return;
+    const s = statsOf(state.tickets || []);
+    if (!s.done) { host.classList.add("hidden"); host.innerHTML = ""; return; }
+    host.classList.remove("hidden");
+    host.innerHTML = `
+      <span><b>${money(s.recovered)}</b> 已追回</span>
+      <span><b>${s.done}</b> 件办成</span>
+      ${s.avg === null ? "" : `<span><b>${s.avg}</b> 天平均</span>`}`;
   }
 
   function openManual() {
@@ -500,6 +601,7 @@
   }
 
   function renderToday() {
+    renderStats();
     const hasTickets = state.tickets.length > 0;
     $("#todayEmpty").classList.toggle("hidden", hasTickets);
     $("#todayContent").classList.toggle("hidden", !hasTickets);

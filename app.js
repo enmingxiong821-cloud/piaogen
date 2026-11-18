@@ -362,13 +362,56 @@
     throw new Error("暂不支持这种文件");
   }
 
-  async function ocrBlob(blob) {
-    if (!window.Tesseract) throw new Error("OCR 组件未加载");
-    setParse(12, "加载中文识别…", [{ text: "加载中文识别", done: false }]);
-    const result = await window.Tesseract.recognize(blob, "chi_sim", {
+  async function preprocessImage(blob) {
+    try {
+      const bmp = await createImageBitmap(blob);
+      const scale = Math.min(3, 3000 / Math.max(bmp.width, bmp.height));
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(bmp.width * Math.max(1, scale));
+      cv.height = Math.round(bmp.height * Math.max(1, scale));
+      const g = cv.getContext("2d");
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = "high";
+      g.drawImage(bmp, 0, 0, cv.width, cv.height);
+      const img = g.getImageData(0, 0, cv.width, cv.height);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        const c = Math.max(0, Math.min(255, (v - 128) * 1.6 + 128));
+        d[i] = d[i + 1] = d[i + 2] = c;
+      }      g.putImageData(img, 0, 0);
+      return await new Promise((res) => cv.toBlob((b) => res(b || blob), "image/png"));
+    } catch (e) {
+      return blob;
+    }
+  }
+
+  async function ocrPrecise(blob) {
+    setParse(8, "加载精确模型…", [{ text: "加载精确模型", done: false }]);
+    const result = await window.Tesseract.recognize(blob, "chi_sim_hq", {
       workerPath: "vendor/worker.min.js",
       corePath: "vendor",
       langPath: "vendor/lang",
+      logger: (m) => {
+        if (m.status === "recognizing text") {
+          setParse(20 + Math.round((m.progress || 0) * 70), `精确识别 ${Math.round((m.progress || 0) * 100)}%`, [
+            { text: "加载精确模型", done: true },
+            { text: "重新识别", done: false }
+          ]);
+        }
+      }
+    });
+    return result.data.text || "";
+  }
+
+  async function ocrBlob(blob) {
+    if (!window.Tesseract) throw new Error("OCR 组件未加载");
+    setParse(12, "加载中文识别…", [{ text: "加载中文识别", done: false }]);
+    const input = await preprocessImage(blob);
+    const result = await window.Tesseract.recognize(input, "chi_sim", {
+      workerPath: "vendor/worker.min.js",
+      corePath: "vendor",
+      langPath: "vendor/lang-fast",
       logger: (m) => {
         if (m.status === "recognizing text") {
           setParse(25 + Math.round((m.progress || 0) * 65), `识别中 ${Math.round((m.progress || 0) * 100)}%`, [
@@ -385,6 +428,7 @@
   async function handleFile(file) {
     showParse("正在读这张票", "先看文件，再找出商家、金额、日期和截止日。");
     try {
+      if (file.type && file.type.startsWith("image/")) state.lastFile = file;
       const extracted = await Promise.race([
         fileToText(file),
         new Promise((_, reject) => setTimeout(() => reject(new Error("识别包下载太慢，先手动填三项")), 90000))
@@ -418,7 +462,7 @@
 
   function warmOcr() {
     try { if (localStorage.getItem("pg.langWarm") === "1") return; } catch (e) { return; }
-    const files = ["vendor/lang/chi_sim.traineddata.gz"];
+    const files = ["vendor/lang-fast/chi_sim.traineddata.gz"];
     Promise.all(files.map((f) => fetch(f).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null)))
       .then((res) => {
         if (res.every(Boolean)) { try { localStorage.setItem("pg.langWarm", "1"); } catch (e) {} }
@@ -814,8 +858,24 @@
     const banner = $("#reviewBanner");
     if (banner) {
       if (ticket.review) {
-        banner.innerHTML = `<div class="review-banner"><b>OCR 置信度偏低</b><span>金额、日期请核对后再用</span><button class="link-btn" id="reviewFix" type="button">改字段</button></div>`;
+        banner.innerHTML = `<div class="review-banner"><b>OCR 置信度偏低</b><span>金额、日期请核对后再用</span><button class="link-btn" id="reviewPrecise" type="button">精确模式</button><button class="link-btn" id="reviewFix" type="button">改字段</button></div>`;
         $("#reviewFix").onclick = () => { const b = $("#editTicket"); if (b) b.click(); };
+        $("#reviewPrecise").onclick = async () => {
+          if (!state.lastFile) { toast("这张票没有原图，手动改字段即可"); return; }
+          try {
+            showParse("精确模式", "重新加载完整中文模型，比快速模式更准，但要多下一些数据。");
+            const text = await ocrPrecise(state.lastFile);
+            if (!text || text.trim().length < 4) throw new Error("还是没读到文字");
+            const fresh = parseReceipt(text, state.lastFile.name || "receipt", 95);
+            Object.assign(ticket, fresh, { id: ticket.id, actions: ticket.actions || [], helper: ticket.helper || null, source: ticket.source });
+            save();
+            renderResult(ticket);
+            toast("已用精确模型重新识别");
+          } catch (err) {
+            toast("精确模式失败：" + (err.message || "换个文件试试"));
+            renderResult(ticket);
+          }
+        };
       } else {
         banner.innerHTML = "";
       }

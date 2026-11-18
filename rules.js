@@ -269,7 +269,7 @@
     const amount = ticket.amount ? `¥${Number(ticket.amount).toFixed(2)}` : "这笔订单";
     const when = ticket.date || "购买日期";
     const basis = (window && window.basis) || BASIS.cpl24;
-    const cite = `依据${basis.law}${basis.article}：${basis.short}。`;
+    const cite = `依据${basis.law}${basis.article}：${basis.text || basis.short || ""}。`;
     const map = {
       return: `你好，我在${merchant}购买的${ticket.product || "商品"}（${amount}，${when}）还在退货期内。${cite}请告诉我退货入口、寄回地址和需要承担的费用。`,
       exchange: `你好，我在${merchant}购买的${ticket.product || "商品"}（${amount}，${when}）出现性能故障。${cite}请帮我安排换货，并确认上门或寄回的地址。`,
@@ -308,6 +308,64 @@
     return map[window.type] || { label: "打开官方入口", url: "https://www.alipay.com" };
   }
 
+  const OBJECTIONS = {
+    return: [
+      ["已经拆封了，不能退", "《消保法》第二十五条只排除定制、鲜活易腐、拆封音像制品和软件、报刊，拆封本身不是拒绝理由。"],
+      ["超过 7 天了", "质量问题走《消保法》第二十四条，不受 7 日限制；目录内商品还有 15 日换货。"],
+      ["特价商品不退不换", "《部分商品修理更换退货责任规定》第三条：合同不得免除三包责任。"]
+    ],
+    exchange: [
+      ["超过 15 天了", "三包有效期内修理两次仍不能正常使用，凭修理记录仍可要求免费换货（第十一条）。"],
+      ["这是人为损坏", "《消保法》第二十三条第三款：6 个月内耐用商品瑕疵，由经营者举证。"]
+    ],
+    warranty: [
+      ["配件没到，先等着", "三包第十二条：无配件待修超过 90 日，应当免费换货。"],
+      ["修两次就好了", "三包第十一条：修理两次仍不能正常使用，应免费换货或退货。"]
+    ],
+    price: [
+      ["活动价不参与价保", "请出示该商品页的价保条款；没有写明排除的，按页面承诺执行。"],
+      ["已经过价保期", "请给出价保起算日；价保通常从签收日起算，不是下单日。"]
+    ],
+    deposit: [
+      ["定金一律不退", "《民法典》第五百八十七条：收受定金一方违约，应双倍返还。"],
+      ["这是订金不是定金", "订金不适用定金罚则，但合同目的不能实现时仍应返还。"],
+      ["超过 20% 的部分也不退", "《民法典》第五百八十六条：超过主合同标的额 20% 的部分不产生定金效力，应按预付款返还。"]
+    ],
+    prepaid: [
+      ["卡一经售出不退", "《消保法实施条例》第二十二条：未按约定提供商品或服务，应按消费者要求履行或退还预付款。"],
+      ["换老板了找新老板", "经营者变更不影响原合同义务，可要求现经营者继续履行或退款。"]
+    ],
+    promise: [
+      ["口头承诺不算数", "《消保法》第二十条：经营者应当按约定履行义务；聊天记录、录音可以作为证据。"]
+    ]
+  };
+
+  function objectionsFor(win) {
+    return (win && OBJECTIONS[win.type]) || OBJECTIONS.return;
+  }
+
+  function taxHints(ticket) {
+    const out = [];
+    const cat = ticket && ticket.category;
+    if (["appliance", "digital", "auto"].indexOf(cat) >= 0) {
+      const d = cat === "digital"
+        ? "手机、平板、智能手表手环按售价 15% 补贴，单件最高 500 元（单价需在限额内）。"
+        : cat === "auto"
+          ? "汽车以旧换新按各地细则执行，报废或置换各有对应补贴。"
+          : "家电按售价 15% 补贴，1 级能效 20%，单件最高 2000 元。";
+      out.push({ t: "购新补贴", d, n: "发票、旧机回收单、本人银行卡" });
+    }
+    if (cat === "auto") {
+      out.push({ t: "车辆购置税", d: "按不含税价 10% 计征；新能源车按当年目录免征或减半。", n: "机动车销售统一发票、合格证" });
+    }
+    if (cat === "renovation" || cat === "furniture") {
+      out.push({ t: "凭证留存", d: "家装、家具发票是保修、返工、纠纷举证的核心凭证，建议长期保存电子版。", n: "发票原件或 PDF" });
+    }
+    out.push({ t: "发票查验", d: "在国家税务总局全国增值税发票查验平台核验真伪，报销、投诉、维权都要用。", n: "发票代码、号码、开票日期、金额" });
+    out.push({ t: "年度汇算", d: "每年 3–6 月办理综合所得汇算，专项附加扣除要用到合同、发票、还款凭证。", n: "相关凭证原件" });
+    return out;
+  }
+
   window.PG = {
     CATEGORY,
     CHANNEL,
@@ -316,6 +374,8 @@
     channelOf,
     buildWindows,
     depositCalc,
+    objectionsFor,
+    taxHints,
     priority,
     scriptFor,
     checklistFor,

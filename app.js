@@ -621,6 +621,31 @@
     run();
   }
 
+  function renderTax(ticket) {
+    const host = $("#taxCard");
+    if (!host) return;
+    const hints = PG.taxHints(ticket);
+    const specific = hints.filter((h) => h.t !== "发票查验" && h.t !== "年度汇算");
+    if (!specific.length) {
+      host.classList.add("hidden");
+      host.innerHTML = "";
+      return;
+    }
+    host.classList.remove("hidden");
+    host.innerHTML = `
+      <div class="tax-head">
+        <h2>这张票还能抵什么</h2>
+        <p>发票不只是维权凭证，也是补贴和扣除的凭证。</p>
+      </div>
+      ${hints.map((h) => `
+        <div class="tax-item">
+          <b>${escapeHtml(h.t)}</b>
+          <p>${escapeHtml(h.d)}</p>
+          <small>需要：${escapeHtml(h.n)}</small>
+        </div>`).join("")}
+      <p class="tax-note">补贴比例和扣除标准按当年公告执行；这里只判断资格和凭证，不代算税额。</p>`;
+  }
+
   function renderResult(ticket) {
     const actionable = (ticket.windows || []).filter((w) => w.status !== "closed");
     const nearest = PG.priority(ticket);
@@ -668,6 +693,7 @@
     }).join("");
 
     renderDeposit(ticket);
+    renderTax(ticket);
 
     $("#resultEvidence").innerHTML = `<h2>证据</h2>` + (ticket.evidence || []).map((e) => `
       <div class="evidence-item">
@@ -700,6 +726,8 @@
     $("#actionSteps").innerHTML = `<div class="step on"><i></i><span>1 看规则</span></div><div class="step"><i></i><span>2 备材料</span></div><div class="step"><i></i><span>3 去办理</span></div>`;
     $("#actionChecklist").innerHTML = PG.checklistFor(win).map((item) => `<label class="check-item"><input type="checkbox" /><span>${escapeHtml(item)}</span></label>`).join("");
     $("#actionScript").textContent = PG.scriptFor(ticket, win);
+    $("#actionObjections").innerHTML = `<h2>对方可能会说</h2>` + PG.objectionsFor(win).map((pair) => `
+      <div class="obj"><b>「${escapeHtml(pair[0])}」</b><p>${escapeHtml(pair[1])}</p></div>`).join("");
     const portal = PG.portalFor(win);
     $("#actionPortal").innerHTML = `<a href="${portal.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(portal.label)}<span>↗</span></a>`;
     show("action");

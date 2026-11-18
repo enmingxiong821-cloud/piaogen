@@ -399,3 +399,16 @@ h2{font-size:15px;font-weight:650;margin:0}
 .calc-row.sum b{font-size:21px;color:var(--teal)}
 .calc-note{margin:10px 0 0;font-size:12px;color:var(--ink-3);line-height:1.65}
 @media (max-width:360px){.calc-grid{grid-template-columns:1fr}}
+.tax{margin-top:20px;border-top:1px solid var(--rule);padding-top:18px}
+.tax-head h2{margin:0 0 6px;font-size:17px;font-weight:600}
+.tax-head p{margin:0 0 10px;color:var(--ink-2);font-size:13px;line-height:1.65}
+.tax-item{padding:10px 0;border-top:1px dashed var(--rule)}
+.tax-item b{display:block;font-size:14px;color:var(--ink)}
+.tax-item p{margin:3px 0 5px;font-size:13px;color:var(--ink-2);line-height:1.65}
+.tax-item small{font-size:12px;color:var(--ink-3);line-height:1.6}
+.tax-note{margin:12px 0 0;font-size:12px;color:var(--ink-3);line-height:1.65}
+.objections{margin-top:18px;border-top:1px solid var(--rule);padding-top:16px}
+.objections h2{margin:0 0 10px;font-size:15px;font-weight:600}
+.obj{padding:10px 0;border-top:1px dashed var(--rule)}
+.obj b{display:block;font-size:13.5px;color:var(--ink);margin-bottom:4px;line-height:1.5}
+.obj p{margin:0;font-size:13px;color:var(--ink-2);line-height:1.7}

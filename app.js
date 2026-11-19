@@ -440,7 +440,7 @@ const POINT_KEY = "piaogen.v0.points";
     const result = await window.Tesseract.recognize(input, "chi_sim", {
       workerPath: "vendor/worker.min.js",
       corePath: "vendor",
-      langPath: "vendor/lang-fast",
+      langPath: "vendor/lang-fast-v4",
       logger: (m) => {
         if (m.status === "recognizing text") {
           setParse(25 + Math.round((m.progress || 0) * 65), `识别中 ${Math.round((m.progress || 0) * 100)}%`, [
@@ -491,7 +491,7 @@ const POINT_KEY = "piaogen.v0.points";
 
   function warmOcr() {
     try { if (localStorage.getItem("pg.langWarm") === "1") return; } catch (e) { return; }
-    const files = ["vendor/lang-fast/chi_sim.traineddata.gz"];
+    const files = ["vendor/lang-fast-v4/chi_sim.traineddata.gz"];
     Promise.all(files.map((f) => fetch(f).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null)))
       .then((res) => {
         if (res.every(Boolean)) { try { localStorage.setItem("pg.langWarm", "1"); } catch (e) {} }

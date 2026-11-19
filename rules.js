@@ -379,6 +379,89 @@
     return out;
   }
 
+  const CLAIM_TEXT = {
+    return: (t) => `要求退货退款 ${t.amount}，退回运费由经营者承担。`,
+    exchange: () => "要求免费更换同型号同规格商品。",
+    warranty: () => "要求免费修理；如修理两次仍不能正常使用，要求免费换货。",
+    price: () => "要求退还差价，金额以平台核验为准。",
+    deposit: (t) => `要求退还定金 ${t.amount}；经营者违约的，要求双倍返还。`,
+    prepaid: (t) => `要求退还剩余预付款 ${t.amount}。`,
+    promise: () => "要求按购买时的承诺履行。"
+  };
+
+  function complaintFor(ticket, win, variant) {
+    const amount = Number(ticket.amount) || 0;
+    const f = {
+      merchant: ticket.merchant || "（商家名称待确认）",
+      product: ticket.product || "（商品或服务名称待确认）",
+      date: ticket.date || "（购买日期待确认）",
+      orderNo: ticket.orderNo || "（订单号待确认）",
+      amount: amount ? `¥${amount.toFixed(2)}` : "（金额待确认）"
+    };
+    const basis = (win && win.basis) || { law: "《消费者权益保护法》", article: "第二十四条", text: "商品不符合质量要求的，可以要求退货、更换、修理。" };
+    const claim = (CLAIM_TEXT[win && win.type] || CLAIM_TEXT.return)(f);
+    const ev = (ticket.evidence || []).map((e, i) => `${i + 1}. ${e.label || e.type || "证据"}`).join("\n") || "1. （待补充）";
+    const checks = [
+      { label: "有明确事实（商家 / 日期 / 金额）", ok: !!(ticket.merchant && ticket.date && amount) },
+      { label: "有法律依据（条款号）", ok: !!(win && win.basis) },
+      { label: "有明确诉求", ok: !!claim },
+      { label: "有证据清单", ok: (ticket.evidence || []).length > 0 }
+    ];
+    if (variant === "platform") {
+      return { checks, title: `${f.merchant} · 申请平台介入`, body: `订单号：${f.orderNo}
+商家：${f.merchant}
+商品：${f.product}
+金额：${f.amount}
+购买日期：${f.date}
+
+你好，我在 ${f.date} 购买了 ${f.product}，支付 ${f.amount}。${claim}
+
+依据${basis.law}${basis.article}：${basis.text}
+
+我已与商家沟通，未能解决。请平台介入处理。
+
+证据：
+${ev}` };
+    }
+    if (variant === "heimao") {
+      return { checks, title: `${f.merchant} 拒绝处理 ${f.product}（${f.amount}）`, body: `【投诉对象】${f.merchant}
+【涉及金额】${f.amount}
+【购买时间】${f.date}
+【订单号】${f.orderNo}
+
+【事情经过】
+${f.date}，我在 ${f.merchant} 购买 ${f.product}，支付 ${f.amount}。
+之后商品出现问题，我联系商家要求处理，商家未按法律规定解决。
+
+【我的诉求】
+${claim}
+
+【依据】
+${basis.law}${basis.article}：${basis.text}
+
+【证据】
+${ev}` };
+    }
+    return { checks, title: "12315 投诉材料", body: `【投诉人】请填写姓名与联系电话
+【被投诉方】${f.merchant}
+【商品/服务】${f.product}
+【消费金额】${f.amount}
+【消费日期】${f.date}
+【订单号】${f.orderNo}
+
+【事实与理由】
+本人于 ${f.date} 在 ${f.merchant} 购买 ${f.product}，支付 ${f.amount}。因商品或服务不符合约定/法定要求，与经营者协商未果。
+
+【法律依据】
+${basis.law}${basis.article}：${basis.text}
+
+【投诉请求】
+${claim}
+
+【证据材料】
+${ev}` };
+  }
+
   window.PG = {
     CATEGORY,
     CHANNEL,
@@ -391,6 +474,7 @@
     depositCalc,
     objectionsFor,
     taxHints,
+    complaintFor,
     priority,
     scriptFor,
     checklistFor,

@@ -891,11 +891,13 @@
     $("#resultActions").innerHTML = `
       <button class="btn primary" id="goAction" type="button">${nearest ? `去办：${escapeHtml(nearest.label)}` : "补充证据"}</button>
       ${nearest && nearest.end ? `<button class="btn ghost" id="toCalendar" type="button">加到日历</button>` : ""}
+      ${nearest ? `<button class="btn ghost" id="writeComplaint" type="button">写投诉</button>` : ""}
       ${(ticket.windows || []).some((w) => w.basis) ? `<button class="btn ghost" id="toShareCard" type="button">生成分享图</button>` : ""}
       <button class="btn ghost" id="backToday" type="button">回到今天</button>
       <button class="link-btn" id="deleteTicket" type="button">删除这张票</button>`;
     if ($("#toCalendar")) $("#toCalendar").addEventListener("click", () => addToCalendar(ticket, nearest));
     if ($("#toShareCard")) $("#toShareCard").addEventListener("click", () => shareCard(ticket));
+    if ($("#writeComplaint")) $("#writeComplaint").addEventListener("click", () => openComplaintSheet(ticket, nearest));
     $("#goAction").addEventListener("click", () => {
       if (nearest) openAction(ticket, nearest);
       else toast("先补一张带金额/日期/商品名的票");
@@ -911,6 +913,46 @@
     renderHelper(ticket);
     renderEmptyReason(ticket, actionable);
     renderTimeline(ticket);
+  }
+
+  function openComplaintSheet(ticket, win) {
+    let variant = "12315";
+    const render = () => {
+      const c = PG.complaintFor(ticket, win, variant);
+      $("#sheetTitle").textContent = "写投诉";
+      $("#sheetBody").innerHTML = `
+        <div class="seg" role="group" aria-label="投诉版本">
+          <button type="button" data-v="12315" class="${variant === "12315" ? "on" : ""}">12315</button>
+          <button type="button" data-v="platform" class="${variant === "platform" ? "on" : ""}">平台介入</button>
+          <button type="button" data-v="heimao" class="${variant === "heimao" ? "on" : ""}">黑猫</button>
+        </div>
+        <div class="checks">
+          ${c.checks.map((x) => `<span class="${x.ok ? "ok" : "no"}">${x.ok ? "✓" : "○"} ${escapeHtml(x.label)}</span>`).join("")}
+        </div>
+        <pre class="complaint-body" id="complaintBody">${escapeHtml(c.body)}</pre>
+        <div class="sheet-actions">
+          <button class="btn primary" id="copyComplaint" type="button">复制全文</button>
+          <button class="btn ghost" id="closeComplaint" type="button">关闭</button>
+        </div>`;
+      $("#sheetBody").querySelectorAll("[data-v]").forEach((btn) => {
+        btn.onclick = () => { variant = btn.dataset.v; render(); };
+      });
+      $("#copyComplaint").onclick = async () => {
+        const text = $("#complaintBody").textContent;
+        try {
+          await navigator.clipboard.writeText(text);
+          toast("已复制，去 12315 / 平台 / 黑猫粘贴");
+        } catch (e) {
+          const ta = document.createElement("textarea");
+          ta.value = text; document.body.appendChild(ta); ta.select();
+          document.execCommand("copy"); document.body.removeChild(ta);
+          toast("已复制");
+        }
+      };
+      $("#closeComplaint").onclick = closeSheet;
+    };
+    render();
+    $("#sheetOverlay").hidden = false;
   }
 
   function shareCard(ticket) {

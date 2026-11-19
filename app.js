@@ -2,6 +2,8 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const STORE_KEY = "piaogen.v0.tickets";
+const COUPON_KEY = "piaogen.v0.coupons";
+const POINT_KEY = "piaogen.v0.points";
   const SETTINGS_KEY = "piaogen.v0.settings";
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const state = {
@@ -49,8 +51,30 @@
     if (!Array.isArray(state.tickets)) state.tickets = [];
   }
 
+  function loadCoupons() {
+    try { state.coupons = JSON.parse(localStorage.getItem(COUPON_KEY) || "[]"); } catch (e) { state.coupons = []; }
+    if (!Array.isArray(state.coupons)) state.coupons = [];
+  }
+
+  function loadPoints() {
+    try { state.points = JSON.parse(localStorage.getItem(POINT_KEY) || "[]"); } catch (e) { state.points = []; }
+    if (!Array.isArray(state.points)) state.points = [];
+  }
+
+  function savePoints() {
+    try { localStorage.setItem(POINT_KEY, JSON.stringify(state.points || [])); } catch (e) {}
+  }
+
+  function saveCoupons() {
+    try { localStorage.setItem(COUPON_KEY, JSON.stringify(state.coupons || [])); } catch (e) {}
+  }
+
   function save() {
     localStorage.setItem(STORE_KEY, JSON.stringify(state.tickets));
+  }
+
+  function caseTickets() {
+    return (state.tickets || []).filter((ticket) => !ticket.ledgerOnly);
   }
 
   function toast(message) {
@@ -65,11 +89,16 @@
     $$(".screen").forEach((screen) => screen.classList.toggle("on", screen.dataset.screen === name));
     $$(".tabbar-item").forEach((item) => item.classList.toggle("on", item.dataset.nav === name));
     const main = $("#main");
-    main.scrollTop = 0;
+    if (typeof main.scrollTo === "function") main.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    else main.scrollTop = 0;
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     if (name === "today") renderToday();
-    if (name === "import") renderImport();
+    if (name === "import") { renderImport(); warmOcr(); }
     if (name === "triage") renderTriage();
     if (name === "settings") renderSettings();
+    if (name === "case" && state.current) renderCase(state.current);
+    if (name === "cases") renderCases();
+    if (name === "assets") renderAssets();
   }
 
   function openSheet(title, body, onMount) {
@@ -362,13 +391,56 @@
     throw new Error("暂不支持这种文件");
   }
 
-  async function ocrBlob(blob) {
-    if (!window.Tesseract) throw new Error("OCR 组件未加载");
-    setParse(12, "加载中文识别…", [{ text: "加载中文识别", done: false }]);
-    const result = await window.Tesseract.recognize(blob, "chi_sim+eng", {
+  async function preprocessImage(blob) {
+    try {
+      const bmp = await createImageBitmap(blob);
+      const scale = Math.min(3, 3000 / Math.max(bmp.width, bmp.height));
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(bmp.width * Math.max(1, scale));
+      cv.height = Math.round(bmp.height * Math.max(1, scale));
+      const g = cv.getContext("2d");
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = "high";
+      g.drawImage(bmp, 0, 0, cv.width, cv.height);
+      const img = g.getImageData(0, 0, cv.width, cv.height);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        const c = Math.max(0, Math.min(255, (v - 128) * 1.6 + 128));
+        d[i] = d[i + 1] = d[i + 2] = c;
+      }      g.putImageData(img, 0, 0);
+      return await new Promise((res) => cv.toBlob((b) => res(b || blob), "image/png"));
+    } catch (e) {
+      return blob;
+    }
+  }
+
+  async function ocrPrecise(blob) {
+    setParse(8, "加载精确模型…", [{ text: "加载精确模型", done: false }]);
+    const result = await window.Tesseract.recognize(blob, "chi_sim_hq", {
       workerPath: "vendor/worker.min.js",
       corePath: "vendor",
       langPath: "vendor/lang",
+      logger: (m) => {
+        if (m.status === "recognizing text") {
+          setParse(20 + Math.round((m.progress || 0) * 70), `精确识别 ${Math.round((m.progress || 0) * 100)}%`, [
+            { text: "加载精确模型", done: true },
+            { text: "重新识别", done: false }
+          ]);
+        }
+      }
+    });
+    return result.data.text || "";
+  }
+
+  async function ocrBlob(blob) {
+    if (!window.Tesseract) throw new Error("OCR 组件未加载");
+    setParse(12, "加载中文识别…", [{ text: "加载中文识别", done: false }]);
+    const input = await preprocessImage(blob);
+    const result = await window.Tesseract.recognize(input, "chi_sim", {
+      workerPath: "vendor/worker.min.js",
+      corePath: "vendor",
+      langPath: "vendor/lang-fast",
       logger: (m) => {
         if (m.status === "recognizing text") {
           setParse(25 + Math.round((m.progress || 0) * 65), `识别中 ${Math.round((m.progress || 0) * 100)}%`, [
@@ -385,7 +457,11 @@
   async function handleFile(file) {
     showParse("正在读这张票", "先看文件，再找出商家、金额、日期和截止日。");
     try {
-      const extracted = await fileToText(file);
+      if (file.type && file.type.startsWith("image/")) state.lastFile = file;
+      const extracted = await Promise.race([
+        fileToText(file),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("识别包下载太慢，先手动填三项")), 90000))
+      ]);
       const text = extracted.text;
       if (!text || text.trim().length < 4) throw new Error("没有读到文字");
       const ticket = parseReceipt(text, file.name, extracted.confidence);
@@ -403,7 +479,7 @@
       state.pending = [ticket];
       state.selected = new Set();
       state.tab = "pending";
-      toast("没读出来，手动补 3 项就行");
+      toast(text);
       show("triage");
     }
   }
@@ -411,6 +487,15 @@
   function defaultWindows(ticket) {
     ticket.windows = PG.buildWindows(ticket).map((window) => ({ ...window, id: uid() }));
     return ticket;
+  }
+
+  function warmOcr() {
+    try { if (localStorage.getItem("pg.langWarm") === "1") return; } catch (e) { return; }
+    const files = ["vendor/lang-fast/chi_sim.traineddata.gz"];
+    Promise.all(files.map((f) => fetch(f).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null)))
+      .then((res) => {
+        if (res.every(Boolean)) { try { localStorage.setItem("pg.langWarm", "1"); } catch (e) {} }
+      });
   }
 
   function renderImport() {
@@ -421,9 +506,112 @@
         if (source === "order") $("#fileOrder").click();
         if (source === "invoice") $("#fileInvoice").click();
         if (source === "manual") openManual();
+    if (source === "bill") openBill();
         if (source === "demo") addDemo();
       };
     });
+  }
+
+  function parseBillLine(line) {
+    const dm = line.match(/(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})/);
+    if (!dm) return null;
+    const date = `${dm[1]}-${String(dm[2]).padStart(2, "0")}-${String(dm[3]).padStart(2, "0")}`;
+    const nums = [];
+    const re = /([¥￥]\s*)?(-?\d+(?:\.\d{1,2})?)/g;
+    let m;
+    while ((m = re.exec(line)) !== null) {
+      if (/^20\d{2}$/.test(m[2])) continue;
+      nums.push({ currency: !!m[1], decimal: /\.\d/.test(m[2]), value: Math.abs(Number(m[2])) });
+    }
+    const cand = nums.filter((n) => n.currency || n.decimal);
+    const amount = cand.length ? cand[cand.length - 1].value : null;
+    if (!amount) return null;
+    const fields = line.split(/\s*[,\t|]\s*|\s{2,}/).map((s) => s.trim()).filter(Boolean);
+    let merchant = "";
+    for (const f of fields) {
+      if (/^20\d{2}/.test(f)) continue;
+      if (/^[¥￥]?-?\d/.test(f)) continue;
+      if (/^(支出|收入|不计收支|交易成功|已关闭|退款成功)$/.test(f)) continue;
+      if (f.length >= 2) { merchant = f; break; }
+    }
+    return { date, amount, merchant: merchant || "未知商家", product: "", channel: PG.channelOf(line) };
+  }
+
+  function parseBillText(text) {
+    return String(text || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !/^(交易时间|时间).*(金额)/.test(line))
+      .map(parseBillLine)
+      .filter(Boolean);
+  }
+
+  function openBill() {
+    $("#sheetTitle").textContent = "粘贴账单";
+    $("#sheetBody").innerHTML = `
+      <p class="sheet-hint">从支付宝或微信账单里复制一段时间，直接粘贴进来。一行一单，能认出日期、商家和金额的才会导入。</p>
+      <textarea id="billText" class="sheet-textarea" rows="8" placeholder="2026-11-13 12:30:00  某家电卖场  -399.00
+2026-11-08 09:12:44  某家具城  -1280.00
+2026-11-01 18:03:10  某装修公司  -5000.00"></textarea>
+      <div class="sheet-actions">
+        <button class="btn primary" id="billParse" type="button">解析并导入</button>
+        <button class="btn ghost" id="billCancel" type="button">取消</button>
+      </div>`;
+    $("#sheetOverlay").hidden = false;
+    $("#billCancel").addEventListener("click", closeSheet);
+    $("#billParse").addEventListener("click", () => {
+      const rows = parseBillText($("#billText").value);
+      if (!rows.length) { toast("没认出账单行，检查一下日期和金额"); return; }
+      state.pending = rows.map((row) => defaultWindows({
+        ...row,
+        id: uid(),
+        evidence: [{ id: uid(), type: "账单", label: "账单记录", detail: `${row.merchant} · ${row.date} · ¥${row.amount}`, confidence: 90, status: "active" }],
+        missing: [],
+        needsConfirm: !row.merchant || row.merchant === "未知商家",
+        source: "bill",
+        createdAt: new Date().toISOString()
+      }));
+      state.selected = new Set(state.pending.filter((p) => !p.needsConfirm).map((p) => p.id));
+      state.tab = state.pending.some((p) => p.needsConfirm) ? "pending" : "window";
+      closeSheet();
+      show("triage");
+      toast(`认出 ${rows.length} 单`);
+    });
+  }
+
+  function statsOf(tickets) {
+    let recovered = 0, done = 0, spans = [];
+    for (const ticket of tickets) {
+      for (const action of (ticket.actions || [])) {
+        if (action.status === "refunded" || action.status === "promise") {
+          recovered += Number(action.amount) || 0;
+          done += 1;
+        } else if (action.status === "repaired") {
+          done += 1;
+        }
+        if (ticket.date && action.createdAt) {
+          const a = new Date(ticket.date), b = new Date(action.createdAt);
+          const d = Math.round((b - a) / 86400000);
+          if (d >= 0 && d < 3650) spans.push(d);
+        }
+      }
+    }
+    const avg = spans.length ? Math.round(spans.reduce((s, x) => s + x, 0) / spans.length) : null;
+    return { recovered, done, avg };
+  }
+
+  function renderStats() {
+    const host = $("#recoverLine");
+    if (!host) return;
+    const s = statsOf(state.tickets || []);
+    if (!s.done) { host.classList.add("hidden"); host.innerHTML = ""; return; }
+    host.classList.remove("hidden");
+    host.innerHTML = `
+      <span><b>${money(s.recovered)}</b> 已追回</span>
+      <span><b>${s.done}</b> 件办成</span>
+      ${s.avg === null ? "" : `<span><b>${s.avg}</b> 天平均</span>`}
+      <button class="link-btn recover-more" id="recoverAnnual" type="button">年度账单 ›</button>`;
+    $("#recoverAnnual").onclick = () => { renderAnnual(); show("annual"); };
   }
 
   function openManual() {
@@ -447,6 +635,7 @@
         product: "某品牌空气炸锅",
         orderNo: "TB202611130001",
         promise: "",
+        priceCheck: { sameModel: false, model: "AF-399 Pro", price: 279, date: "2026-11-18" },
         evidence: [
           { type: "订单截图", label: "淘宝订单截图", detail: "某家电卖场 · 实付 ¥399 · 2026-11-13", confidence: 96, status: "active" },
           { type: "电子发票", label: "电子发票 PDF", detail: "销售方：某家电卖场 · 价税合计 ¥399", confidence: 94, status: "active" },
@@ -463,6 +652,7 @@
         product: "实木餐桌",
         orderNo: "JD202610240001",
         promise: "整机保修 2 年，30 天内降价退差",
+        priceCheck: { sameModel: true, model: "实木餐桌 1.4m", price: 1180, date: "2026-11-18" },
         evidence: [
           { type: "订单截图", label: "京东订单截图", detail: "某家具城 · 实付 ¥1,280 · 2026-11-08", confidence: 93, status: "active" },
           { type: "电子发票", label: "电子发票 PDF", detail: "销售方：某家具城 · 价税合计 ¥1,280", confidence: 91, status: "active" }
@@ -483,6 +673,76 @@
           { type: "合同照片", label: "合同第 3 页", detail: "退款约定：开工前可退，扣 10% 设计费", confidence: 79, status: "active" }
         ],
         missing: ["合同原件"]
+      },
+      {
+        merchant: "某视频会员",
+        amount: 25,
+        date: "2026-09-15",
+        category: "other",
+        channel: "alipay",
+        product: "视频会员月费",
+        orderNo: "",
+        promise: "",
+        noWindows: true,
+        ledgerOnly: true,
+        evidence: [{ type: "账单", label: "支付宝账单", detail: "某视频会员 · ¥25 · 2026-09-15", confidence: 99, status: "active" }],
+        missing: []
+      },
+      {
+        merchant: "某视频会员",
+        amount: 25,
+        date: "2026-10-15",
+        category: "other",
+        channel: "alipay",
+        product: "视频会员月费",
+        orderNo: "",
+        promise: "",
+        noWindows: true,
+        ledgerOnly: true,
+        evidence: [{ type: "账单", label: "支付宝账单", detail: "某视频会员 · ¥25 · 2026-10-15", confidence: 99, status: "active" }],
+        missing: []
+      },
+      {
+        merchant: "某视频会员",
+        amount: 25,
+        date: "2026-11-15",
+        category: "other",
+        channel: "alipay",
+        product: "视频会员月费",
+        orderNo: "",
+        promise: "",
+        noWindows: true,
+        ledgerOnly: true,
+        evidence: [{ type: "账单", label: "支付宝账单", detail: "某视频会员 · ¥25 · 2026-11-15", confidence: 99, status: "active" }],
+        missing: []
+      },
+      {
+        merchant: "某超市",
+        amount: 49.9,
+        date: "2026-10-05",
+        category: "grocery",
+        channel: "offline",
+        product: "洗衣液 3kg",
+        orderNo: "",
+        promise: "",
+        noWindows: true,
+        ledgerOnly: true,
+        evidence: [{ type: "小票", label: "超市小票", detail: "某超市 · 洗衣液 3kg · ¥49.90", confidence: 92, status: "active" }],
+        missing: []
+      },
+      {
+        merchant: "某超市",
+        amount: 49.9,
+        date: "2026-11-04",
+        category: "grocery",
+        channel: "offline",
+        product: "洗衣液 3kg",
+        orderNo: "",
+        promise: "",
+        noWindows: true,
+        ledgerOnly: true,
+        evidence: [{ type: "小票", label: "超市小票", detail: "某超市 · 洗衣液 3kg · ¥49.90", confidence: 92, status: "active" }],
+        missing: []
       }
     ].map((item) => defaultWindows({
       ...item,
@@ -493,20 +753,37 @@
       createdAt: new Date().toISOString()
     }));
     state.tickets = demo.concat(state.tickets.filter((t) => t.source !== "demo"));
+    const plusDays = (n) => {
+      const d = new Date();
+      d.setDate(d.getDate() + n);
+      return d.toISOString().slice(0, 10);
+    };
+    state.coupons = [
+      { id: uid(), name: "满 199 减 30", merchant: "某超市", amount: 30, expiresAt: plusDays(6) },
+      { id: uid(), name: "家电清洗券", merchant: "某家电卖场", amount: 50, expiresAt: plusDays(20) }
+    ];
+    saveCoupons();
+    state.points = [
+      { id: uid(), platform: "某航司", balance: 12000, expiresAt: "2026-12-31" },
+      { id: uid(), platform: "某超市", balance: 860, expiresAt: "2027-03-31" }
+    ];
+    savePoints();
     state.demo = true;
     save();
-    toast("已加入 3 张示例票");
+    toast("已加入 3 宗案卷 + 5 条记录");
     show("today");
   }
 
   function renderToday() {
-    const hasTickets = state.tickets.length > 0;
+    renderStats();
+    const tickets = caseTickets();
+    const hasTickets = tickets.length > 0;
     $("#todayEmpty").classList.toggle("hidden", hasTickets);
     $("#todayContent").classList.toggle("hidden", !hasTickets);
     $("#todayDate").textContent = todayLabel();
     if (!hasTickets) return;
 
-    const ranked = state.tickets
+    const ranked = tickets
       .map((ticket) => ({ ticket, win: PG.priority(ticket) }))
       .sort((a, b) => {
         const av = a.win ? a.win.daysLeft : 9999;
@@ -514,9 +791,9 @@
         return av - bv;
       });
     const first = ranked[0];
-    const open30 = state.tickets.filter((t) => (t.windows || []).some((w) => w.daysLeft !== null && w.daysLeft >= 0 && w.daysLeft <= 30)).length;
-    const pending = state.tickets.filter((t) => t.needsConfirm).length;
-    const warranties = state.tickets.flatMap((t) => (t.windows || []).filter((w) => w.type === "warranty" && w.daysLeft !== null)).sort((a, b) => a.daysLeft - b.daysLeft);
+    const open30 = tickets.filter((t) => (t.windows || []).some((w) => w.daysLeft !== null && w.daysLeft >= 0 && w.daysLeft <= 30)).length;
+    const pending = tickets.filter((t) => t.needsConfirm).length;
+    const warranties = tickets.flatMap((t) => (t.windows || []).filter((w) => w.type === "warranty" && w.daysLeft !== null)).sort((a, b) => a.daysLeft - b.daysLeft);
 
     $("#todayHeadline").textContent = first && first.win ? "今天先办这一件。" : "这批票暂时没有快到期的。";
     $("#todaySub").textContent = first && first.win
@@ -530,10 +807,12 @@
           <div class="big">${first.win.daysLeft} 天</div>
           <div class="sub">${escapeHtml(first.ticket.merchant)} · ${escapeHtml(first.ticket.product || "这笔订单")} · ${money(first.ticket.amount)}</div>
           <button class="btn" id="focusAction" type="button">看它还能做什么</button>
+          <button class="link-btn focus-case" id="focusCase" type="button">看这宗案卷 · 六方合议</button>
         </div>`;
       $("#focusAction").addEventListener("click", () => openResult(first.ticket, first.win));
+      $("#focusCase").addEventListener("click", () => openCase(first.ticket));
     } else {
-      $("#todayCard").innerHTML = `<div class="focus-card" style="background:linear-gradient(145deg,#33413F,#202B29)"><div class="k">当前没有快到期的窗口</div><div class="big">0 天</div><div class="sub">已导入 ${state.tickets.length} 张票；可以先补充证据，或等新的截止日。</div></div>`;
+      $("#todayCard").innerHTML = `<div class="focus-card" style="background:linear-gradient(145deg,#33413F,#202B29)"><div class="k">当前没有快到期的窗口</div><div class="big">0 天</div><div class="sub">已导入 ${tickets.length} 宗案卷；可以先补充证据，或等新的截止日。</div></div>`;
     }
 
     $("#todayStats").innerHTML = `
@@ -566,13 +845,652 @@
     show("result");
   }
 
-  function renderResult(ticket) {
-    const open = (ticket.windows || []).filter((w) => w.daysLeft !== null && w.daysLeft >= 0);
+  function agentSymbol(status) {
+    return status === "assert" ? "✓" : status === "confirm" ? "◐" : status === "veto" ? "!" : "○";
+  }
+
+  function agentStateLabel(status) {
+    return status === "assert" ? "一致" : status === "confirm" ? "待确认" : status === "veto" ? "否决" : "弃权";
+  }
+
+  function outcomeLabel(status) {
+    return status === "refunded" ? "已到账/已退款"
+      : status === "repaired" ? "已修好/已换货"
+      : status === "promise" ? "承诺已兑现"
+      : status === "rejected" ? "被拒了"
+      : status === "abandoned" ? "今天不办了"
+      : status || "已记录";
+  }
+
+  function openCase(ticket) {
+    state.current = ticket;
+    show("case");
+  }
+
+  function renderCase(ticket) {
+    const result = PG.agents.run(ticket, {
+      tickets: state.tickets,
+      coupons: state.coupons,
+      points: state.points
+    });
+    const missing = ticket.missing || [];
+    const evidence = ticket.evidence || [];
+    const open = (ticket.windows || []).filter((w) => w.status !== "closed" && w.daysLeft !== null && w.daysLeft >= 0);
+    const nearest = PG.priority(ticket) || open[0] || null;
+    const actions = ticket.actions || [];
+    const confirmed = actions.filter((a) => ["refunded", "repaired", "promise"].includes(a.status)).reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
+    const predicted = open.reduce((max, w) => Math.max(max, Number(w.amount) || 0), 0);
+    const statusClass = result.status === "已办结" ? "done" : result.status === "进行中" ? "live" : "wait";
+    $("#caseTitle").textContent = result.headline;
+
+    const evidenceRows = evidence.map((e) => `
+      <div class="case-ev-row">
+        <span class="case-ev-type">${escapeHtml(e.type)}</span>
+        <span class="case-ev-date">${escapeHtml(String(e.date || ticket.date || "").slice(0, 10))}</span>
+        <span class="case-ev-main"><b>${escapeHtml(e.label)}</b><small>${escapeHtml(e.detail || "")}</small></span>
+        <span class="case-ev-state ${e.status === "needs" ? "warn" : "ok"}">${e.status === "needs" ? "需确认" : e.confidence ? `${escapeHtml(e.confidence)}%` : "已记录"}</span>
+      </div>`).join("") + missing.map((m) => `
+      <div class="case-ev-row missing">
+        <span class="case-ev-type">${escapeHtml(m)}</span>
+        <span class="case-ev-date">—</span>
+        <span class="case-ev-main"><b>还缺</b><small>补上后重算期限</small></span>
+        <span class="case-ev-state warn">待补</span>
+      </div>`).join("");
+
+    const findingRows = result.findings.map((f) => `
+      <div class="case-finding ${f.status === "veto" ? "vetoed" : ""}" id="cf-${f.id}">
+        <button class="case-finding-btn" type="button" aria-expanded="false" aria-controls="cfp-${f.id}">
+          <span class="case-f-name">${escapeHtml(f.name)}</span>
+          <span class="case-f-claim">${escapeHtml(f.claim)}</span>
+          <span class="case-f-state ${f.status === "assert" ? "ok" : f.status === "confirm" ? "warn" : f.status === "veto" ? "veto" : ""}">${agentStateLabel(f.status)}</span>
+        </button>
+        <div class="case-finding-panel" id="cfp-${f.id}">
+          <p>${escapeHtml(f.detail)}</p>
+          <div class="case-basis">${(f.basis || []).map((b) => `<span>${escapeHtml(b)}</span>`).join("")}</div>
+        </div>
+      </div>`).join("");
+
+    const ladder = `
+      <div class="case-step ${ticket.review ? "now" : "done"}"><span class="dot">●</span><b>核对字段</b><span>${ticket.review ? "现在" : "已完成"}</span></div>
+      <div class="case-step ${ticket.review ? "" : nearest ? "now" : "done"}"><span class="dot">${ticket.review ? "○" : nearest ? "●" : "●"}</span><b>去办 ${escapeHtml(nearest ? nearest.label : "这件事")}</b><span>${ticket.review ? "待核对" : nearest ? "现在" : "已关闭"}</span></div>
+      <div class="case-step ${actions.length ? "done" : ""}"><span class="dot">${actions.length ? "●" : "○"}</span><b>回填结果</b><span>${actions.length ? "已记录" : "待办理"}</span></div>`;
+
+    $("#caseBody").innerHTML = `
+      <div class="case-head">
+        <div class="case-tags">
+          <span class="case-tag ${statusClass}">${escapeHtml(result.status)}</span>
+          ${nearest ? `<span class="case-tag warn">${escapeHtml(nearest.label)}剩 ${nearest.daysLeft} 天</span>` : ""}
+          ${ticket.helper && ticket.helper.forWhom ? `<span class="case-tag">帮 ${escapeHtml(ticket.helper.forWhom)} 办</span>` : ""}
+        </div>
+        <h2 class="case-merchant">${escapeHtml(ticket.merchant || "商家待确认")}</h2>
+        <div class="case-line"><span>${escapeHtml(ticket.product || "商品待确认")}</span><b>${money(ticket.amount)}</b></div>
+        <div class="case-meta"><span>${escapeHtml(ticket.date || "日期待确认")}</span><span>案卷 ${escapeHtml(result.caseId)}</span><span>证据 ${evidence.length} 件${missing.length ? ` · 还缺 ${missing.length} 件` : ""}</span></div>
+      </div>
+
+      <div class="case-consensus" role="group" aria-label="六方合议">
+        ${result.findings.map((f) => `
+          <button class="case-agent ${f.status}" type="button" data-case-agent="${f.id}" aria-expanded="false" aria-controls="cf-${f.id}">
+            <span class="mark" aria-hidden="true">${agentSymbol(f.status)}</span>
+            <span class="name">${escapeHtml(f.name.replace("员", ""))}</span>
+            <span class="state">${agentStateLabel(f.status)}</span>
+          </button>`).join("")}
+      </div>
+
+      ${result.conflict ? `
+        <div class="case-conflict ${result.conflict.tone === "seal" ? "seal" : ""}">
+          <b>${escapeHtml(result.conflict.title)}</b>
+          <p>${escapeHtml(result.conflict.body)}</p>
+          ${result.conflict.action === "edit" ? `<button class="btn ghost" id="caseConflictEdit" type="button">去改字段</button>` : ""}
+        </div>` : `<p class="case-ok-note">六方一致，没有冲突。结论可以进入主行动。</p>`}
+
+      <div class="case-primary">
+        <p class="eyebrow">今天先办</p>
+        <h2>${escapeHtml(result.primary.label)}</h2>
+        <p>${escapeHtml(result.primary.detail)}</p>
+        <div class="case-primary-actions">
+          <button class="btn primary" id="caseDo" type="button">${result.primary.action === "edit" ? "去核对字段" : result.primary.action === "import" ? "去补一张票" : "去办这件事"}</button>
+          <button class="btn ghost" id="caseEdit" type="button">改字段</button>
+        </div>
+      </div>
+
+      <div class="case-block">
+        <div class="case-block-head"><h2>证据</h2><span>${evidence.length} 件${missing.length ? ` · 还缺 ${missing.length} 件` : ""}</span></div>
+        <div class="case-evidence">${evidenceRows || `<p class="case-empty">还没有证据。拍一张小票，或手动补三项。</p>`}</div>
+      </div>
+
+      <div class="case-block">
+        <div class="case-block-head"><h2>专员怎么说</h2><span>点一行展开依据</span></div>
+        <div class="case-findings">${findingRows}</div>
+      </div>
+
+      <div class="case-block">
+        <div class="case-block-head"><h2>动作</h2><span>${actions.length ? "已记录 " + actions.length + " 次" : "还没开始"}</span></div>
+        <div class="case-ladder">${ladder}</div>
+      </div>
+
+      <div class="case-block">
+        <div class="case-block-head"><h2>结果</h2><span>预计与已确认分开</span></div>
+        <div class="case-outcome">
+          <p>预计 <b>${predicted ? money(predicted) : "待确认"}</b> · 已确认 <b class="ok">${money(confirmed)}</b></p>
+          <p>${actions.length ? `最近一次：${escapeHtml(actions[actions.length - 1].label)} · ${escapeHtml(outcomeLabel(actions[actions.length - 1].status))}` : "还没有提交申请。"}</p>
+        </div>
+      </div>
+
+      <div class="case-footer">
+        ${nearest ? `<button class="btn ghost" id="caseRecord" type="button">记录结果</button>` : ""}
+        <button class="btn ghost" id="caseBack" type="button">回到今天</button>
+        <button class="btn text" id="caseResult" type="button">看这张票的完整结果</button>
+      </div>`;
+
+    $("#caseDo").addEventListener("click", () => {
+      if (result.primary.action === "edit") return openCaseEdit(ticket);
+      if (result.primary.action === "import") return show("import");
+      openAction(ticket, PG.priority(ticket) || open[0]);
+    });
+    $("#caseEdit").addEventListener("click", () => openCaseEdit(ticket));
+    if ($("#caseConflictEdit")) $("#caseConflictEdit").addEventListener("click", () => openCaseEdit(ticket));
+    if ($("#caseRecord")) $("#caseRecord").addEventListener("click", () => {
+      outcomeSheet(ticket, nearest, "refunded", (outcome) => {
+        ticket.actions = (ticket.actions || []).concat({
+          id: uid(),
+          type: nearest.type,
+          label: nearest.label,
+          status: outcome.status,
+          amount: outcome.amount,
+          note: outcome.note,
+          createdAt: new Date().toISOString()
+        });
+        if (["refunded", "repaired", "promise"].includes(outcome.status)) nearest.status = "closed";
+        save();
+        renderCase(ticket);
+        toast("结果已写回案卷");
+      });
+    });
+    $("#caseBack").addEventListener("click", () => show("today"));
+    $("#caseResult").addEventListener("click", () => openResult(ticket, PG.priority(ticket)));
+
+    $$(".case-agent").forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.dataset.caseAgent;
+        const panel = $(`#cf-${id}`);
+        const open = button.getAttribute("aria-expanded") === "true";
+        $$(".case-agent").forEach((b) => b.setAttribute("aria-expanded", "false"));
+        button.setAttribute("aria-expanded", open ? "false" : "true");
+        if (panel) panel.classList.toggle("open", !open);
+        if (!open && panel) panel.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
+      });
+    });
+    $$(".case-finding-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        const item = button.closest(".case-finding");
+        const open = button.getAttribute("aria-expanded") === "true";
+        button.setAttribute("aria-expanded", open ? "false" : "true");
+        item.classList.toggle("open", !open);
+      });
+    });
+  }
+
+  function openCaseEdit(ticket) {
+    editTicketSheet(ticket, (next) => {
+      Object.assign(ticket, next);
+      save();
+      renderCase(ticket);
+      toast("已更新，六方重新合议");
+    }, "改字段 · 重算合议");
+  }
+
+  function parseIntake(text) {
+    const raw = String(text || "").trim();
+    const intent = /退款|退货|退钱/.test(raw) ? "return"
+      : /换货|换一个|换新/.test(raw) ? "exchange"
+      : /保修|维修|坏了|故障|不工作/.test(raw) ? "warranty"
+      : /价保|降价|差价|买贵/.test(raw) ? "price"
+      : /续费|扣费|会员|订阅/.test(raw) ? "subscription"
+      : /券|优惠券/.test(raw) ? "coupon"
+      : /积分/.test(raw) ? "point"
+      : /用完|补货|耗材|纸巾|洗衣液|猫砂|牙膏/.test(raw) ? "supply"
+      : /定金|尾款/.test(raw) ? "deposit"
+      : "unknown";
+    const category = Object.entries(PG.CATEGORY)
+      .filter(([key]) => key !== "other")
+      .find(([, item]) => (item.keywords || []).some((kw) => raw.includes(kw)))?.[0] || null;
+    const amountMatch = raw.match(/(?:¥|￥)\s*(\d{2,6}(?:\.\d{1,2})?)/) || raw.match(/(\d{2,6}(?:\.\d{1,2})?)\s*(?:元|块)/);
+    const amount = amountMatch ? Number(amountMatch[1]) : null;
+    let daysAgo = null;
+    if (/今天|刚才/.test(raw)) daysAgo = 0;
+    else if (/昨天/.test(raw)) daysAgo = 1;
+    else if (/前天/.test(raw)) daysAgo = 2;
+    else if (/上周/.test(raw)) daysAgo = 7;
+    else if (/本周|这周/.test(raw)) daysAgo = 3;
+    else if (/上个月|上月/.test(raw)) daysAgo = 30;
+    else if (/这个月|本月/.test(raw)) daysAgo = 15;
+    let date = null;
+    const md = raw.match(/(\d{1,2})月(\d{1,2})日?/);
+    if (md) {
+      const now = new Date();
+      const d = new Date(now.getFullYear(), Number(md[1]) - 1, Number(md[2]));
+      if (d > now) d.setFullYear(d.getFullYear() - 1);
+      date = d.toISOString().slice(0, 10);
+    }
+    return { raw, intent, category, amount, daysAgo, date };
+  }
+
+  function findIntakeCandidate(parsed) {
+    let best = null;
+    let bestScore = 0;
+    for (const ticket of caseTickets()) {
+      let score = 0;
+      if (parsed.category && ticket.category === parsed.category) score += 4;
+      if (parsed.amount && Number(ticket.amount) && Math.abs(Number(ticket.amount) - parsed.amount) <= Math.max(1, parsed.amount * 0.01)) score += 3;
+      if (parsed.date && ticket.date === parsed.date) score += 3;
+      if (parsed.daysAgo !== null && ticket.date) {
+        const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(ticket.date).getTime()) / 86400000);
+        if (Math.abs(days - parsed.daysAgo) <= 1) score += 3;
+        else if (Math.abs(days - parsed.daysAgo) <= 3) score += 1;
+      }
+      const productKey = String(ticket.product || "").replace(/某品牌|某|\s/g, "");
+      if (productKey.length >= 2 && parsed.raw.includes(productKey)) score += 3;
+      if (ticket.merchant && parsed.raw.includes(ticket.merchant)) score += 2;
+      if (score > bestScore) {
+        bestScore = score;
+        best = ticket;
+      }
+    }
+    return bestScore >= 4 ? best : null;
+  }
+
+  function intakeIntentLabel(intent) {
+    return intent === "return" ? "退货"
+      : intent === "exchange" ? "换货"
+      : intent === "warranty" ? "保修/维修"
+      : intent === "price" ? "价保"
+      : intent === "deposit" ? "定金"
+      : "售后";
+  }
+
+  function runIntake(text) {
+    const parsed = parseIntake(text);
+    if (!parsed.raw) {
+      toast("先说一句要办什么");
+      return;
+    }
+    if (parsed.intent === "subscription") return openSubsSheet();
+    if (parsed.intent === "coupon") return openCouponSheet();
+    if (parsed.intent === "point") return openPointsSheet();
+    if (parsed.intent === "supply") return openSupplySheet(assetSummary().supplies);
+    const candidate = findIntakeCandidate(parsed);
+    if (candidate) return intakeConfirmSheet(candidate, parsed);
+    return intakeNoMatchSheet(parsed);
+  }
+
+  function intakeConfirmSheet(ticket, parsed) {
     const nearest = PG.priority(ticket);
-    $("#resultTitle").textContent = nearest ? `${open.length} 件事还能做` : "这张票暂时没有截止日";
+    openSheet("找到了，先确认", `
+      <div class="intake-found">
+        <p class="eyebrow">${escapeHtml(intakeIntentLabel(parsed.intent))} · 案卷 ${escapeHtml(PG.agents.caseId(ticket))}</p>
+        <h2>${escapeHtml(ticket.merchant || "商家待确认")}</h2>
+        <p>${escapeHtml(ticket.product || "商品待确认")} · ${money(ticket.amount)} · ${escapeHtml(ticket.date || "日期待确认")}</p>
+        <p class="note">${nearest ? `${escapeHtml(nearest.label)} ${nearest.daysLeft} 天后关闭；` : ""}先确认是不是这一笔，再往下办。</p>
+        <div class="sheet-actions">
+          <button class="btn primary" id="intakeYes" type="button">是这一笔</button>
+          <button class="btn ghost" id="intakeNo" type="button">不是</button>
+          <button class="btn ghost" id="intakeManual" type="button">手动填</button>
+        </div>
+      </div>`, () => {
+      $("#intakeYes").addEventListener("click", () => { closeSheet(); openCase(ticket); });
+      $("#intakeNo").addEventListener("click", () => { closeSheet(); intakeNoMatchSheet(parsed); });
+      $("#intakeManual").addEventListener("click", () => { closeSheet(); show("import"); setTimeout(() => $('[data-source="manual"]')?.click(), 80); });
+    });
+  }
+
+  function intakeNoMatchSheet(parsed) {
+    openSheet("没找到对应的票", `
+      <p class="sheet-empty">没找到“${escapeHtml(parsed.raw.slice(0, 40))}”对应的票。可以拍一张，或手动填三项。</p>
+      <div class="sheet-actions">
+        <button class="btn primary" id="intakeCamera" type="button">拍一张</button>
+        <button class="btn ghost" id="intakeManual2" type="button">手动填</button>
+        <button class="btn ghost" id="intakeCancel" type="button">算了</button>
+      </div>`, () => {
+      $("#intakeCamera").addEventListener("click", () => { closeSheet(); $("#fileCamera").click(); });
+      $("#intakeManual2").addEventListener("click", () => { closeSheet(); show("import"); setTimeout(() => $('[data-source="manual"]')?.click(), 80); });
+      $("#intakeCancel").addEventListener("click", closeSheet);
+    });
+  }
+
+  function intakeSheet() {
+    openSheet("说一句，直接立案", `
+      <form id="intakeSheetForm">
+        <label for="intakeSheetText">要办什么？</label>
+        <input id="intakeSheetText" type="text" autocomplete="off" placeholder="例如：我上周买的空气炸锅坏了，商家不给退" />
+        <p class="note">也可以说：这个月被扣了两次会员费 / 299 买的鞋还没发货 / 洗衣液快用完了</p>
+        <div class="sheet-actions">
+          <button class="btn primary" id="intakeSheetGo" type="button">立案</button>
+          <button class="btn ghost" id="intakeSheetCancel" type="button">取消</button>
+        </div>
+      </form>`, () => {
+      $("#intakeSheetGo").addEventListener("click", () => {
+        const text = $("#intakeSheetText").value;
+        closeSheet();
+        runIntake(text);
+      });
+      $("#intakeSheetCancel").addEventListener("click", closeSheet);
+      $("#intakeSheetText").focus();
+    });
+  }
+
+  function renderCases() {
+    const host = $("#casesBody");
+    const tickets = caseTickets();
+    if (!tickets.length) {
+      host.innerHTML = `
+        <div class="empty" style="min-height:60dvh">
+          <div class="empty-icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6V3Z"/><path d="M14 3v5h5"/><path d="M9 12h6M9 16h4"/></svg>
+          </div>
+          <p class="eyebrow">还没有案卷</p>
+          <h1>拍一张票，<br />或者直接说一句。</h1>
+          <p class="lede">每宗案卷会把证据、期限、动作和结果放在一起，办到哪一步一眼能看到。</p>
+          <button class="btn primary" id="casesImport" type="button">去立案</button>
+        </div>`;
+      $("#casesImport").addEventListener("click", () => show("import"));
+      return;
+    }
+    host.innerHTML = tickets.map((ticket) => {
+      const result = PG.agents.run(ticket, { tickets: state.tickets, coupons: state.coupons, points: state.points });
+      const nearest = PG.priority(ticket);
+      const abstain = result.findings.filter((f) => f.status === "abstain").length;
+      const stateClass = result.status === "已办结" ? "done" : result.status === "进行中" ? "live" : "wait";
+      return `<button class="case-list-item" type="button" data-case="${ticket.id}">
+        <div class="case-list-top"><b>${escapeHtml(ticket.merchant || "商家待确认")}</b><span>${money(ticket.amount)}</span></div>
+        <div class="case-list-sub">${escapeHtml(ticket.product || "商品待确认")} · ${escapeHtml(ticket.date || "日期待确认")} · 证据 ${(ticket.evidence || []).length} 件</div>
+        <div class="case-list-foot">
+          <span class="case-list-state ${stateClass}">${escapeHtml(result.status)}</span>
+          <span>${nearest ? `${escapeHtml(nearest.label)} ${nearest.daysLeft} 天` : "暂无截止日"}</span>
+          <span>${abstain ? `${abstain} 方弃权` : result.conflict ? "有冲突" : "六方一致"}</span>
+        </div>
+      </button>`;
+    }).join("");
+    $$("[data-case]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const ticket = state.tickets.find((t) => t.id === button.dataset.case);
+        if (ticket) openCase(ticket);
+      });
+    });
+  }
+
+  function detectSupplies(tickets) {
+    const groups = new Map();
+    for (const ticket of (tickets || [])) {
+      if (!ticket.product || !ticket.date) continue;
+      if (ticket.noSupply) continue;
+      if (/会员|订阅|月费|服务/.test(String(ticket.product))) continue;
+      const key = String(ticket.product).replace(/\s+/g, "").replace(/某品牌|某/g, "").toLowerCase();
+      if (key.length < 2) continue;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(ticket);
+    }
+    const out = [];
+    for (const rows of groups.values()) {
+      if (rows.length < 2) continue;
+      rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      const gaps = [];
+      for (let i = 1; i < rows.length; i += 1) {
+        const gap = Math.round((new Date(rows[i].date) - new Date(rows[i - 1].date)) / 86400000);
+        if (gap >= 7 && gap <= 365) gaps.push(gap);
+      }
+      if (!gaps.length) continue;
+      const avgDays = Math.round(gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length);
+      const last = rows[rows.length - 1];
+      const next = new Date(last.date);
+      next.setDate(next.getDate() + avgDays);
+      const daysLeft = Math.ceil((next - new Date().setHours(0, 0, 0, 0)) / 86400000);
+      out.push({ name: last.product, merchant: last.merchant, count: rows.length, avgDays, next: next.toISOString().slice(0, 10), daysLeft, amount: last.amount });
+    }
+    return out.sort((a, b) => a.daysLeft - b.daysLeft);
+  }
+
+  function assetSummary() {
+    const rights = [];
+    for (const ticket of caseTickets()) {
+      for (const win of (ticket.windows || [])) {
+        if (win.status !== "closed" && win.daysLeft !== null && win.daysLeft >= 0) rights.push({ ticket, win });
+      }
+    }
+    rights.sort((a, b) => a.win.daysLeft - b.win.daysLeft);
+    const subs = PG.detectSubscriptions(state.tickets || []).map((sub) => {
+      const next = new Date(sub.lastDate);
+      next.setDate(next.getDate() + sub.lastGap);
+      return { ...sub, next: next.toISOString().slice(0, 10), daysLeft: Math.ceil((next - new Date().setHours(0, 0, 0, 0)) / 86400000) };
+    });
+    const coupons = (state.coupons || [])
+      .map((coupon) => ({ ...coupon, days: couponDays(coupon) }))
+      .filter((coupon) => coupon.days !== null)
+      .sort((a, b) => a.days - b.days);
+    const points = (state.points || []).slice().sort((a, b) => String(a.expiresAt || "").localeCompare(String(b.expiresAt || "")));
+    const supplies = detectSupplies(state.tickets || []);
+    const residual = caseTickets().filter((ticket) => ["appliance", "digital", "furniture", "auto"].includes(ticket.category));
+    return { rights, subs, coupons, points, supplies, residual };
+  }
+
+  function renderAssets() {
+    const summary = assetSummary();
+    const nextSub = summary.subs[0];
+    const nextCoupon = summary.coupons[0];
+    const nextPoint = summary.points[0];
+    const nextSupply = summary.supplies[0];
+    const rows = [
+      {
+        key: "right",
+        label: "权利",
+        value: summary.rights.length ? `${summary.rights.length} 件` : "0 件",
+        meta: summary.rights.length ? `最近：${summary.rights[0].win.label} ${summary.rights[0].win.daysLeft} 天后关闭` : "还没有快到期的权利"
+      },
+      {
+        key: "subscription",
+        label: "订阅",
+        value: summary.subs.length ? `${summary.subs.length} 项` : "0 项",
+        meta: nextSub ? `年支出 ${money(nextSub.yearly)} · 下次约 ${nextSub.next}` : "还没有识别到周期扣款"
+      },
+      {
+        key: "coupon",
+        label: "券",
+        value: summary.coupons.length ? `${summary.coupons.length} 张` : "0 张",
+        meta: nextCoupon ? `最近 ${nextCoupon.days} 天后到期 · ${nextCoupon.name}` : "还没有登记券"
+      },
+      {
+        key: "point",
+        label: "积分",
+        value: summary.points.length ? `${summary.points.reduce((sum, p) => sum + (Number(p.balance) || 0), 0).toLocaleString("zh-CN")} 分` : "0 分",
+        meta: nextPoint ? `最近 ${nextPoint.expiresAt || "未填到期"} · ${nextPoint.platform}` : "还没有登记积分"
+      },
+      {
+        key: "supply",
+        label: "耗材",
+        value: summary.supplies.length ? `${summary.supplies.length} 件` : "0 件",
+        meta: nextSupply ? `${nextSupply.name} 约 ${Math.max(0, nextSupply.daysLeft)} 天后补货` : "导入两笔同一商品的订单就能估算"
+      },
+      {
+        key: "residual",
+        label: "残值",
+        value: summary.residual.length ? `${summary.residual.length} 件` : "0 件",
+        meta: summary.residual.length ? "买入价与使用时长已记录；参考区间待接入" : "还没有耐用品"
+      }
+    ];
+    const urgent = summary.rights.filter((item) => item.win.daysLeft <= 7).length
+      + summary.coupons.filter((coupon) => coupon.days <= 7).length
+      + summary.supplies.filter((supply) => supply.daysLeft <= 7).length;
+    $("#assetsBody").innerHTML = `
+      <p class="lede">六类会过期、会贬值、会被忘记的东西。不是每笔付款都要立案，但每笔都可以进资产。</p>
+      <div class="asset-strip">
+        <div><b>${urgent}</b><span>7 天内要处理</span></div>
+        <div><b>${summary.rights.length}</b><span>未关闭权利</span></div>
+        <div><b>${summary.subs.length + summary.coupons.length + summary.supplies.length}</b><span>周期资产</span></div>
+      </div>
+      <div class="asset-list">
+        ${rows.map((row) => `
+          <button class="asset-row" type="button" data-asset="${row.key}">
+            <span class="asset-name">${row.label}</span>
+            <span class="asset-value">${row.value}</span>
+            <span class="asset-meta">${escapeHtml(row.meta)}</span>
+            <span class="asset-chev" aria-hidden="true">›</span>
+          </button>`).join("")}
+      </div>
+      <p class="note">金额只在本机计算；券、积分、耗材都不登录抓取，只用手动记录或账单复购估算。</p>`;
+
+    $$("[data-asset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const key = button.dataset.asset;
+        if (key === "right") return openRightsSheet(summary.rights);
+        if (key === "subscription") return openSubsSheet();
+        if (key === "coupon") return openCouponSheet();
+        if (key === "point") return openPointsSheet();
+        if (key === "supply") return openSupplySheet(summary.supplies);
+        if (key === "residual") return openResidualSheet(summary.residual);
+      });
+    });
+  }
+
+  function openRightsSheet(rights) {
+    if (!rights.length) {
+      openSheet("权利", `<p class="sheet-empty">还没有未关闭的权利。拍一张带购买日期的票，或导入订单。</p>`);
+      return;
+    }
+    const body = `<div class="asset-sheet-list">${rights.map((item) => `
+      <button class="asset-sheet-row" type="button" data-right="${item.ticket.id}">
+        <span><b>${escapeHtml(item.ticket.merchant)}</b><small>${escapeHtml(item.win.label)} · ${escapeHtml(item.win.end || "日期待确认")}</small></span>
+        <em>${item.win.daysLeft} 天</em>
+      </button>`).join("")}</div>`;
+    openSheet("权利 · 还没关闭", body, () => {
+      $$("[data-right]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const ticket = state.tickets.find((t) => t.id === button.dataset.right);
+          closeSheet();
+          if (ticket) openCase(ticket);
+        });
+      });
+    });
+  }
+
+  function openSupplySheet(supplies) {
+    if (!supplies.length) {
+      openSheet("耗材", `<p class="sheet-empty">还没有复购记录。导入两笔同一商品的订单，就能按真实间隔估算下次大概什么时候用完。</p>`);
+      return;
+    }
+    const body = `<div class="asset-sheet-list">${supplies.map((item) => `
+      <div class="asset-sheet-row static">
+        <span><b>${escapeHtml(item.name)}</b><small>约每 ${item.avgDays} 天买一次 · 上次 ${escapeHtml(item.merchant || "")}</small></span>
+        <em>${Math.max(0, item.daysLeft)} 天后</em>
+      </div>`).join("")}</div>
+      <p class="note">按复购间隔估算，不判断你家每天用多少；大促囤货会让估算偏晚。</p>`;
+    openSheet("耗材 · 按复购估算", body);
+  }
+
+  function openResidualSheet(residual) {
+    if (!residual.length) {
+      openSheet("残值", `<p class="sheet-empty">还没有耐用品。家电、数码、家具、汽车会出现在这里。</p>`);
+      return;
+    }
+    const body = `<div class="asset-sheet-list">${residual.map((ticket) => {
+      const days = ticket.date ? Math.max(0, Math.round((Date.now() - new Date(ticket.date).getTime()) / 86400000)) : null;
+      return `<div class="asset-sheet-row static">
+        <span><b>${escapeHtml(ticket.product || ticket.merchant)}</b><small>${escapeHtml(ticket.merchant)} · 买入 ${money(ticket.amount)}${days !== null ? ` · 已用 ${days} 天` : ""}</small></span>
+        <em>参考待接入</em>
+      </div>`;
+    }).join("")}</div>
+      <p class="note">残值需要同款成交数据；没有数据源就不编区间。V1 接入二手成交参考后再给价格。</p>`;
+    openSheet("残值 · 耐用品", body);
+  }
+
+  function renderDeposit(ticket) {
+    const host = $("#depositCalc");
+    const hasDeposit = ticket && (ticket.category === "renovation" || (ticket.windows || []).some((w) => w.type === "deposit"));
+    if (!hasDeposit) {
+      host.classList.add("hidden");
+      host.innerHTML = "";
+      return;
+    }
+    const seed = Math.round(Number(ticket.amount) || 5000);
+    host.classList.remove("hidden");
+    host.innerHTML = `
+      <div class="calc-head">
+        <h2>定金怎么算</h2>
+        <p>《民法典》第五百八十六条：定金不得超过合同标的额的 20%，超过部分不产生定金效力。</p>
+      </div>
+      <div class="calc-grid">
+        <label>合同总额<input id="calcTotal" type="number" inputmode="decimal" min="0" step="100" value="${seed}" /></label>
+        <label>已付定金<input id="calcPaid" type="number" inputmode="decimal" min="0" step="100" value="${seed}" /></label>
+      </div>
+      <div class="calc-seg" role="group" aria-label="谁违约">
+        <button type="button" data-side="counter" class="on">商家违约</button>
+        <button type="button" data-side="self">我违约</button>
+      </div>
+      <div class="calc-out" id="calcOut" aria-live="polite"></div>`;
+
+    const total = $("#calcTotal");
+    const paid = $("#calcPaid");
+    const out = $("#calcOut");
+    let side = "counter";
+    const money = (n) => `¥${Number(n).toFixed(2)}`;
+
+    const run = () => {
+      const r = PG.depositCalc(Number(total.value) || 0, Number(paid.value) || 0, side === "counter");
+      out.innerHTML = `
+        <div class="calc-row"><span>20% 上限</span><b>${money(r.cap)}</b></div>
+        <div class="calc-row"><span>有效定金</span><b>${money(r.valid)}</b></div>
+        <div class="calc-row"><span>超出部分（按预付款退）</span><b>${money(r.excess)}</b></div>
+        <div class="calc-row sum"><span>${side === "counter" ? "商家违约，应退" : "我违约，可退"}</span><b>${money(r.back)}</b></div>
+        <p class="calc-note">${side === "counter"
+          ? "《民法典》第五百八十七条：收受定金一方违约致合同目的不能实现，应双倍返还。"
+          : "定金不退，但超过 20% 的部分仍属预付款，应当退还。"}</p>`;
+    };
+
+    total.addEventListener("input", run);
+    paid.addEventListener("input", run);
+    host.querySelectorAll("[data-side]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        side = btn.dataset.side;
+        host.querySelectorAll("[data-side]").forEach((b) => b.classList.toggle("on", b === btn));
+        run();
+      });
+    });
+    run();
+  }
+
+  function renderTax(ticket) {
+    const host = $("#taxCard");
+    if (!host) return;
+    const hints = PG.taxHints(ticket);
+    const specific = hints.filter((h) => h.t !== "发票查验" && h.t !== "年度汇算");
+    if (!specific.length) {
+      host.classList.add("hidden");
+      host.innerHTML = "";
+      return;
+    }
+    host.classList.remove("hidden");
+    host.innerHTML = `
+      <div class="tax-head">
+        <h2>这张票还能抵什么</h2>
+        <p>发票不只是维权凭证，也是补贴和扣除的凭证。</p>
+      </div>
+      ${hints.map((h) => `
+        <div class="tax-item">
+          <b>${escapeHtml(h.t)}</b>
+          <p>${escapeHtml(h.d)}</p>
+          <small>需要：${escapeHtml(h.n)}</small>
+        </div>`).join("")}
+      <p class="tax-note">补贴比例和扣除标准按当年公告执行；这里只判断资格和凭证，不代算税额。</p>`;
+  }
+
+  function renderResult(ticket) {
+    const actionable = (ticket.windows || []).filter((w) => w.status !== "closed");
+    const nearest = PG.priority(ticket);
+    $("#resultTitle").textContent = actionable.length
+      ? `${actionable.length} 件事还能做`
+      : "这张票暂时没有可主张的权利";
     $("#resultTicket").innerHTML = `
       <div class="receipt-top"><div><b>${escapeHtml(ticket.merchant)}</b><div class="receipt-meta">${escapeHtml(ticket.date || "日期待确认")} · ${escapeHtml(PG.CATEGORY[ticket.category]?.label || "其他")}</div></div><div class="amt">${money(ticket.amount)}</div></div>
       <div class="receipt-no"><span>${escapeHtml(ticket.orderNo || "CP—" + ticket.id.slice(0, 6).toUpperCase())}</span><span>${ticket.source === "demo" ? "示例" : "已保存"}</span></div>
+      ${ticket.warranty ? `<div class="warranty-line">保修至 ${escapeHtml(ticket.warranty.until || "未填")}${ticket.warranty.phone ? ` · 售后 ${escapeHtml(ticket.warranty.phone)}` : ""}${ticket.warranty.model ? ` · ${escapeHtml(ticket.warranty.model)}` : ""}</div>` : ""}
       <div class="evidence-line"><span>证据 <b>${ticket.evidence?.length || 0}</b> 件${ticket.missing?.length ? ` · 还缺 ${escapeHtml(ticket.missing.join("、"))}` : ""}${ticket.review ? " · OCR 需复核" : ""}</span><button id="editTicket" type="button">改字段</button></div>
       <div class="receipt-edit" id="inlineEdit" style="display:none">
         <label>商家<input data-field="merchant" value="${escapeHtml(ticket.merchant)}" /></label>
@@ -604,10 +1522,40 @@
       const value = w.daysLeft === null ? "待确认" : `${w.daysLeft} 天`;
       return `<div class="window ${cls}">
         <div class="window-top"><b>${escapeHtml(w.label)}</b><span><b>${value}</b></span></div>
-        <p>${escapeHtml(w.source)}${w.end ? ` · 截止 ${escapeHtml(w.end)}` : ""}</p>
+        <p>${escapeHtml(w.source)}${w.end ? ` · 截止 ${escapeHtml(w.end)}` : ""}${w.basis && w.basis.url ? ` · <a href="${escapeHtml(w.basis.url)}" target="_blank" rel="noopener noreferrer">查看原文</a>` : ""}</p>
+        ${w.note ? `<p class="window-note">${escapeHtml(w.note)}</p>` : ""}
         <div class="window-bar"><i style="width:${width}%"></i></div>
       </div>`;
     }).join("");
+
+    renderDeposit(ticket);
+    renderTax(ticket);
+
+    const banner = $("#reviewBanner");
+    if (banner) {
+      if (ticket.review) {
+        banner.innerHTML = `<div class="review-banner"><b>OCR 置信度偏低</b><span>金额、日期请核对后再用</span><button class="link-btn" id="reviewPrecise" type="button">精确模式</button><button class="link-btn" id="reviewFix" type="button">改字段</button></div>`;
+        $("#reviewFix").onclick = () => { const b = $("#editTicket"); if (b) b.click(); };
+        $("#reviewPrecise").onclick = async () => {
+          if (!state.lastFile) { toast("这张票没有原图，手动改字段即可"); return; }
+          try {
+            showParse("精确模式", "重新加载完整中文模型，比快速模式更准，但要多下一些数据。");
+            const text = await ocrPrecise(state.lastFile);
+            if (!text || text.trim().length < 4) throw new Error("还是没读到文字");
+            const fresh = parseReceipt(text, state.lastFile.name || "receipt", 95);
+            Object.assign(ticket, fresh, { id: ticket.id, actions: ticket.actions || [], helper: ticket.helper || null, source: ticket.source });
+            save();
+            renderResult(ticket);
+            toast("已用精确模型重新识别");
+          } catch (err) {
+            toast("精确模式失败：" + (err.message || "换个文件试试"));
+            renderResult(ticket);
+          }
+        };
+      } else {
+        banner.innerHTML = "";
+      }
+    }
 
     $("#resultEvidence").innerHTML = `<h2>证据</h2>` + (ticket.evidence || []).map((e) => `
       <div class="evidence-item">
@@ -618,8 +1566,18 @@
 
     $("#resultActions").innerHTML = `
       <button class="btn primary" id="goAction" type="button">${nearest ? `去办：${escapeHtml(nearest.label)}` : "补充证据"}</button>
+      ${nearest && nearest.end ? `<button class="btn ghost" id="toCalendar" type="button">加到日历</button>` : ""}
+      ${nearest ? `<button class="btn ghost" id="writeComplaint" type="button">写投诉</button>` : ""}
+      ${["appliance","digital","furniture","auto"].indexOf(ticket.category) >= 0 ? `<button class="btn ghost" id="editWarranty" type="button">保修卡</button>` : ""}
+      ${(ticket.windows || []).some((w) => w.basis) ? `<button class="btn ghost" id="toShareCard" type="button">生成分享图</button>` : ""}
+      <button class="btn ghost" id="viewCase" type="button">看案卷 · 六方合议</button>
       <button class="btn ghost" id="backToday" type="button">回到今天</button>
       <button class="link-btn" id="deleteTicket" type="button">删除这张票</button>`;
+    if ($("#toCalendar")) $("#toCalendar").addEventListener("click", () => addToCalendar(ticket, nearest));
+    if ($("#toShareCard")) $("#toShareCard").addEventListener("click", () => shareCard(ticket));
+    if ($("#writeComplaint")) $("#writeComplaint").addEventListener("click", () => openComplaintSheet(ticket, nearest));
+    if ($("#editWarranty")) $("#editWarranty").addEventListener("click", () => openWarrantySheet(ticket));
+    if ($("#viewCase")) $("#viewCase").addEventListener("click", () => openCase(ticket));
     $("#goAction").addEventListener("click", () => {
       if (nearest) openAction(ticket, nearest);
       else toast("先补一张带金额/日期/商品名的票");
@@ -631,6 +1589,414 @@
       toast("已删除");
       show("today");
     });
+
+    renderHelper(ticket);
+    renderEmptyReason(ticket, actionable);
+    renderTimeline(ticket);
+  }
+
+  function couponDays(c) {
+    const d = new Date(c.expiresAt);
+    if (Number.isNaN(d.getTime())) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return Math.ceil((d - today) / 86400000);
+  }
+
+  function openFamilySheet() {
+    const list = (state.tickets || []).filter((t) => t.helper && t.helper.forWhom);
+    const rows = list.map((t) => {
+      const win = PG.priority(t);
+      const days = win ? `${win.label} ${win.daysLeft} 天` : "暂无截止日";
+      return `<div class="family-row" data-open="${t.id}">
+        <b>${escapeHtml(t.helper.forWhom)}</b>
+        <span>${escapeHtml(t.merchant)} · ${escapeHtml(t.product || "这笔订单")} · ${money(t.amount)}</span>
+        <em>${escapeHtml(days)}</em>
+      </div>`;
+    }).join("");
+    $("#sheetTitle").textContent = "家人代办";
+    $("#sheetBody").innerHTML = list.length
+      ? `<p class="sheet-hint">你标记为“帮家人办”的票，共 ${list.length} 张。</p>${rows}`
+      : `<p class="sheet-hint">还没有代办。</p><p class="annual-note">打开任意一张票，点底部“帮家人办”，填上帮谁办，就会出现在这里。</p>`;
+    $("#sheetOverlay").hidden = false;
+    $("#sheetBody").querySelectorAll("[data-open]").forEach((row) => {
+      row.onclick = () => {
+        const t = state.tickets.find((x) => x.id === row.dataset.open);
+        if (t) { closeSheet(); openResult(t); }
+      };
+    });
+  }
+
+  function openPointsSheet() {
+    const rows = (state.points || []).slice()
+      .sort((a, b) => String(a.expiresAt || "9999").localeCompare(String(b.expiresAt || "9999")))
+      .map((p) => `<div class="coupon-row">
+        <b>${escapeHtml(p.platform)}</b>
+        <span>${Number(p.balance) || 0} 分${p.expiresAt ? ` · ${escapeHtml(p.expiresAt)} 到期` : " · 长期有效"}</span>
+        <em>${Number(p.balance) || 0}</em>
+        <button class="link-btn" data-delp="${p.id}" type="button">删</button>
+      </div>`).join("");
+    const total = (state.points || []).reduce((s, p) => s + (Number(p.balance) || 0), 0);
+    $("#sheetTitle").textContent = "积分台账";
+    $("#sheetBody").innerHTML = `
+      <p class="sheet-hint">把各平台积分记进来，共 ${(state.points || []).length} 项、合计 ${total} 分。积分不通用，这里只做台账和到期提醒。</p>
+      ${rows || `<p class="annual-note">还没有记录。</p>`}
+      <div class="coupon-form">
+        <input id="ptPlatform" placeholder="平台，如 某航司 / 某商超" />
+        <input id="ptBalance" type="number" inputmode="numeric" placeholder="积分余额" />
+        <input id="ptExp" type="date" />
+        <button class="btn ghost" id="ptAdd" type="button">加入台账</button>
+      </div>
+      <div class="sheet-actions"><button class="btn ghost" id="closePoints" type="button">关闭</button></div>`;
+    $("#sheetOverlay").hidden = false;
+    $("#closePoints").onclick = closeSheet;
+    $("#ptAdd").onclick = () => {
+      const platform = $("#ptPlatform").value.trim();
+      const balance = Number($("#ptBalance").value) || 0;
+      if (!platform || !balance) { toast("平台和积分填一下"); return; }
+      state.points.push({ id: uid(), platform, balance, expiresAt: $("#ptExp").value || "" });
+      savePoints(); renderSettings(); openPointsSheet();
+      toast("已加入台账");
+    };
+    $("#sheetBody").querySelectorAll("[data-delp]").forEach((btn) => {
+      btn.onclick = () => {
+        state.points = state.points.filter((p) => p.id !== btn.dataset.delp);
+        savePoints(); renderSettings(); openPointsSheet();
+      };
+    });
+  }
+
+  function openCouponSheet() {
+    const list = (state.coupons || []).slice().sort((a, b) => String(a.expiresAt).localeCompare(String(b.expiresAt)));
+    const rows = list.map((c) => {
+      const days = couponDays(c);
+      const cls = days === null ? "" : days < 0 ? "gone" : days <= 7 ? "soon" : "";
+      const tip = days === null ? "" : days < 0 ? "已过期" : `${days} 天后到期`;
+      return `<div class="coupon-row ${cls}">
+        <b>${escapeHtml(c.name)}</b>
+        <span>${escapeHtml(c.merchant || "")}${c.amount ? ` · ${money(c.amount)}` : ""} · ${escapeHtml(c.expiresAt || "")}</span>
+        <em>${tip}</em>
+        <button class="link-btn" data-del="${c.id}" type="button">删</button>
+      </div>`;
+    }).join("");
+    $("#sheetTitle").textContent = "券包";
+    $("#sheetBody").innerHTML = `
+      ${list.length ? rows : `<p class="sheet-hint">还没有券。把快到期的券记进来，票根按到期日排好。</p>`}
+      <div class="coupon-form">
+        <input id="cpName" placeholder="券名，如 满199减30" />
+        <input id="cpMerchant" placeholder="商家（可留空）" />
+        <input id="cpAmount" type="number" inputmode="decimal" placeholder="面额" />
+        <input id="cpExp" type="date" />
+        <button class="btn ghost" id="cpAdd" type="button">加入券包</button>
+      </div>
+      <div class="sheet-actions"><button class="btn ghost" id="closeCoupons" type="button">关闭</button></div>`;
+    $("#sheetOverlay").hidden = false;
+    $("#closeCoupons").onclick = closeSheet;
+    $("#cpAdd").onclick = () => {
+      const name = $("#cpName").value.trim();
+      const exp = $("#cpExp").value;
+      if (!name || !exp) { toast("券名和到期日填一下"); return; }
+      state.coupons.push({ id: uid(), name, merchant: $("#cpMerchant").value.trim(), amount: Number($("#cpAmount").value) || 0, expiresAt: exp });
+      saveCoupons();
+      renderSettings();
+      openCouponSheet();
+      toast("已加入券包");
+    };
+    $("#sheetBody").querySelectorAll("[data-del]").forEach((btn) => {
+      btn.onclick = () => {
+        state.coupons = state.coupons.filter((c) => c.id !== btn.dataset.del);
+        saveCoupons(); renderSettings(); openCouponSheet();
+      };
+    });
+  }
+
+  async function shrinkImage(file, max, quality) {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(bmp.width * scale);
+    cv.height = Math.round(bmp.height * scale);
+    cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+    return await new Promise((res) => cv.toBlob((b) => res(b), "image/jpeg", quality));
+  }
+
+  function openWarrantySheet(ticket) {
+    const w = ticket.warranty || {};
+    $("#sheetTitle").textContent = "保修卡";
+    $("#sheetBody").innerHTML = `
+      <p class="sheet-hint">填一次，之后办保修直接出示。照片会压缩后存在本机。</p>
+      <div class="coupon-form">
+        <input id="wrBrand" placeholder="品牌" value="${escapeHtml(w.brand || "")}" />
+        <input id="wrModel" placeholder="型号" value="${escapeHtml(w.model || "")}" />
+        <input id="wrUntil" type="date" value="${escapeHtml(w.until || "")}" />
+        <input id="wrPhone" placeholder="售后电话" value="${escapeHtml(w.phone || "")}" />
+      </div>
+      <label class="field"><span>备注</span><input id="wrNote" placeholder="如：整机 3 年、主要部件 5 年" value="${escapeHtml(w.note || "")}" /></label>
+      <label class="field"><span>保修卡照片（可选，1 张）</span><input id="wrPhoto" type="file" accept="image/*" /></label>
+      ${w.photo ? `<p class="annual-note">已存一张保修卡照片。</p>` : ""}
+      <div class="sheet-actions">
+        <button class="btn primary" id="wrSave" type="button">保存</button>
+        <button class="btn ghost" id="wrClose" type="button">关闭</button>
+      </div>`;
+    $("#sheetOverlay").hidden = false;
+    $("#wrClose").onclick = closeSheet;
+    $("#wrSave").onclick = async () => {
+      const next = {
+        brand: $("#wrBrand").value.trim(),
+        model: $("#wrModel").value.trim(),
+        until: $("#wrUntil").value || "",
+        phone: $("#wrPhone").value.trim(),
+        note: $("#wrNote").value.trim(),
+        photo: w.photo || ""
+      };
+      const file = $("#wrPhoto").files && $("#wrPhoto").files[0];
+      if (file) {
+        try {
+          const blob = await shrinkImage(file, 720, 0.55);
+          next.photo = await new Promise((res) => {
+            const fr = new FileReader();
+            fr.onload = () => res(String(fr.result || ""));
+            fr.readAsDataURL(blob);
+          });
+        } catch (e) { toast("照片处理失败，其余信息仍会保存"); }
+      }
+      ticket.warranty = next;
+      try { save(); } catch (e) { toast("本机存储空间不足，照片可能没存下"); }
+      closeSheet();
+      renderResult(ticket);
+      toast("保修卡已保存");
+    };
+  }
+
+  function openSubsSheet() {
+    const subs = PG.detectSubscriptions(state.tickets || []);
+    const total = subs.reduce((s, x) => s + x.yearly, 0);
+    const rows = subs.map((s) => `
+      <div class="sub-row">
+        <b>${escapeHtml(s.merchant)}</b>
+        <span>${money(s.avg)}/月 · 连续 ${s.count} 次${s.lastGap ? ` · 间隔约 ${s.lastGap} 天` : ""}</span>
+        <em>${money(s.yearly)}/年</em>
+      </div>`).join("");
+    $("#sheetTitle").textContent = "自动续费体检";
+    $("#sheetBody").innerHTML = subs.length
+      ? `<p class="sheet-hint">从你导入的账单里找出来的周期性扣款，共 ${subs.length} 项，合计约 <b>${money(total)}/年</b>。</p>
+         ${rows}
+         <p class="annual-note">判定规则：同一商家、金额波动不超过 5%、相邻扣款间隔 25–35 天、连续至少 2 次。这只是提示，是否续费以账单和 App 内为准。</p>
+         <div class="sheet-actions"><button class="btn ghost" id="closeSubs" type="button">关闭</button></div>`
+      : `<p class="sheet-hint">还没有发现周期性扣款。</p>
+         <p class="annual-note">先从支付宝或微信账单里复制一段（至少包含同一个商家连续两个月的扣款），粘贴到「导入 → 粘贴账单」，再回来体检。</p>
+         <div class="sheet-actions"><button class="btn ghost" id="closeSubs" type="button">关闭</button></div>`;
+    $("#sheetOverlay").hidden = false;
+    if ($("#closeSubs")) $("#closeSubs").onclick = closeSheet;
+  }
+
+  function openComplaintSheet(ticket, win) {
+    let variant = "12315";
+    const render = () => {
+      const c = PG.complaintFor(ticket, win, variant);
+      $("#sheetTitle").textContent = "写投诉";
+      $("#sheetBody").innerHTML = `
+        <div class="seg" role="group" aria-label="投诉版本">
+          <button type="button" data-v="12315" class="${variant === "12315" ? "on" : ""}">12315</button>
+          <button type="button" data-v="platform" class="${variant === "platform" ? "on" : ""}">平台介入</button>
+          <button type="button" data-v="heimao" class="${variant === "heimao" ? "on" : ""}">黑猫</button>
+        </div>
+        <div class="checks">
+          ${c.checks.map((x) => `<span class="${x.ok ? "ok" : "no"}">${x.ok ? "✓" : "○"} ${escapeHtml(x.label)}</span>`).join("")}
+        </div>
+        <pre class="complaint-body" id="complaintBody">${escapeHtml(c.body)}</pre>
+        <div class="sheet-actions">
+          <button class="btn primary" id="copyComplaint" type="button">复制全文</button>
+          <button class="btn ghost" id="closeComplaint" type="button">关闭</button>
+        </div>`;
+      $("#sheetBody").querySelectorAll("[data-v]").forEach((btn) => {
+        btn.onclick = () => { variant = btn.dataset.v; render(); };
+      });
+      $("#copyComplaint").onclick = async () => {
+        const text = $("#complaintBody").textContent;
+        try {
+          await navigator.clipboard.writeText(text);
+          toast("已复制，去 12315 / 平台 / 黑猫粘贴");
+        } catch (e) {
+          const ta = document.createElement("textarea");
+          ta.value = text; document.body.appendChild(ta); ta.select();
+          document.execCommand("copy"); document.body.removeChild(ta);
+          toast("已复制");
+        }
+      };
+      $("#closeComplaint").onclick = closeSheet;
+    };
+    render();
+    $("#sheetOverlay").hidden = false;
+  }
+
+  function shareCard(ticket) {
+    const W = 1080, H = 1440;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const g = cv.getContext("2d");
+    g.fillStyle = "#F7F9F8"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#0E9C91"; g.fillRect(0, 0, W, 14);
+    g.fillStyle = "#0F1416";
+    g.font = '600 64px "Noto Serif SC","SimSun",serif';
+    g.fillText("票根", 88, 150);
+    g.fillStyle = "#0E9C91";
+    g.font = '600 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText("消费权利 OS", 88, 192);
+    g.strokeStyle = "#DFE8E7"; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(88, 236); g.lineTo(W - 88, 236); g.stroke();
+    g.fillStyle = "#0F1416";
+    g.font = '600 44px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText(String(ticket.merchant || "商家").slice(0, 16), 88, 320);
+    g.font = '600 68px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText(money(ticket.amount), 88, 404);
+    g.fillStyle = "#566263";
+    g.font = '400 26px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText(`${ticket.date || "日期待确认"} · ${PG.CATEGORY[ticket.category]?.label || "其他"}`, 88, 448);
+    const wins = (ticket.windows || []).filter((w) => w.basis).slice(0, 3);
+    let y = 540;
+    const wrap = (text, max) => {
+      const out = []; let line = "";
+      for (const ch of String(text)) {
+        if (g.measureText(line + ch).width > max) { out.push(line); line = ch; }
+        else line += ch;
+      }
+      if (line) out.push(line);
+      return out;
+    };
+    for (const w of wins) {
+      g.fillStyle = "#0F1416";
+      g.font = '600 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      g.fillText(`${w.label} · 还剩 ${w.daysLeft === null ? "待确认" : w.daysLeft + " 天"}`, 88, y);
+      y += 44;
+      g.fillStyle = "#566263";
+      g.font = '400 25px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      for (const ln of wrap(`${w.basis.law}${w.basis.article}`, W - 176)) { g.fillText(ln, 88, y); y += 38; }
+      g.fillStyle = "#8A9697";
+      g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      for (const ln of wrap(w.basis.text || "", W - 176).slice(0, 2)) { g.fillText(ln, 88, y); y += 34; }
+      y += 40;
+    }
+    g.strokeStyle = "#DFE8E7";
+    g.beginPath(); g.moveTo(88, H - 200); g.lineTo(W - 88, H - 200); g.stroke();
+    g.fillStyle = "#8A9697";
+    g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText("票根 · 拍一张小票，看清还能做什么", 88, H - 150);
+    g.fillText("依据以原文为准；价保属平台承诺", 88, H - 112);
+    cv.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `piaogen-card-${ticket.id}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("已生成分享图");
+    }, "image/png");
+  }
+
+  function renderTimeline(ticket) {
+    const host = $("#ticketTimeline");
+    if (!host) return;
+    const fmtDate = (v) => {
+      const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? `${m[2]}.${m[3]}` : "";
+    };
+    const events = [];
+    if (ticket.date) events.push({ d: ticket.date, t: "购买", s: `${ticket.merchant || "商家"} · ${money(ticket.amount)}` });
+    if ((ticket.evidence || []).length) events.push({ d: "", t: "收集证据", s: `${ticket.evidence.length} 件` });
+    const open = (ticket.windows || []).filter((w) => w.daysLeft !== null && w.daysLeft >= 0);
+    if ((ticket.windows || []).length) events.push({ d: "", t: "算出还能做什么", s: `${open.length} 件有截止日` });
+    const acts = (ticket.actions || []).slice().sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+    for (const a of acts) {
+      const label = a.status === "refunded" ? "已到账 / 已退款"
+        : a.status === "repaired" ? "已修好 / 已换货"
+        : a.status === "promise" ? "承诺已兑现"
+        : a.status === "rejected" ? "被拒"
+        : "今天不办";
+      const bits = [a.label || "", a.amount ? money(a.amount) : "", a.note || ""].filter(Boolean);
+      events.push({ d: String(a.createdAt || "").slice(0, 10), t: label, s: bits.join(" · ") });
+    }
+    host.innerHTML = `<h2>这张票的经历</h2><ol class="tl">` + events.map((e) => `
+      <li><span class="tl-date">${escapeHtml(fmtDate(e.d))}</span>
+        <div class="tl-body"><b>${escapeHtml(e.t)}</b><p>${escapeHtml(e.s)}</p></div></li>`).join("") + `</ol>`;
+  }
+
+  function renderHelper(ticket) {
+    const host = $("#resultHelper");
+    if (!host) return;
+    const h = ticket.helper;
+    if (h && h.forWhom) {
+      host.innerHTML = `<div class="helper-card"><span>代办 · ${escapeHtml(h.name || "家人")} 为 ${escapeHtml(h.forWhom)} 办</span><button class="link-btn" id="editHelper" type="button">修改</button></div>`;
+    } else {
+      host.innerHTML = `<button class="helper-add" id="editHelper" type="button">帮家人办 →</button>`;
+    }
+    $("#editHelper").addEventListener("click", () => openHelperSheet(ticket));
+  }
+
+  function openHelperSheet(ticket) {
+    const h = ticket.helper || {};
+    $("#sheetTitle").textContent = "帮家人办";
+    $("#sheetBody").innerHTML = `
+      <p class="sheet-hint">填了之后，陪办话术会变成“我帮家人问的”，导出也会带上。</p>
+      <label class="field"><span>这是谁的票</span><input id="helperFor" value="${escapeHtml(h.forWhom || "")}" placeholder="母亲 / 父亲 / 家人" /></label>
+      <label class="field"><span>代办人</span><input id="helperName" value="${escapeHtml(h.name || "")}" placeholder="女儿 / 儿子 / 本人" /></label>
+      <label class="field"><span>联系电话（可留空）</span><input id="helperPhone" value="${escapeHtml(h.phone || "")}" placeholder="138****" /></label>
+      <div class="sheet-actions">
+        <button class="btn primary" id="helperSave" type="button">保存</button>
+        <button class="btn ghost" id="helperCancel" type="button">取消</button>
+      </div>`;
+    $("#sheetOverlay").hidden = false;
+    $("#helperCancel").addEventListener("click", closeSheet);
+    $("#helperSave").addEventListener("click", () => {
+      const forWhom = $("#helperFor").value.trim();
+      const name = $("#helperName").value.trim();
+      const phone = $("#helperPhone").value.trim();
+      ticket.helper = forWhom ? { forWhom, name, phone } : null;
+      save();
+      closeSheet();
+      renderHelper(ticket);
+      toast(forWhom ? `已记为 ${name || "家人"} 代办` : "已清除代办");
+    });
+  }
+
+  function renderEmptyReason(ticket, actionable) {
+    const host = $("#resultHelper");
+    if (!host) return;
+    if (actionable.length) return;
+    host.innerHTML = `<div class="empty-reason">
+      <b>这张票暂时没有可主张的权利</b>
+      <p>${ticket.date ? "可能已经过了所有期限，或者品类不在法定范围内。" : "缺购买日期，无法计算起止时间。"}</p>
+      <button class="link-btn" id="fixTicket" type="button">${ticket.date ? "补一张新票" : "补日期后重算"}</button>
+    </div>`;
+    $("#fixTicket").addEventListener("click", () => {
+      if (ticket.date) { show("import"); return; }
+      openResult(ticket);
+      $("#editTicket")?.click();
+    });
+  }
+
+  function addToCalendar(ticket, win) {
+    const day = String(win.end || "").replace(/[.]/g, "-");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) { toast("这条没有确切截止日"); return; }
+    const stamp = new Date().toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+    const lines = [
+      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Piaogen//V0//CN", "CALSCALE:GREGORIAN",
+      "BEGIN:VEVENT",
+      `UID:piaogen-${ticket.id}-${win.type}@local`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${day.replace(/-/g, "")}`,
+      `SUMMARY:票根 · ${ticket.merchant} ${win.label}截止`,
+      `DESCRIPTION:${String(win.source || "").replace(/[\r\n]/g, " ")}`,
+      "BEGIN:VALARM", "TRIGGER:-P3D", "ACTION:DISPLAY", "DESCRIPTION:还有 3 天", "END:VALARM",
+      "END:VEVENT", "END:VCALENDAR"
+    ];
+    const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `piaogen-${ticket.id}-${win.type}.ics`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast("已生成日历文件");
   }
 
   function openAction(ticket, win) {
@@ -640,6 +2006,8 @@
     $("#actionSteps").innerHTML = `<div class="step on"><i></i><span>1 看规则</span></div><div class="step"><i></i><span>2 备材料</span></div><div class="step"><i></i><span>3 去办理</span></div>`;
     $("#actionChecklist").innerHTML = PG.checklistFor(win).map((item) => `<label class="check-item"><input type="checkbox" /><span>${escapeHtml(item)}</span></label>`).join("");
     $("#actionScript").textContent = PG.scriptFor(ticket, win);
+    $("#actionObjections").innerHTML = `<h2>对方可能会说</h2>` + PG.objectionsFor(win).map((pair) => `
+      <div class="obj"><b>「${escapeHtml(pair[0])}」</b><p>${escapeHtml(pair[1])}</p></div>`).join("");
     const portal = PG.portalFor(win);
     $("#actionPortal").innerHTML = `<a href="${portal.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(portal.label)}<span>↗</span></a>`;
     show("action");
@@ -675,6 +2043,16 @@
       ${outcome.note ? `<div class="row"><span>备注</span><b>${escapeHtml(outcome.note)}</b></div>` : ""}`;
     const remaining = (ticket.windows || []).filter((w) => w.status !== "closed" && w.daysLeft !== null && w.daysLeft >= 0);
     $("#doneRemaining").innerHTML = remaining.length ? `<div class="section-head"><h2>这张票还剩</h2></div>` + remaining.slice(0, 3).map((w) => `<div class="window"><div class="window-top"><b>${escapeHtml(w.label)}</b><span><b>${w.daysLeft} 天</b></span></div><p>${escapeHtml(w.source)}</p></div>`).join("") : "";
+    const next = $("#doneNext");
+    if (next) {
+      next.innerHTML = outcome.status === "rejected"
+        ? `<h2>被拒之后还能做</h2>
+           <div class="obj"><b>平台介入</b><p>回到订单页申请平台客服介入，把这次被拒的理由一起写进去。</p></div>
+           <div class="obj"><b>12315</b><p>在全国 12315 平台提交投诉，写明诉求和依据条款，附上票据。</p></div>
+           <div class="obj"><b>留证再谈</b><p>记下拒绝理由、时间和客服工号，换一条路再来。</p></div>`
+        : "";
+    }
+
     $("#doneToday").onclick = () => show("today");
     $("#doneExport").onclick = () => exportTicket(ticket);
   }
@@ -779,8 +2157,130 @@
     toast("已导出这张票");
   }
 
+  function renderAnnual() {
+    const year = new Date().getFullYear();
+    const months = new Array(12).fill(0);
+    let total = 0, count = 0, biggest = null;
+    for (const ticket of (state.tickets || [])) {
+      for (const action of (ticket.actions || [])) {
+        if (action.status !== "refunded" && action.status !== "promise") continue;
+        const d = new Date(action.createdAt || ticket.date);
+        if (Number.isNaN(d.getTime()) || d.getFullYear() !== year) continue;
+        const amt = Number(action.amount) || 0;
+        months[d.getMonth()] += amt;
+        total += amt;
+        count += 1;
+        if (!biggest || amt > biggest.amt) biggest = { amt, merchant: ticket.merchant };
+      }
+    }
+    const body = $("#annualBody");
+    if (!count) {
+      body.innerHTML = `<div class="empty-reason">
+        <b>${year} 年还没有追回记录</b>
+        <p>办完一张票并记录“已到账”，这里就会长出第一根柱子。</p>
+        <button class="link-btn" id="annualBack" type="button">回到今天</button>
+      </div>`;
+      $("#annualBack").onclick = () => show("today");
+      return;
+    }
+    const max = Math.max.apply(null, months.concat([1]));
+    let spend = 0;
+    const catSum = {};
+    for (const t of (state.tickets || [])) {
+      const d = new Date(t.date);
+      if (Number.isNaN(d.getTime()) || d.getFullYear() !== year) continue;
+      const amt = Number(t.amount) || 0;
+      spend += amt;
+      const key = (PG.CATEGORY[t.category] && PG.CATEGORY[t.category].label) || "其他";
+      catSum[key] = (catSum[key] || 0) + amt;
+    }
+    const thisMonth = new Date().getMonth();
+    let monthSpend = 0, monthRecovered = 0;
+    for (const t of (state.tickets || [])) {
+      const d = new Date(t.date);
+      if (!Number.isNaN(d.getTime()) && d.getFullYear() === year && d.getMonth() === thisMonth) {
+        monthSpend += Number(t.amount) || 0;
+      }
+      for (const a of (t.actions || [])) {
+        if (a.status !== "refunded" && a.status !== "promise") continue;
+        const ad = new Date(a.createdAt || t.date);
+        if (!Number.isNaN(ad.getTime()) && ad.getFullYear() === year && ad.getMonth() === thisMonth) {
+          monthRecovered += Number(a.amount) || 0;
+        }
+      }
+    }
+    const cats = Object.entries(catSum).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const catMax = Math.max.apply(null, cats.map((c) => c[1]).concat([1]));
+    body.innerHTML = `
+      <div class="annual-total">
+        <span>${year} 年追回</span>
+        <b>${money(total)}</b>
+        <small>${count} 笔 · 最大一笔 ${money(biggest.amt)}（${escapeHtml(biggest.merchant)}）</small>
+      </div>
+      <div class="money-grid">
+        <div class="money-cell"><span>今年花在票上</span><b>${money(spend)}</b></div>
+        <div class="money-cell gain"><span>追回</span><b>${money(total)}</b></div>
+        <div class="money-cell"><span>净支出</span><b>${money(Math.max(0, spend - total))}</b></div>
+      </div>
+      <div class="month-head"><span>本月</span><b>${new Date().getMonth() + 1} 月</b></div>
+      <div class="money-grid">
+        <div class="money-cell"><span>本月支出</span><b>${money(monthSpend)}</b></div>
+        <div class="money-cell gain"><span>本月追回</span><b>${money(monthRecovered)}</b></div>
+        <div class="money-cell"><span>本月净支出</span><b>${money(Math.max(0, monthSpend - monthRecovered))}</b></div>
+      </div>
+      <div class="cat-list">
+        ${cats.map(([k, v]) => `<div class="cat-row"><span>${escapeHtml(k)}</span><i style="width:${Math.round((v / catMax) * 100)}%"></i><em>${money(v)}</em></div>`).join("")}
+      </div>
+      <div class="annual-chart">
+        ${months.map((v, i) => `<div class="bar"><i style="height:${Math.round((v / max) * 100)}%"></i><span>${i + 1}</span></div>`).join("")}
+      </div>
+      <p class="annual-note">只统计记录为“已到账/已退款”或“承诺已兑现”的金额；已修好、已换货计入件数，不计金额。</p>`;
+  }
+
+  function openRulesSheet() {
+    const meta = PG.RULES_META;
+    const rows = Object.entries(PG.BASIS).map(([id, b]) => `
+      <div class="rule-row">
+        <b>${escapeHtml(b.law)}${escapeHtml(b.article)}</b>
+        <p>${escapeHtml(b.short)}</p>
+        <small>${escapeHtml(PG.EFFECTIVE[id] || "")}${b.url ? ` · <a href="${escapeHtml(b.url)}" target="_blank" rel="noopener noreferrer">原文</a>` : ""}</small>
+      </div>`).join("");
+    $("#sheetTitle").textContent = "规则库";
+    $("#sheetBody").innerHTML = `
+      <p class="sheet-hint">版本 ${escapeHtml(meta.version)} · 核对于 ${escapeHtml(meta.checkedAt)} · 共 ${Object.keys(PG.BASIS).length} 条</p>
+      ${rows}
+      <p class="annual-note">价保属平台承诺，天数和条件以订单页为准，不写成法定权利。</p>`;
+    $("#sheetOverlay").hidden = false;
+  }
+
   function renderSettings() {
     $("#settingCount").textContent = String(state.tickets.length);
+    const open = $("#openAnnual");
+    if (open) open.onclick = () => { renderAnnual(); show("annual"); };
+    const rules = $("#openRules");
+    if (rules) rules.onclick = openRulesSheet;
+    const subs = $("#openSubs");
+    if (subs) subs.onclick = openSubsSheet;
+    const coupons = $("#openCoupons");
+    if (coupons) coupons.onclick = openCouponSheet;
+    const pts = $("#openPoints");
+    if (pts) pts.onclick = openPointsSheet;
+    const fam = $("#openFamily");
+    if (fam) fam.onclick = openFamilySheet;
+    const fc = $("#familyCount");
+    if (fc) fc.textContent = String((state.tickets || []).filter((t) => t.helper && t.helper.forWhom).length);
+    const pt = $("#pointTotal");
+    if (pt) pt.textContent = String((state.points || []).reduce((s, p) => s + (Number(p.balance) || 0), 0));
+    const ov = $("#assetOverview");
+    if (ov) {
+      const subs = PG.detectSubscriptions(state.tickets || []).length;
+      ov.innerHTML = `<div><b>${(state.tickets || []).length}</b><span>票据</span></div>
+        <div><b>${(state.coupons || []).length}</b><span>券</span></div>
+        <div><b>${subs}</b><span>订阅</span></div>
+        <div><b>${(state.points || []).length}</b><span>积分</span></div>`;
+    }
+    const cc = $("#couponCount");
+    if (cc) cc.textContent = String((state.coupons || []).length);
   }
 
   function exportAll() {
@@ -818,8 +2318,13 @@
     $("#settingsBtn").addEventListener("click", () => show("settings"));
     $("#emptyCamera").addEventListener("click", () => $("#fileCamera").click());
     $("#emptyImport").addEventListener("click", () => show("import"));
+    $("#emptyIntake").addEventListener("click", intakeSheet);
     $("#emptyDemo").addEventListener("click", addDemo);
     $("#addBtn").addEventListener("click", () => show("import"));
+    $("#intakeForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      runIntake($("#intakeText").value);
+    });
     $("#refreshBtn").addEventListener("click", () => {
       state.tickets.forEach((ticket) => { ticket.windows = PG.buildWindows(ticket).map((w) => ({ ...w, id: uid() })); });
       save();
@@ -884,7 +2389,12 @@
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.min.js";
     }
     load();
+    loadCoupons();
+    loadPoints();
     bind();
+    if (/[?&]demo=1/.test(location.search) && !state.tickets.length) {
+      addDemo();
+    }
     renderToday();
     renderImport();
   }

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="票根">
+  <rect width="32" height="32" rx="7" fill="#F7F9F8"/>
+  <path d="M5 9.4h22a1.6 1.6 0 0 1 1.6 1.6v3.1a2.9 2.9 0 0 0 0 5.8V21a1.6 1.6 0 0 1-1.6 1.6H5A1.6 1.6 0 0 1 3.4 21v-3.1a2.9 2.9 0 0 0 0-5.8V11A1.6 1.6 0 0 1 5 9.4Z" fill="#0F1416"/>
+  <path d="M21.2 11.2v9.6" stroke="#F7F9F8" stroke-width="1.15" stroke-linecap="round" stroke-dasharray="1.7 1.7"/>
+</svg>

@@ -27,6 +27,7 @@
   <script src="vendor/pdf.min.js" defer></script>
   <script src="vendor/jszip.min.js" defer></script>
   <script src="rules.js" defer></script>
+  <script src="agents.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -38,7 +39,7 @@
           <span class="brand-name">票根</span>
         </div>
         <div class="top-actions">
-          <span class="edition">CONSUMER RIGHTS OS</span>
+          <span class="edition">消费权利案卷</span>
           <button class="icon-btn" id="settingsBtn" type="button" aria-label="设置">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.09A1.7 1.7 0 0 0 8.95 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.09A1.7 1.7 0 0 0 4.6 8.95a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.95 4.6 1.7 1.7 0 0 0 9.98 3.04V3h4v.09A1.7 1.7 0 0 0 15.05 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.95a1.7 1.7 0 0 0 1.56 1.03H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg>
           </button>
@@ -59,6 +60,7 @@
               <span class="btn-ico" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
             </button>
             <button class="btn ghost" id="emptyDemo" type="button">先看一遍示例（10 秒）</button>
+            <button class="link-btn" id="emptyIntake" type="button">或者，说一句要办的事</button>
             <button class="link-btn" id="emptyImport" type="button">导入订单 / 发票</button>
             <div class="steps">
               <div><b>1</b><span>拍一张小票</span></div>
@@ -74,6 +76,12 @@
           </div>
 
           <div id="todayContent" class="hidden">
+            <form class="intake" id="intakeForm">
+              <label class="sr-only" for="intakeText">说一句要办的事</label>
+              <input id="intakeText" type="text" autocomplete="off" placeholder="说一句：我上周买的空气炸锅坏了" />
+              <button class="btn primary" id="intakeBtn" type="submit">立案</button>
+            </form>
+            <p class="intake-hint">也可以说：这个月被扣了两次会员费 / 299 买的鞋还没发货</p>
             <div class="today-head">
               <div>
                 <p class="eyebrow" id="todayDate">今天</p>
@@ -202,6 +210,39 @@
           <div id="resultHelper" class="helper"></div>
         </section>
 
+        <section class="screen" data-screen="case" aria-label="案卷">
+          <div class="page-head compact">
+            <button class="icon-btn" data-back="result" type="button" aria-label="返回这张票">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div>
+              <p class="eyebrow">案卷</p>
+              <h1 id="caseTitle">这宗案卷</h1>
+            </div>
+          </div>
+          <div id="caseBody"></div>
+        </section>
+
+        <section class="screen" data-screen="cases" aria-label="所有案卷">
+          <div class="page-head compact">
+            <div>
+              <p class="eyebrow">案卷</p>
+              <h1>所有案卷</h1>
+            </div>
+          </div>
+          <div id="casesBody"></div>
+        </section>
+
+        <section class="screen" data-screen="assets" aria-label="资产">
+          <div class="page-head compact">
+            <div>
+              <p class="eyebrow">资产</p>
+              <h1>付完之后</h1>
+            </div>
+          </div>
+          <div id="assetsBody"></div>
+        </section>
+
         <section class="screen" data-screen="action" aria-label="陪办">
           <div class="page-head">
             <button class="icon-btn" data-back="result" type="button" aria-label="返回结果">
@@ -293,13 +334,21 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg>
           <span>今天</span>
         </button>
+        <button class="tabbar-item" data-nav="cases" type="button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Z"/><path d="M14 3v5h5"/><path d="M9 12h6M9 16h4"/></svg>
+          <span>案卷</span>
+        </button>
+        <button class="tabbar-item" data-nav="assets" type="button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h16v12H4V8Z"/><path d="M8 8V5h8v3"/><path d="M4 12h16"/></svg>
+          <span>资产</span>
+        </button>
         <button class="tabbar-item" data-nav="import" type="button">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v10"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/></svg>
           <span>导入</span>
         </button>
         <button class="tabbar-item" data-nav="settings" type="button">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
-          <span>设置</span>
+          <span>我的</span>
         </button>
       </nav>
 

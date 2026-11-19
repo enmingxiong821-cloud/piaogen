@@ -114,6 +114,7 @@
   }
 
   function buildWindows(ticket) {
+    if (ticket && ticket.noWindows) return [];
     const parsed = ticket.date ? new Date(ticket.date) : null;
     const hasDate = parsed && !Number.isNaN(parsed.getTime());
     if (!hasDate) {
@@ -269,7 +270,7 @@
   }
 
   function priority(ticket) {
-    const open = (ticket.windows || []).filter((w) => w.daysLeft !== null && w.daysLeft >= 0);
+    const open = (ticket.windows || []).filter((w) => w.daysLeft !== null && w.daysLeft >= 0 && w.status !== "closed");
     const rank = { price: 0, return: 1, exchange: 2, warranty: 3, deposit: 4, prepaid: 4, promise: 5 };
     open.sort((a, b) => (a.daysLeft - b.daysLeft) || ((rank[a.type] ?? 9) - (rank[b.type] ?? 9)));
     return open[0] || null;
@@ -467,6 +468,8 @@ ${ev}` };
     for (const t of (tickets || [])) {
       const key = String(t.merchant || "").trim();
       if (!key || !t.date) continue;
+      // 商超/食品/美妆/母婴的重复购买更像“耗材”，不按订阅处理，避免误报。
+      if (["grocery", "food", "beauty", "baby"].includes(t.category)) continue;
       if (!byMerchant.has(key)) byMerchant.set(key, []);
       byMerchant.get(key).push({ d: new Date(t.date), amt: Number(t.amount) || 0 });
     }

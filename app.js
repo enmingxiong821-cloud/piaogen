@@ -161,6 +161,7 @@ const POINT_KEY = "piaogen.v0.points";
           promise: String(data.promise || "").trim()
         };
         next.review = false;
+        next.ocrError = null;
         next.needsConfirm = !next.merchant || !next.amount || !next.date;
         next.windows = PG.buildWindows(next).map((w) => ({ ...w, id: uid() }));
         onSave(next);
@@ -473,6 +474,8 @@ const POINT_KEY = "piaogen.v0.points";
     } catch (error) {
       const text = `识别失败：${error.message || "未知错误"}`;
       const ticket = parseReceipt("", file.name);
+      ticket.review = true;
+      ticket.ocrError = error.message || "未知错误";
       ticket.missing = ["商家", "金额", "购买日期", "商品名"];
       ticket.needsConfirm = true;
       ticket.evidence = [{ id: uid(), type: detectFileType(file.name), label: file.name, detail: text, confidence: 0, status: "needs" }];
@@ -1510,6 +1513,8 @@ const POINT_KEY = "piaogen.v0.points";
         else if (field === "date") ticket.date = input.value;
         else ticket[field] = input.value.trim();
         ticket.needsConfirm = !ticket.merchant || !ticket.amount || !ticket.date;
+        ticket.ocrError = null;
+        if (!ticket.needsConfirm) ticket.review = false;
         ticket.windows = PG.buildWindows(ticket).map((w) => ({ ...w, id: uid() }));
         save();
         renderResult(ticket);
@@ -1534,7 +1539,10 @@ const POINT_KEY = "piaogen.v0.points";
 
     const banner = $("#reviewBanner");
     if (banner) {
-      if (ticket.review) {
+      if (ticket.ocrError) {
+        banner.innerHTML = `<div class="review-banner"><b>识别没完成</b><span>${escapeHtml(ticket.ocrError)}。先手动填商家、金额、日期三项。</span><button class="link-btn" id="reviewFix" type="button">手动填</button></div>`;
+        $("#reviewFix").onclick = () => { const b = $("#editTicket"); if (b) b.click(); };
+      } else if (ticket.review) {
         banner.innerHTML = `<div class="review-banner"><b>OCR 置信度偏低</b><span>金额、日期请核对后再用</span><button class="link-btn" id="reviewPrecise" type="button">精确模式</button><button class="link-btn" id="reviewFix" type="button">改字段</button></div>`;
         $("#reviewFix").onclick = () => { const b = $("#editTicket"); if (b) b.click(); };
         $("#reviewPrecise").onclick = async () => {
@@ -2083,7 +2091,7 @@ const POINT_KEY = "piaogen.v0.points";
     const list = groups[state.tab] || [];
     $("#triageList").innerHTML = list.length ? list.map((ticket) => {
       const checked = state.selected.has(ticket.id) ? "checked" : "";
-      const chips = (ticket.windows || []).slice(0, 3).map((w) => `<span class="chip ${w.status === "expiring" ? "warn" : w.status === "unknown" ? "pending" : "ok"}">${escapeHtml(w.label)} ${w.daysLeft === null ? "待确认" : `${w.daysLeft} 天`}</span>`).join("") + (ticket.review ? `<span class="chip pending">OCR 需复核</span>` : "");
+      const chips = (ticket.windows || []).slice(0, 3).map((w) => `<span class="chip ${w.status === "expiring" ? "warn" : w.status === "unknown" ? "pending" : "ok"}">${escapeHtml(w.label)} ${w.daysLeft === null ? "待确认" : `${w.daysLeft} 天`}</span>`).join("") + (ticket.ocrError ? `<span class="chip pending">识别失败 · 手动填</span>` : ticket.review ? `<span class="chip pending">OCR 需复核</span>` : "");
       return `<div class="triage-row" data-row="${ticket.id}">
         <label class="check"><input type="checkbox" ${checked} data-check="${ticket.id}" aria-label="选择 ${escapeHtml(ticket.merchant)}" /><span class="box"></span></label>
         <div class="triage-main">

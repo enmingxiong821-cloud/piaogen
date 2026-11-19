@@ -1426,6 +1426,9 @@
     }
     load();
     bind();
+    if (/[?&]demo=1/.test(location.search) && !state.tickets.length) {
+      addDemo();
+    }
     renderToday();
     renderImport();
   }

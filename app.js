@@ -3,6 +3,7 @@
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const STORE_KEY = "piaogen.v0.tickets";
 const COUPON_KEY = "piaogen.v0.coupons";
+const POINT_KEY = "piaogen.v0.points";
   const SETTINGS_KEY = "piaogen.v0.settings";
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const state = {
@@ -53,6 +54,15 @@ const COUPON_KEY = "piaogen.v0.coupons";
   function loadCoupons() {
     try { state.coupons = JSON.parse(localStorage.getItem(COUPON_KEY) || "[]"); } catch (e) { state.coupons = []; }
     if (!Array.isArray(state.coupons)) state.coupons = [];
+  }
+
+  function loadPoints() {
+    try { state.points = JSON.parse(localStorage.getItem(POINT_KEY) || "[]"); } catch (e) { state.points = []; }
+    if (!Array.isArray(state.points)) state.points = [];
+  }
+
+  function savePoints() {
+    try { localStorage.setItem(POINT_KEY, JSON.stringify(state.points || [])); } catch (e) {}
   }
 
   function saveCoupons() {
@@ -932,6 +942,45 @@ const COUPON_KEY = "piaogen.v0.coupons";
     return Math.ceil((d - today) / 86400000);
   }
 
+  function openPointsSheet() {
+    const rows = (state.points || []).slice()
+      .sort((a, b) => String(a.expiresAt || "9999").localeCompare(String(b.expiresAt || "9999")))
+      .map((p) => `<div class="coupon-row">
+        <b>${escapeHtml(p.platform)}</b>
+        <span>${Number(p.balance) || 0} 分${p.expiresAt ? ` · ${escapeHtml(p.expiresAt)} 到期` : " · 长期有效"}</span>
+        <em>${Number(p.balance) || 0}</em>
+        <button class="link-btn" data-delp="${p.id}" type="button">删</button>
+      </div>`).join("");
+    const total = (state.points || []).reduce((s, p) => s + (Number(p.balance) || 0), 0);
+    $("#sheetTitle").textContent = "积分台账";
+    $("#sheetBody").innerHTML = `
+      <p class="sheet-hint">把各平台积分记进来，共 ${(state.points || []).length} 项、合计 ${total} 分。积分不通用，这里只做台账和到期提醒。</p>
+      ${rows || `<p class="annual-note">还没有记录。</p>`}
+      <div class="coupon-form">
+        <input id="ptPlatform" placeholder="平台，如 某航司 / 某商超" />
+        <input id="ptBalance" type="number" inputmode="numeric" placeholder="积分余额" />
+        <input id="ptExp" type="date" />
+        <button class="btn ghost" id="ptAdd" type="button">加入台账</button>
+      </div>
+      <div class="sheet-actions"><button class="btn ghost" id="closePoints" type="button">关闭</button></div>`;
+    $("#sheetOverlay").hidden = false;
+    $("#closePoints").onclick = closeSheet;
+    $("#ptAdd").onclick = () => {
+      const platform = $("#ptPlatform").value.trim();
+      const balance = Number($("#ptBalance").value) || 0;
+      if (!platform || !balance) { toast("平台和积分填一下"); return; }
+      state.points.push({ id: uid(), platform, balance, expiresAt: $("#ptExp").value || "" });
+      savePoints(); renderSettings(); openPointsSheet();
+      toast("已加入台账");
+    };
+    $("#sheetBody").querySelectorAll("[data-delp]").forEach((btn) => {
+      btn.onclick = () => {
+        state.points = state.points.filter((p) => p.id !== btn.dataset.delp);
+        savePoints(); renderSettings(); openPointsSheet();
+      };
+    });
+  }
+
   function openCouponSheet() {
     const list = (state.coupons || []).slice().sort((a, b) => String(a.expiresAt).localeCompare(String(b.expiresAt)));
     const rows = list.map((c) => {
@@ -1472,6 +1521,18 @@ const COUPON_KEY = "piaogen.v0.coupons";
     if (subs) subs.onclick = openSubsSheet;
     const coupons = $("#openCoupons");
     if (coupons) coupons.onclick = openCouponSheet;
+    const pts = $("#openPoints");
+    if (pts) pts.onclick = openPointsSheet;
+    const pt = $("#pointTotal");
+    if (pt) pt.textContent = String((state.points || []).reduce((s, p) => s + (Number(p.balance) || 0), 0));
+    const ov = $("#assetOverview");
+    if (ov) {
+      const subs = PG.detectSubscriptions(state.tickets || []).length;
+      ov.innerHTML = `<div><b>${(state.tickets || []).length}</b><span>票据</span></div>
+        <div><b>${(state.coupons || []).length}</b><span>券</span></div>
+        <div><b>${subs}</b><span>订阅</span></div>
+        <div><b>${(state.points || []).length}</b><span>积分</span></div>`;
+    }
     const cc = $("#couponCount");
     if (cc) cc.textContent = String((state.coupons || []).length);
   }
@@ -1578,6 +1639,7 @@ const COUPON_KEY = "piaogen.v0.coupons";
     }
     load();
     loadCoupons();
+    loadPoints();
     bind();
     if (/[?&]demo=1/.test(location.search) && !state.tickets.length) {
       addDemo();

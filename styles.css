@@ -542,3 +542,15 @@ h1{font-family:var(--sans);font-size:34px;letter-spacing:-.035em;font-weight:700
 .sub-row b{font-size:14px;color:var(--ink);grid-column:1}
 .sub-row span{grid-column:1;font-size:12px;color:var(--ink-2)}
 .sub-row em{grid-row:1 / span 2;grid-column:2;align-self:center;font-style:normal;font-size:15px;color:var(--teal);font-variant-numeric:tabular-nums}
+.coupon-row{display:grid;grid-template-columns:1fr auto auto;gap:3px 10px;padding:11px 0;border-top:1px dashed var(--rule);align-items:center}
+.coupon-row b{grid-column:1;font-size:14px;color:var(--ink)}
+.coupon-row span{grid-column:1;font-size:12px;color:var(--ink-2)}
+.coupon-row em{grid-column:2;font-style:normal;font-size:12px;color:var(--ink-3);white-space:nowrap}
+.coupon-row.soon em{color:var(--amber);font-weight:600}
+.coupon-row.gone{opacity:.55}
+.coupon-row .link-btn{grid-column:3;font-size:12px;min-height:32px;padding:0 4px;color:var(--ink-3);text-decoration:none}
+.coupon-form{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+.coupon-form input{height:42px;padding:0 12px;border:1px solid var(--rule);border-radius:10px;background:var(--surface);color:var(--ink);font-size:14px;min-width:0}
+.coupon-form .btn{grid-column:1 / -1}
+.month-head{display:flex;justify-content:space-between;align-items:baseline;margin:18px 0 0;font-size:12px;color:var(--ink-3)}
+.month-head b{font-size:12px;color:var(--ink-2);font-weight:600}

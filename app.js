@@ -2,6 +2,7 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const STORE_KEY = "piaogen.v0.tickets";
+const COUPON_KEY = "piaogen.v0.coupons";
   const SETTINGS_KEY = "piaogen.v0.settings";
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const state = {
@@ -47,6 +48,15 @@
       state.tickets = [];
     }
     if (!Array.isArray(state.tickets)) state.tickets = [];
+  }
+
+  function loadCoupons() {
+    try { state.coupons = JSON.parse(localStorage.getItem(COUPON_KEY) || "[]"); } catch (e) { state.coupons = []; }
+    if (!Array.isArray(state.coupons)) state.coupons = [];
+  }
+
+  function saveCoupons() {
+    try { localStorage.setItem(COUPON_KEY, JSON.stringify(state.coupons || [])); } catch (e) {}
   }
 
   function save() {
@@ -915,6 +925,57 @@
     renderTimeline(ticket);
   }
 
+  function couponDays(c) {
+    const d = new Date(c.expiresAt);
+    if (Number.isNaN(d.getTime())) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return Math.ceil((d - today) / 86400000);
+  }
+
+  function openCouponSheet() {
+    const list = (state.coupons || []).slice().sort((a, b) => String(a.expiresAt).localeCompare(String(b.expiresAt)));
+    const rows = list.map((c) => {
+      const days = couponDays(c);
+      const cls = days === null ? "" : days < 0 ? "gone" : days <= 7 ? "soon" : "";
+      const tip = days === null ? "" : days < 0 ? "已过期" : `${days} 天后到期`;
+      return `<div class="coupon-row ${cls}">
+        <b>${escapeHtml(c.name)}</b>
+        <span>${escapeHtml(c.merchant || "")}${c.amount ? ` · ${money(c.amount)}` : ""} · ${escapeHtml(c.expiresAt || "")}</span>
+        <em>${tip}</em>
+        <button class="link-btn" data-del="${c.id}" type="button">删</button>
+      </div>`;
+    }).join("");
+    $("#sheetTitle").textContent = "券包";
+    $("#sheetBody").innerHTML = `
+      ${list.length ? rows : `<p class="sheet-hint">还没有券。把快到期的券记进来，票根按到期日排好。</p>`}
+      <div class="coupon-form">
+        <input id="cpName" placeholder="券名，如 满199减30" />
+        <input id="cpMerchant" placeholder="商家（可留空）" />
+        <input id="cpAmount" type="number" inputmode="decimal" placeholder="面额" />
+        <input id="cpExp" type="date" />
+        <button class="btn ghost" id="cpAdd" type="button">加入券包</button>
+      </div>
+      <div class="sheet-actions"><button class="btn ghost" id="closeCoupons" type="button">关闭</button></div>`;
+    $("#sheetOverlay").hidden = false;
+    $("#closeCoupons").onclick = closeSheet;
+    $("#cpAdd").onclick = () => {
+      const name = $("#cpName").value.trim();
+      const exp = $("#cpExp").value;
+      if (!name || !exp) { toast("券名和到期日填一下"); return; }
+      state.coupons.push({ id: uid(), name, merchant: $("#cpMerchant").value.trim(), amount: Number($("#cpAmount").value) || 0, expiresAt: exp });
+      saveCoupons();
+      renderSettings();
+      openCouponSheet();
+      toast("已加入券包");
+    };
+    $("#sheetBody").querySelectorAll("[data-del]").forEach((btn) => {
+      btn.onclick = () => {
+        state.coupons = state.coupons.filter((c) => c.id !== btn.dataset.del);
+        saveCoupons(); renderSettings(); openCouponSheet();
+      };
+    });
+  }
+
   function openSubsSheet() {
     const subs = PG.detectSubscriptions(state.tickets || []);
     const total = subs.reduce((s, x) => s + x.yearly, 0);
@@ -1342,6 +1403,21 @@
       const key = (PG.CATEGORY[t.category] && PG.CATEGORY[t.category].label) || "其他";
       catSum[key] = (catSum[key] || 0) + amt;
     }
+    const thisMonth = new Date().getMonth();
+    let monthSpend = 0, monthRecovered = 0;
+    for (const t of (state.tickets || [])) {
+      const d = new Date(t.date);
+      if (!Number.isNaN(d.getTime()) && d.getFullYear() === year && d.getMonth() === thisMonth) {
+        monthSpend += Number(t.amount) || 0;
+      }
+      for (const a of (t.actions || [])) {
+        if (a.status !== "refunded" && a.status !== "promise") continue;
+        const ad = new Date(a.createdAt || t.date);
+        if (!Number.isNaN(ad.getTime()) && ad.getFullYear() === year && ad.getMonth() === thisMonth) {
+          monthRecovered += Number(a.amount) || 0;
+        }
+      }
+    }
     const cats = Object.entries(catSum).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const catMax = Math.max.apply(null, cats.map((c) => c[1]).concat([1]));
     body.innerHTML = `
@@ -1354,6 +1430,12 @@
         <div class="money-cell"><span>今年花在票上</span><b>${money(spend)}</b></div>
         <div class="money-cell gain"><span>追回</span><b>${money(total)}</b></div>
         <div class="money-cell"><span>净支出</span><b>${money(Math.max(0, spend - total))}</b></div>
+      </div>
+      <div class="month-head"><span>本月</span><b>${new Date().getMonth() + 1} 月</b></div>
+      <div class="money-grid">
+        <div class="money-cell"><span>本月支出</span><b>${money(monthSpend)}</b></div>
+        <div class="money-cell gain"><span>本月追回</span><b>${money(monthRecovered)}</b></div>
+        <div class="money-cell"><span>本月净支出</span><b>${money(Math.max(0, monthSpend - monthRecovered))}</b></div>
       </div>
       <div class="cat-list">
         ${cats.map(([k, v]) => `<div class="cat-row"><span>${escapeHtml(k)}</span><i style="width:${Math.round((v / catMax) * 100)}%"></i><em>${money(v)}</em></div>`).join("")}
@@ -1388,6 +1470,10 @@
     if (rules) rules.onclick = openRulesSheet;
     const subs = $("#openSubs");
     if (subs) subs.onclick = openSubsSheet;
+    const coupons = $("#openCoupons");
+    if (coupons) coupons.onclick = openCouponSheet;
+    const cc = $("#couponCount");
+    if (cc) cc.textContent = String((state.coupons || []).length);
   }
 
   function exportAll() {
@@ -1491,6 +1577,7 @@
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.min.js";
     }
     load();
+    loadCoupons();
     bind();
     if (/[?&]demo=1/.test(location.search) && !state.tickets.length) {
       addDemo();

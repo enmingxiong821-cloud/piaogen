@@ -1096,7 +1096,8 @@ const POINT_KEY = "piaogen.v0.points";
         best = ticket;
       }
     }
-    return bestScore >= 4 ? best : null;
+    const threshold = (parsed.category || parsed.amount || parsed.date) ? 4 : 3;
+    return bestScore >= threshold ? best : null;
   }
 
   function intakeIntentLabel(intent) {

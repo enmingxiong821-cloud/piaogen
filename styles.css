@@ -559,3 +559,8 @@ h1{font-family:var(--sans);font-size:34px;letter-spacing:-.035em;font-weight:700
 .asset-grid div{background:var(--surface);padding:12px 6px;text-align:center}
 .asset-grid b{display:block;font-size:18px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .asset-grid span{display:block;font-size:10px;color:var(--ink-3);margin-top:2px}
+.warranty-line{margin-top:10px;padding:8px 10px;border-radius:10px;background:var(--teal-soft);color:#0B4D4A;font-size:12px;line-height:1.5}
+.family-row{display:grid;grid-template-columns:1fr auto;gap:3px 10px;padding:12px 0;border-top:1px dashed var(--rule);cursor:pointer}
+.family-row b{grid-column:1;font-size:14px;color:var(--ink)}
+.family-row span{grid-column:1;font-size:12px;color:var(--ink-2)}
+.family-row em{grid-row:1 / span 2;grid-column:2;align-self:center;font-style:normal;font-size:12px;color:var(--ink-3);white-space:nowrap}

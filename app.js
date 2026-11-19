@@ -835,6 +835,7 @@ const POINT_KEY = "piaogen.v0.points";
     $("#resultTicket").innerHTML = `
       <div class="receipt-top"><div><b>${escapeHtml(ticket.merchant)}</b><div class="receipt-meta">${escapeHtml(ticket.date || "日期待确认")} · ${escapeHtml(PG.CATEGORY[ticket.category]?.label || "其他")}</div></div><div class="amt">${money(ticket.amount)}</div></div>
       <div class="receipt-no"><span>${escapeHtml(ticket.orderNo || "CP—" + ticket.id.slice(0, 6).toUpperCase())}</span><span>${ticket.source === "demo" ? "示例" : "已保存"}</span></div>
+      ${ticket.warranty ? `<div class="warranty-line">保修至 ${escapeHtml(ticket.warranty.until || "未填")}${ticket.warranty.phone ? ` · 售后 ${escapeHtml(ticket.warranty.phone)}` : ""}${ticket.warranty.model ? ` · ${escapeHtml(ticket.warranty.model)}` : ""}</div>` : ""}
       <div class="evidence-line"><span>证据 <b>${ticket.evidence?.length || 0}</b> 件${ticket.missing?.length ? ` · 还缺 ${escapeHtml(ticket.missing.join("、"))}` : ""}${ticket.review ? " · OCR 需复核" : ""}</span><button id="editTicket" type="button">改字段</button></div>
       <div class="receipt-edit" id="inlineEdit" style="display:none">
         <label>商家<input data-field="merchant" value="${escapeHtml(ticket.merchant)}" /></label>
@@ -912,12 +913,14 @@ const POINT_KEY = "piaogen.v0.points";
       <button class="btn primary" id="goAction" type="button">${nearest ? `去办：${escapeHtml(nearest.label)}` : "补充证据"}</button>
       ${nearest && nearest.end ? `<button class="btn ghost" id="toCalendar" type="button">加到日历</button>` : ""}
       ${nearest ? `<button class="btn ghost" id="writeComplaint" type="button">写投诉</button>` : ""}
+      ${["appliance","digital","furniture","auto"].indexOf(ticket.category) >= 0 ? `<button class="btn ghost" id="editWarranty" type="button">保修卡</button>` : ""}
       ${(ticket.windows || []).some((w) => w.basis) ? `<button class="btn ghost" id="toShareCard" type="button">生成分享图</button>` : ""}
       <button class="btn ghost" id="backToday" type="button">回到今天</button>
       <button class="link-btn" id="deleteTicket" type="button">删除这张票</button>`;
     if ($("#toCalendar")) $("#toCalendar").addEventListener("click", () => addToCalendar(ticket, nearest));
     if ($("#toShareCard")) $("#toShareCard").addEventListener("click", () => shareCard(ticket));
     if ($("#writeComplaint")) $("#writeComplaint").addEventListener("click", () => openComplaintSheet(ticket, nearest));
+    if ($("#editWarranty")) $("#editWarranty").addEventListener("click", () => openWarrantySheet(ticket));
     $("#goAction").addEventListener("click", () => {
       if (nearest) openAction(ticket, nearest);
       else toast("先补一张带金额/日期/商品名的票");
@@ -940,6 +943,30 @@ const POINT_KEY = "piaogen.v0.points";
     if (Number.isNaN(d.getTime())) return null;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     return Math.ceil((d - today) / 86400000);
+  }
+
+  function openFamilySheet() {
+    const list = (state.tickets || []).filter((t) => t.helper && t.helper.forWhom);
+    const rows = list.map((t) => {
+      const win = PG.priority(t);
+      const days = win ? `${win.label} ${win.daysLeft} 天` : "暂无截止日";
+      return `<div class="family-row" data-open="${t.id}">
+        <b>${escapeHtml(t.helper.forWhom)}</b>
+        <span>${escapeHtml(t.merchant)} · ${escapeHtml(t.product || "这笔订单")} · ${money(t.amount)}</span>
+        <em>${escapeHtml(days)}</em>
+      </div>`;
+    }).join("");
+    $("#sheetTitle").textContent = "家人代办";
+    $("#sheetBody").innerHTML = list.length
+      ? `<p class="sheet-hint">你标记为“帮家人办”的票，共 ${list.length} 张。</p>${rows}`
+      : `<p class="sheet-hint">还没有代办。</p><p class="annual-note">打开任意一张票，点底部“帮家人办”，填上帮谁办，就会出现在这里。</p>`;
+    $("#sheetOverlay").hidden = false;
+    $("#sheetBody").querySelectorAll("[data-open]").forEach((row) => {
+      row.onclick = () => {
+        const t = state.tickets.find((x) => x.id === row.dataset.open);
+        if (t) { closeSheet(); openResult(t); }
+      };
+    });
   }
 
   function openPointsSheet() {
@@ -1023,6 +1050,64 @@ const POINT_KEY = "piaogen.v0.points";
         saveCoupons(); renderSettings(); openCouponSheet();
       };
     });
+  }
+
+  async function shrinkImage(file, max, quality) {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(bmp.width * scale);
+    cv.height = Math.round(bmp.height * scale);
+    cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+    return await new Promise((res) => cv.toBlob((b) => res(b), "image/jpeg", quality));
+  }
+
+  function openWarrantySheet(ticket) {
+    const w = ticket.warranty || {};
+    $("#sheetTitle").textContent = "保修卡";
+    $("#sheetBody").innerHTML = `
+      <p class="sheet-hint">填一次，之后办保修直接出示。照片会压缩后存在本机。</p>
+      <div class="coupon-form">
+        <input id="wrBrand" placeholder="品牌" value="${escapeHtml(w.brand || "")}" />
+        <input id="wrModel" placeholder="型号" value="${escapeHtml(w.model || "")}" />
+        <input id="wrUntil" type="date" value="${escapeHtml(w.until || "")}" />
+        <input id="wrPhone" placeholder="售后电话" value="${escapeHtml(w.phone || "")}" />
+      </div>
+      <label class="field"><span>备注</span><input id="wrNote" placeholder="如：整机 3 年、主要部件 5 年" value="${escapeHtml(w.note || "")}" /></label>
+      <label class="field"><span>保修卡照片（可选，1 张）</span><input id="wrPhoto" type="file" accept="image/*" /></label>
+      ${w.photo ? `<p class="annual-note">已存一张保修卡照片。</p>` : ""}
+      <div class="sheet-actions">
+        <button class="btn primary" id="wrSave" type="button">保存</button>
+        <button class="btn ghost" id="wrClose" type="button">关闭</button>
+      </div>`;
+    $("#sheetOverlay").hidden = false;
+    $("#wrClose").onclick = closeSheet;
+    $("#wrSave").onclick = async () => {
+      const next = {
+        brand: $("#wrBrand").value.trim(),
+        model: $("#wrModel").value.trim(),
+        until: $("#wrUntil").value || "",
+        phone: $("#wrPhone").value.trim(),
+        note: $("#wrNote").value.trim(),
+        photo: w.photo || ""
+      };
+      const file = $("#wrPhoto").files && $("#wrPhoto").files[0];
+      if (file) {
+        try {
+          const blob = await shrinkImage(file, 720, 0.55);
+          next.photo = await new Promise((res) => {
+            const fr = new FileReader();
+            fr.onload = () => res(String(fr.result || ""));
+            fr.readAsDataURL(blob);
+          });
+        } catch (e) { toast("照片处理失败，其余信息仍会保存"); }
+      }
+      ticket.warranty = next;
+      try { save(); } catch (e) { toast("本机存储空间不足，照片可能没存下"); }
+      closeSheet();
+      renderResult(ticket);
+      toast("保修卡已保存");
+    };
   }
 
   function openSubsSheet() {
@@ -1523,6 +1608,10 @@ const POINT_KEY = "piaogen.v0.points";
     if (coupons) coupons.onclick = openCouponSheet;
     const pts = $("#openPoints");
     if (pts) pts.onclick = openPointsSheet;
+    const fam = $("#openFamily");
+    if (fam) fam.onclick = openFamilySheet;
+    const fc = $("#familyCount");
+    if (fc) fc.textContent = String((state.tickets || []).filter((t) => t.helper && t.helper.forWhom).length);
     const pt = $("#pointTotal");
     if (pt) pt.textContent = String((state.points || []).reduce((s, p) => s + (Number(p.balance) || 0), 0));
     const ov = $("#assetOverview");

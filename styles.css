@@ -538,3 +538,7 @@ h1{font-family:var(--sans);font-size:34px;letter-spacing:-.035em;font-weight:700
 .checks span.ok{color:var(--teal)}
 .checks span.no{color:var(--amber)}
 .complaint-body{white-space:pre-wrap;font-family:var(--sans);font-size:13px;line-height:1.75;background:var(--surface-2);border-radius:14px;padding:14px;max-height:46dvh;overflow:auto;margin:0 0 12px}
+.sub-row{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 0;border-top:1px dashed var(--rule)}
+.sub-row b{font-size:14px;color:var(--ink);grid-column:1}
+.sub-row span{grid-column:1;font-size:12px;color:var(--ink-2)}
+.sub-row em{grid-row:1 / span 2;grid-column:2;align-self:center;font-style:normal;font-size:15px;color:var(--teal);font-variant-numeric:tabular-nums}

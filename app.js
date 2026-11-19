@@ -915,6 +915,28 @@
     renderTimeline(ticket);
   }
 
+  function openSubsSheet() {
+    const subs = PG.detectSubscriptions(state.tickets || []);
+    const total = subs.reduce((s, x) => s + x.yearly, 0);
+    const rows = subs.map((s) => `
+      <div class="sub-row">
+        <b>${escapeHtml(s.merchant)}</b>
+        <span>${money(s.avg)}/月 · 连续 ${s.count} 次${s.lastGap ? ` · 间隔约 ${s.lastGap} 天` : ""}</span>
+        <em>${money(s.yearly)}/年</em>
+      </div>`).join("");
+    $("#sheetTitle").textContent = "自动续费体检";
+    $("#sheetBody").innerHTML = subs.length
+      ? `<p class="sheet-hint">从你导入的账单里找出来的周期性扣款，共 ${subs.length} 项，合计约 <b>${money(total)}/年</b>。</p>
+         ${rows}
+         <p class="annual-note">判定规则：同一商家、金额波动不超过 5%、相邻扣款间隔 25–35 天、连续至少 2 次。这只是提示，是否续费以账单和 App 内为准。</p>
+         <div class="sheet-actions"><button class="btn ghost" id="closeSubs" type="button">关闭</button></div>`
+      : `<p class="sheet-hint">还没有发现周期性扣款。</p>
+         <p class="annual-note">先从支付宝或微信账单里复制一段（至少包含同一个商家连续两个月的扣款），粘贴到「导入 → 粘贴账单」，再回来体检。</p>
+         <div class="sheet-actions"><button class="btn ghost" id="closeSubs" type="button">关闭</button></div>`;
+    $("#sheetOverlay").hidden = false;
+    if ($("#closeSubs")) $("#closeSubs").onclick = closeSheet;
+  }
+
   function openComplaintSheet(ticket, win) {
     let variant = "12315";
     const render = () => {
@@ -1364,6 +1386,8 @@
     if (open) open.onclick = () => { renderAnnual(); show("annual"); };
     const rules = $("#openRules");
     if (rules) rules.onclick = openRulesSheet;
+    const subs = $("#openSubs");
+    if (subs) subs.onclick = openSubsSheet;
   }
 
   function exportAll() {

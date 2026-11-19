@@ -462,6 +462,43 @@ ${claim}
 ${ev}` };
   }
 
+  function detectSubscriptions(tickets) {
+    const byMerchant = new Map();
+    for (const t of (tickets || [])) {
+      const key = String(t.merchant || "").trim();
+      if (!key || !t.date) continue;
+      if (!byMerchant.has(key)) byMerchant.set(key, []);
+      byMerchant.get(key).push({ d: new Date(t.date), amt: Number(t.amount) || 0 });
+    }
+    const out = [];
+    for (const [merchant, rows] of byMerchant) {
+      rows.sort((a, b) => a.d - b.d);
+      if (rows.length < 2) continue;
+      let streak = 1;
+      let amounts = [rows[0].amt];
+      let lastGap = 0;
+      for (let i = 1; i < rows.length; i++) {
+        const days = Math.round((rows[i].d - rows[i - 1].d) / 86400000);
+        if (days >= 25 && days <= 35) {
+          streak += 1;
+          amounts.push(rows[i].amt);
+          lastGap = days;
+        } else {
+          streak = 1;
+          amounts = [rows[i].amt];
+          lastGap = 0;
+        }
+      }
+      if (streak < 2) continue;
+      const avg = amounts.reduce((s, x) => s + x, 0) / amounts.length;
+      if (!avg) continue;
+      const drift = Math.max.apply(null, amounts.map((a) => Math.abs(a - avg) / avg));
+      if (drift > 0.05) continue;
+      out.push({ merchant, count: streak, avg, lastGap, lastDate: rows[rows.length - 1].d, yearly: avg * 12 });
+    }
+    return out.sort((a, b) => b.yearly - a.yearly);
+  }
+
   window.PG = {
     CATEGORY,
     CHANNEL,
@@ -475,6 +512,7 @@ ${ev}` };
     objectionsFor,
     taxHints,
     complaintFor,
+    detectSubscriptions,
     priority,
     scriptFor,
     checklistFor,

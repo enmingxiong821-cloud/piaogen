@@ -153,7 +153,7 @@
             </button>
             <button class="source" data-source="order" type="button">
               <span class="source-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6V3Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></span>
-              <span class="source-text"><b>订单截图</b><small>淘宝 / 京东 / 支付宝</small></span>
+              <span class="source-text"><b>订单截图 / 录屏</b><small>淘宝 / 京东 / 支付宝；视频会先取帧</small></span>
               <span class="chev">›</span>
             </button>
             <button class="source" data-source="invoice" type="button">
@@ -179,7 +179,7 @@
           <p class="note">照片只在本机识别，不上传。金额/日期以票据为准。</p>
           <p class="note" id="ocrWarmNote">快速识别只需约 2MB，打开这一页就会在后台准备；要更准时可在结果页点“精确模式”（再下约 19MB，仅一次）。</p>
           <input id="fileCamera" type="file" accept="image/*" capture="environment" hidden />
-          <input id="fileOrder" type="file" accept="image/*" hidden />
+          <input id="fileOrder" type="file" accept="image/*,video/*" hidden />
           <input id="fileInvoice" type="file" accept=".pdf,.ofd,.xml,image/*" hidden />
         </section>
 
@@ -365,6 +365,8 @@
             <button class="setting-row" id="openPoints" type="button"><div><b>积分台账</b><small>各平台积分与到期</small></div><span id="pointTotal">0</span></button>
             <button class="setting-row" id="openCoupons" type="button"><div><b>券包</b><small>快到期的券排在最前</small></div><span id="couponCount">0</span></button>
             <button class="setting-row" id="openSubs" type="button"><div><b>自动续费体检</b><small>从账单里找出周期性扣款</small></div><span>›</span></button>
+            <button class="setting-row" id="openCancelGuide" type="button"><div><b>各平台取消指引</b><small>支付宝、微信、Apple 与常见会员</small></div><span>›</span></button>
+            <button class="setting-row" id="openAfterpay" type="button"><div><b>支付后入口</b><small>原型演示，未接入支付宝</small></div><span>›</span></button>
             <button class="setting-row" id="openRules" type="button"><div><b>规则库</b><small>依据、条款号与施行日期</small></div><span>›</span></button>
             <button class="setting-row" id="openEvidence" type="button"><div><b>核验与边界</b><small>规则依据、测试基线、已知局限</small></div><span>›</span></button>
             <button class="setting-row" id="openDevCall" type="button"><div><b>开发者调用</b><small>MCP 六工具、配置与能力边界</small></div><span>›</span></button>

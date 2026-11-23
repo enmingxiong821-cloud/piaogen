@@ -555,6 +555,16 @@ const POINT_KEY = "piaogen.v0.points";
     return c && c.status === "resolved" ? (Number(c.recoveredAmount) || 0) : 0;
   }
 
+  function financeRecoveredThisMonth(list) {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return (list || []).reduce((sum, c) => {
+      if (c.status !== "resolved" || !c.recoveredAmount) return sum;
+      const hit = (c.history || []).some((row) => row.status === "resolved" && String(row.at || "").slice(0, 7) === ym);
+      return sum + (hit ? Number(c.recoveredAmount) || 0 : 0);
+    }, 0);
+  }
+
   function financeConclusion(c) {
     const f = c.fields || {};
     if (c.type === "chargeback") {
@@ -1527,7 +1537,80 @@ const POINT_KEY = "piaogen.v0.points";
     return { amount, date };
   }
 
+  function seekVideo(video, time) {
+    return new Promise((resolve) => {
+      const done = () => { video.removeEventListener("seeked", done); resolve(); };
+      video.addEventListener("seeked", done);
+      video.currentTime = time;
+    });
+  }
+
+  function pickVideoFrame(file) {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement("video");
+      video.src = url;
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        URL.revokeObjectURL(url);
+        resolve(value);
+      };
+      video.onerror = () => finish(null);
+      video.onloadedmetadata = async () => {
+        try {
+          const duration = Number(video.duration) || 0;
+          const ratios = duration > 1 ? [0.12, 0.28, 0.44, 0.6, 0.76, 0.9] : [0];
+          const frames = [];
+          for (const ratio of ratios) {
+            await seekVideo(video, Math.min(Math.max(0.02, duration * ratio), Math.max(0.02, duration - 0.05)));
+            const w = Math.min(720, video.videoWidth || 720);
+            const h = Math.round(w * ((video.videoHeight || w) / (video.videoWidth || w)));
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext("2d").drawImage(video, 0, 0, w, h);
+            frames.push({ dataUrl: canvas.toDataURL("image/jpeg", 0.86), canvas, time: duration * ratio });
+          }
+          if (!frames.length) return finish(null);
+          openSheet("从视频里挑一张清晰的画面", `
+            <p class="sheet-hint">视频不会上传：下面几帧是本机截取的，选一张能看清金额和日期的，再走识别。</p>
+            <div class="frame-grid">
+              ${frames.map((frame, index) => `<button type="button" class="frame-pick" data-frame="${index}">
+                <img src="${frame.dataUrl}" alt="第 ${index + 1} 帧" />
+                <span>${frame.time.toFixed(1)}s</span>
+              </button>`).join("")}
+            </div>
+            <p class="annual-note">帧太糊就换一张，或直接截屏。票根不在云端处理视频。</p>
+            <div class="sheet-actions"><button class="btn ghost" id="frameCancel" type="button">取消</button></div>`, () => {
+            $("#frameCancel").onclick = () => { closeSheet(); finish(null); };
+            $$("#sheetBody [data-frame]").forEach((btn) => {
+              btn.onclick = () => {
+                const frame = frames[Number(btn.dataset.frame)];
+                closeSheet();
+                frame.canvas.toBlob((blob) => {
+                  finish(blob ? new File([blob], "视频取帧.jpg", { type: "image/jpeg" }) : null);
+                }, "image/jpeg", 0.9);
+              };
+            });
+          });
+        } catch (error) {
+          finish(null);
+        }
+      };
+    });
+  }
+
   async function handleFile(file) {
+    if (file && file.type && file.type.startsWith("video/")) {
+      const frame = await pickVideoFrame(file);
+      if (!frame) { toast("这个视频没法取帧，请直接截一张图"); return; }
+      return handleFile(frame);
+    }
     showParse("正在读这张票", "先看文件，再找出商家、金额、日期和截止日。");
     try {
       if (file.type && file.type.startsWith("image/")) state.lastFile = file;
@@ -1718,6 +1801,7 @@ const POINT_KEY = "piaogen.v0.points";
     const recovered = all.reduce((sum, c) => sum + financeRecovered(c), 0);
     return {
       all,
+      thisMonth: financeRecoveredThisMonth(all),
       active,
       nearest: deadlineRows[0] || null,
       overdue: deadlineRows.filter((row) => row.due.days < 0).length,
@@ -1754,6 +1838,7 @@ const POINT_KEY = "piaogen.v0.points";
     const body = $("#financeBody");
     if (!body) return;
     const summary = financeSummaryData(financeFiltered());
+    const financesThisMonth = summary.thisMonth || 0;
     const allFinance = state.finance || [];
     const memberCounts = new Map();
     allFinance.forEach((c) => {
@@ -1821,6 +1906,7 @@ const POINT_KEY = "piaogen.v0.points";
         <div><span>待处理</span><b>${summary.active.length}</b></div>
         <div><span>已提交 / 受理</span><b>${summary.submitted}</b></div>
         <div class="${summary.recovered ? "ok" : ""}"><span>确认解决</span><b>${money(summary.recovered)}</b></div>
+        <div class="${financesThisMonth ? "ok" : ""}"><span>本月已确认追回</span><b>${money(financesThisMonth)}</b></div>
       </div>
       <button class="finance-bill-card" id="financeBillCheck" type="button">
         <span class="fbc-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span>
@@ -2134,12 +2220,20 @@ const POINT_KEY = "piaogen.v0.points";
       ruleStatus = "confirm";
       ruleDetail = "还缺本金、期数或月供，综合融资成本无法估算。";
     }
-    const auditStatus = complete && ready === total ? "assert" : "confirm";
+    const missing = (c.evidence || []).filter((item) => item.status !== "ready").map((item) => item.label);
+    const auditStatus = complete && ready === total ? "assert" : "veto";
+    const auditDetail = !complete
+      ? "否决提交：商家、金额或日期没齐，先补事实。"
+      : ready < total
+        ? `否决提交：还缺 ${missing.slice(0, 3).join("、")}${missing.length > 3 ? " 等" : ""}，补齐后再走路径。`
+        : due.has
+          ? "没有伪造或跳过你填写的时限；不代提交、不承诺结果。"
+          : "未填截止日就不生成倒计时；不代提交、不承诺结果。";
     return [
       { id: "flow", name: "流水", status: complete ? "assert" : "confirm", detail: flowDetail },
       { id: "rule", name: "规则", status: ruleStatus, detail: ruleDetail },
       { id: "evidence", name: "证据", status: ready === total ? "assert" : "confirm", detail: `${ready}/${total} 件已备${ready < total ? `，还缺 ${total - ready} 件` : "，清单已齐"}。` },
-      { id: "audit", name: "审计", status: auditStatus, detail: due.has ? "没有伪造或跳过你填写的时限；不代提交、不承诺结果。" : "未填截止日就不生成倒计时；不代提交、不承诺结果。" }
+      { id: "audit", name: "审计", status: auditStatus, detail: auditDetail, veto: auditStatus === "veto" ? auditDetail : "" }
     ];
   }
 
@@ -2163,6 +2257,7 @@ const POINT_KEY = "piaogen.v0.points";
       ${calc.lowInput ? `<p>月供总额低于本金，先核对输入，避免得出错误结论。</p>` : `<p>按你填的现金流估算，不是机构的最终口径；把明示表带进材料包再核对。</p>`}
     </div>` : "";
     const rules = def.rules.map((rule) => `<div class="finance-rule"><b>${escapeHtml(rule.title)}</b><p>${escapeHtml(rule.body)}</p></div>`).join("");
+    const missingLabels = (c.evidence || []).filter((item) => item.status !== "ready").map((item) => item.label);
     const evidence = (c.evidence || []).map((item, index) => `<label class="finance-evidence ${item.status === "ready" ? "ready" : ""}">
       <input type="checkbox" data-finance-evidence="${index}" ${item.status === "ready" ? "checked" : ""} />
       <span><b>${escapeHtml(item.label)}</b><small>${escapeHtml(item.hint || "")}</small></span>
@@ -2203,6 +2298,7 @@ const POINT_KEY = "piaogen.v0.points";
             <small>${escapeHtml(agent.detail)}</small>
           </div>`).join("")}
         </div>
+        ${council.some((agent) => agent.veto) ? `<p class="finance-veto">审计否决：${escapeHtml(council.find((agent) => agent.veto).veto.replace("否决提交：", ""))}这不是终局结论，是提醒先把材料补齐。</p>` : ""}
         <p class="finance-council-note">审查只决定“材料够不够、路径对不对”，不判断你一定赢；缺证据时会明确待补。</p>
       </section>
       <section class="finance-block">
@@ -2211,6 +2307,7 @@ const POINT_KEY = "piaogen.v0.points";
       </section>
       <section class="finance-block" id="financeEvidenceBlock">
         <div class="finance-block-head"><h2>证据门</h2><span id="financeEvidenceCount">${ready}/${totalEvidence} 件已备</span></div>
+        <p class="finance-completeness" id="financeCompleteness">材料完整度 ${ready}/${totalEvidence}${missingLabels.length ? ` · 还缺 ${missingLabels.length} 项：${escapeHtml(missingLabels.slice(0, 5).join("、"))}${missingLabels.length > 5 ? " 等" : ""}` : " · 已齐全，可以按下一步路径提交"}</p>
         <div class="finance-evidence-list">${evidence}</div>
       </section>
       <section class="finance-block finance-conclusion">
@@ -2242,6 +2339,7 @@ const POINT_KEY = "piaogen.v0.points";
       </section>
       <div class="finance-case-actions">
         <button class="btn primary" id="financeStatus" type="button">更新进度</button>
+        <button class="btn ghost" id="financeReply" type="button">解析对方回复</button>
         <button class="btn ghost" id="financeExport" type="button">导出材料包</button>
         <button class="btn ghost" id="financeShare" type="button">分享回执</button>
         ${c.linkedTicketId ? `<button class="btn ghost" id="financeLinkedTicket" type="button">看关联票据</button>` : ""}
@@ -2264,6 +2362,11 @@ const POINT_KEY = "piaogen.v0.points";
       checkbox.closest(".finance-evidence").querySelector("em").textContent = checkbox.checked ? "已备" : "待补";
       $("#financeEvidenceCount").textContent = `${nextReady}/${totalEvidence} 件已备`;
       $("#financeNext").textContent = nextReady < totalEvidence ? `先补齐 ${totalEvidence - nextReady} 件证据` : "打开下一步路径";
+      const comple = $("#financeCompleteness");
+      if (comple) {
+        const left = (c.evidence || []).filter((item) => item.status !== "ready").map((item) => item.label);
+        comple.textContent = `材料完整度 ${nextReady}/${totalEvidence}${left.length ? ` · 还缺 ${left.length} 项：${left.slice(0, 5).join("、")}${left.length > 5 ? " 等" : ""}` : " · 已齐全，可以按下一步路径提交"}`;
+      }
       refreshAiBlock(c);
     }));
     $("#financeCopy").addEventListener("click", async () => {
@@ -2277,6 +2380,7 @@ const POINT_KEY = "piaogen.v0.points";
       const ticket = state.tickets.find((item) => item.id === c.linkedTicketId);
       if (ticket) openResult(ticket, PG.priority(ticket));
     });
+    $("#financeReply").addEventListener("click", () => openFinanceReplySheet(c));
     $("#financeExport").addEventListener("click", () => exportFinancePack(c));
     $("#financeShare").addEventListener("click", () => shareFinanceCard(c));
     bindAiActions(c);
@@ -2337,6 +2441,65 @@ const POINT_KEY = "piaogen.v0.points";
         closeSheet();
         renderFinanceCase(c);
         toast("事实与诉求已保存");
+      };
+    });
+  }
+
+  function openFinanceReplySheet(c) {
+    const intentLabel = {
+      request_evidence: "要你补材料",
+      reject: "拒绝 / 不认",
+      delay: "拖延 / 等通知",
+      partial: "只肯部分退",
+      agree_refund: "同意退款",
+      unknown: "没说清"
+    };
+    const followUps = {
+      request_evidence: "请告知寄回地址、运费由谁承担、检测需要几个工作日。",
+      reject: "请提供书面检测结论、检测机构与依据条款；我会据此升级。",
+      delay: "请给一个具体日期；到期没结果我会走平台介入 / 12315。",
+      partial: "请说明扣减的项目、金额和依据。",
+      agree_refund: "请确认退款金额、到账渠道和预计到账时间。",
+      unknown: "请明确：退多少、什么时候、需要我做什么。"
+    };
+    let parsed = null;
+    openSheet("解析对方回复", `
+      <p class="sheet-hint">把商家 / 银行 / 平台的回复原文粘进来。只做规则解析，写入前由你确认；不改变金额、时限和状态。</p>
+      <textarea class="sheet-textarea" id="financeReplyText" rows="5" placeholder="例如：7 个工作日内退回原支付账户 / 需要寄回检测 / 人为损坏不在保修范围"></textarea>
+      <div id="financeReplyResult"></div>
+      <div class="sheet-actions">
+        <button class="btn primary" id="financeReplyParse" type="button">解析</button>
+        <button class="btn ghost" id="financeReplyApply" type="button" disabled>写入事实与诉求</button>
+        <button class="btn ghost" id="financeReplyClose" type="button">关闭</button>
+      </div>`, () => {
+      $("#financeReplyClose").onclick = closeSheet;
+      $("#financeReplyParse").onclick = () => {
+        const text = $("#financeReplyText").value.trim();
+        if (!text) return toast("先粘贴一段回复");
+        parsed = PG.parseMerchantReply(text);
+        const rows = [
+          ["意思", intentLabel[parsed.intent] || "没说清"],
+          ["金额", parsed.amount ? money(parsed.amount) : "没提"],
+          ["期限", parsed.deadline || "没提"],
+          ["下一步", parsed.nextAction]
+        ];
+        $("#financeReplyResult").innerHTML = `<div class="reply-parse">
+          ${rows.map(([k, v]) => `<div><span>${k}</span><b>${escapeHtml(v)}</b></div>`).join("")}
+          <p>建议追问：${escapeHtml(followUps[parsed.intent] || followUps.unknown)}</p>
+          <small>解析只基于你提供的原文；没提到的金额和期限不会替你补。</small>
+        </div>`;
+        $("#financeReplyApply").disabled = false;
+      };
+      $("#financeReplyApply").onclick = () => {
+        if (!parsed) return;
+        const text = $("#financeReplyText").value.trim();
+        const block = `\n\n【对方回复 · ${new Date().toISOString().slice(0, 10)}】\n原文：${text.slice(0, 300)}\n解析：${intentLabel[parsed.intent] || "没说清"}${parsed.amount ? `；金额 ${money(parsed.amount)}` : ""}${parsed.deadline ? `；期限 ${parsed.deadline}` : ""}\n建议追问：${followUps[parsed.intent] || followUps.unknown}`;
+        c.notes = `${c.notes || ""}${block}`.trim();
+        c.updatedAt = new Date().toISOString();
+        saveFinance();
+        closeSheet();
+        renderFinanceCase(c);
+        toast("已写入事实与诉求");
       };
     });
   }
@@ -2553,12 +2716,12 @@ const POINT_KEY = "piaogen.v0.points";
     const refundCards = refundChecks.map((check) => `<button class="finance-refund-check ${check.status}" type="button" data-refund-case="${check.case.id}">
       <span>${check.status === "exact" ? "可能已到账" : check.status === "partial" ? "只匹配到部分" : "账单里暂未匹配"}</span>
       <b>${escapeHtml(check.case.merchant || "退款案卷")} · ${money(check.case.amount)}</b>
-      <small>${check.status === "exact" ? `${escapeHtml(check.row.date)} 有一笔流入 ${money(check.found)}，请打开案卷确认` : check.status === "partial" ? `匹配到 ${money(check.found)}，还差 ${money(Math.max(0, Number(check.case.amount) - check.found))}` : "继续保留在途，不自动判为没退"}</small>
+      <small>${check.status === "exact" ? `有依据：${escapeHtml(check.row.date)} 有一笔流入 ${money(check.found)}，金额与日期都对上，请打开案卷确认` : check.status === "partial" ? `仅线索：匹配到 ${money(check.found)}，还差 ${money(Math.max(0, Number(check.case.amount) - check.found))}，可能分笔退回，别直接认定已退` : "需补凭证：继续保留在途，不自动判为没退；去退款详情补流水或截图"}</small>
       <em>打开确认 ›</em>
     </button>`).join("");
     openSheet("资金体检结果", `
       <p class="sheet-hint">从${escapeHtml(source)}账单里找到 <b>${total}</b> 个需要核对的点。这里只提示，不直接认定扣错。</p>
-      ${refundCards ? `<div class="finance-refund-block"><h2>退款到账核对</h2>${refundCards}</div>` : ""}
+      ${refundCards ? `<div class="finance-refund-block"><h2>退款到账核对</h2><p class="finance-refund-note">同一笔流水只匹配一次，重复截图不重复计；金额凑得上只算线索，要你确认才算到账。</p>${refundCards}</div>` : ""}
       ${duplicateCards}${subCards}${unknownCards || ""}
       ${total ? "" : `<div class="finance-empty"><b>没有发现明显异常</b><p>不代表一定没问题；你可以手动建一宗，把已知的退款、扣款或拒付放进去。</p></div>`}
       <p class="annual-note">判定：重复扣款看同商户同金额 3 天内多次；自动续费看 25–35 天连续扣款；陌生商户只做核对提醒。</p>
@@ -4112,12 +4275,44 @@ const POINT_KEY = "piaogen.v0.points";
     const nextCoupon = summary.coupons[0];
     const nextPoint = summary.points[0];
     const nextSupply = summary.supplies[0];
+    const deviceRows = (state.tickets || [])
+      .map((ticket) => {
+        const brand = PG.brandFor ? PG.brandFor(ticket) : null;
+        const win = (ticket.windows || []).find((item) => item.type === "warranty");
+        if (!win && !brand) return null;
+        const warrantyText = win
+          ? win.applicability === "not_applicable"
+            ? "不在三包目录"
+            : win.daysLeft === null
+              ? "保修期待确认"
+              : win.daysLeft < 0
+                ? "保修已结束"
+                : `保修剩 ${win.daysLeft} 天`
+          : "保修期待确认";
+        return {
+          ticket,
+          name: ticket.product || ticket.merchant || "未命名设备",
+          brand,
+          win,
+          warrantyText,
+          docs: (ticket.evidence || []).length,
+          days: win && typeof win.daysLeft === "number" ? win.daysLeft : 9999
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.days - b.days);
     const rows = [
       {
         key: "right",
         label: "权利",
         value: summary.rights.length ? `${summary.rights.length} 件` : "0 件",
         meta: summary.rights.length ? `最近：${summary.rights[0].win.label} ${summary.rights[0].win.daysLeft} 天后关闭` : "还没有快到期的权利"
+      },
+      {
+        key: "device",
+        label: "设备档案",
+        value: deviceRows.length ? `${deviceRows.length} 台` : "0 台",
+        meta: deviceRows.length ? `${deviceRows[0].name} · ${deviceRows[0].warrantyText}` : "还没有可归档的家电/数码"
       },
       {
         key: "subscription",
@@ -4154,7 +4349,7 @@ const POINT_KEY = "piaogen.v0.points";
       + summary.coupons.filter((coupon) => coupon.days <= 7).length
       + summary.supplies.filter((supply) => supply.daysLeft <= 7).length;
     $("#assetsBody").innerHTML = `
-      <p class="lede">六类会过期、会贬值、会被忘记的东西。不是每笔付款都要立案，但每笔都可以进资产。</p>
+      <p class="lede">七类会过期、会贬值、会被忘记的东西。不是每笔付款都要立案，但每笔都可以进资产。</p>
       <div class="asset-strip">
         <div><b>${urgent}</b><span>7 天内要处理</span></div>
         <div><b>${summary.rights.length}</b><span>未关闭权利</span></div>
@@ -4175,6 +4370,7 @@ const POINT_KEY = "piaogen.v0.points";
       button.addEventListener("click", () => {
         const key = button.dataset.asset;
         if (key === "right") return openRightsSheet(summary.rights);
+        if (key === "device") return openDeviceArchiveSheet(deviceRows);
         if (key === "subscription") return openSubsSheet();
         if (key === "coupon") return openCouponSheet();
         if (key === "point") return openPointsSheet();
@@ -4201,6 +4397,38 @@ const POINT_KEY = "piaogen.v0.points";
           closeSheet();
           if (ticket) openCase(ticket);
         });
+      });
+    });
+  }
+
+  function openDeviceArchiveSheet(devices) {
+    if (!devices || !devices.length) {
+      openSheet("设备档案", `<p class="sheet-empty">还没有可归档的家电或数码。拍一张带购买日期的订单，就会自动生成保修档案。</p>`);
+      return;
+    }
+    const body = `<p class="sheet-hint">每台设备一页档案：购买日、保修剩余、已有资料、品牌售后入口。资料只存本机，不上传。</p>
+      <div class="device-list">${devices.map((device) => {
+        const t = device.ticket;
+        const docs = (t.evidence || []).map((item) => item.label || item.type).filter(Boolean);
+        const missing = ["发票", "保修卡"].filter((label) => !docs.some((doc) => doc.includes(label.slice(0, 2))));
+        return `<div class="device-card">
+          <div class="dc-top"><b>${escapeHtml(device.name)}</b><em>${escapeHtml(device.warrantyText)}</em></div>
+          <small>${escapeHtml(t.date || "购买日待确认")} · ${escapeHtml(device.brand ? device.brand.brand : "品牌待确认")}${t.product ? ` · ${escapeHtml(t.product)}` : ""}</small>
+          <p>资料 ${docs.length} 件${docs.length ? `：${escapeHtml(docs.slice(0, 4).join("、"))}` : ""}${missing.length ? `；建议补：${missing.join("、")}` : "；发票与保修卡都有"}</p>
+          <div class="dc-actions">
+            <button class="text-btn" type="button" data-device-ticket="${escapeHtml(t.id)}">看这张票</button>
+            ${device.brand && device.brand.serviceUrl ? `<a class="text-btn" href="${escapeHtml(device.brand.serviceUrl)}" target="_blank" rel="noopener noreferrer">品牌售后 ↗</a>` : ""}
+          </div>
+        </div>`;
+      }).join("")}</div>
+      <p class="annual-note">保修期按目录与发票日计算；品牌售后入口来自品牌公开页面，找不到时用购买门店。票根不代报修、不复刻说明书。</p>`;
+    openSheet("设备档案", body, () => {
+      $$("#sheetBody [data-device-ticket]").forEach((btn) => {
+        btn.onclick = () => {
+          const ticket = state.tickets.find((item) => item.id === btn.dataset.deviceTicket);
+          closeSheet();
+          if (ticket) openResult(ticket, PG.priority(ticket));
+        };
       });
     });
   }
@@ -4689,8 +4917,14 @@ const POINT_KEY = "piaogen.v0.points";
         <button class="link-btn" data-del="${c.id}" type="button">删</button>
       </div>`;
     }).join("");
+    const week = list.filter((c) => {
+      const days = couponDays(c);
+      return days !== null && days >= 0 && days <= 7;
+    });
+    const weekTotal = week.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
     $("#sheetTitle").textContent = "券包";
     $("#sheetBody").innerHTML = `
+      ${week.length ? `<p class="coupon-week">本周可用 ${week.length} 张${weekTotal ? ` · 面额合计 ${money(weekTotal)}` : ""}；先用在最急的那张。</p>` : ""}
       ${list.length ? rows : `<p class="sheet-hint">还没有券。把快到期的券记进来，票根按到期日排好。</p>`}
       <div class="coupon-form">
         <input id="cpName" placeholder="券名，如 满199减30" />
@@ -5084,15 +5318,50 @@ const POINT_KEY = "piaogen.v0.points";
       ? `<p class="sheet-hint">从你导入的账单里找出来的周期性扣款，共 ${subs.length} 项，合计约 <b>${money(total)}/年</b>。</p>
          ${rows}
          <p class="annual-note">判定规则：同一商家、金额波动不超过 5%、相邻扣款间隔 25–35 天、连续至少 2 次。下次扣费日按历史间隔推算，只作提醒；是否续费、实际金额与日期以账单和 App 内为准。</p>
-         <div class="sheet-actions"><button class="btn primary" id="subsCal" type="button">写入日历</button><button class="btn ghost" id="subsList" type="button">导出检查清单</button><button class="btn ghost" id="subsBill" type="button">去粘账单</button><button class="btn ghost" id="closeSubs" type="button">关闭</button></div>`
+         <div class="sheet-actions"><button class="btn primary" id="subsCal" type="button">写入日历</button><button class="btn ghost" id="subsList" type="button">导出检查清单</button><button class="btn ghost" id="subsGuide" type="button">各平台取消指引</button><button class="btn ghost" id="subsBill" type="button">去粘账单</button><button class="btn ghost" id="closeSubs" type="button">关闭</button></div>`
       : `<p class="sheet-hint">还没有发现周期性扣款。</p>
          <p class="annual-note">先从支付宝或微信账单里复制一段（至少包含同一个商家连续两个月的扣款），粘贴到「导入 → 粘贴账单」，再回来体检。</p>
-         <div class="sheet-actions"><button class="btn primary" id="subsBill" type="button">去粘账单</button><button class="btn ghost" id="closeSubs" type="button">关闭</button></div>`;
+         <div class="sheet-actions"><button class="btn primary" id="subsBill" type="button">去粘账单</button><button class="btn ghost" id="subsGuide" type="button">各平台取消指引</button><button class="btn ghost" id="closeSubs" type="button">关闭</button></div>`;
     $("#sheetOverlay").hidden = false;
     if ($("#closeSubs")) $("#closeSubs").onclick = closeSheet;
     if ($("#subsBill")) $("#subsBill").onclick = () => { closeSheet(); openBill(); };
     if ($("#subsCal")) $("#subsCal").onclick = () => exportSubsCalendar(subs);
     if ($("#subsList")) $("#subsList").onclick = () => exportSubsChecklist(subs);
+    if ($("#subsGuide")) $("#subsGuide").onclick = () => openCancelGuideSheet();
+  }
+
+  function openCancelGuideSheet() {
+    const items = PG.CANCEL_GUIDE || [];
+    const groups = [...new Set(items.map((item) => item.group))];
+    const html = groups.map((group) => `<section class="cancel-group">
+      <h3>${escapeHtml(group)}</h3>
+      ${items.filter((item) => item.group === group).map((item) => `<details class="cancel-item">
+        <summary><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.via)}</small></summary>
+        <ol>${item.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
+        <p>${escapeHtml(item.note)}</p>
+        <p class="cancel-src">来源：${escapeHtml(item.source)}${item.confidence === "generic" ? " · 以 App 内实际页面为准" : ""}</p>
+        <button class="text-btn" type="button" data-cancel-copy="${escapeHtml(item.id)}">复制步骤</button>
+      </details>`).join("")}
+    </section>`).join("");
+    openSheet("各平台取消指引", `
+      <p class="sheet-hint">${escapeHtml(PG.CANCEL_NOTE || "")}</p>
+      ${html}
+      <p class="annual-note">核对日期 2026-11-23。入口会随版本变化，以 App 内页面为准；关掉代扣不等于解除合同，两边都要确认。</p>
+      <div class="sheet-actions"><button class="btn ghost" id="closeCancel" type="button">关闭</button></div>`);
+    $("#closeCancel").onclick = closeSheet;
+    $$("#sheetBody [data-cancel-copy]").forEach((btn) => {
+      btn.onclick = async () => {
+        const item = items.find((x) => x.id === btn.dataset.cancelCopy);
+        if (!item) return;
+        const text = `${item.name}（${item.via}）\n${item.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}\n${item.note}`;
+        try {
+          await navigator.clipboard.writeText(text);
+          toast("已复制步骤");
+        } catch (e) {
+          toast("复制失败，可长按选择");
+        }
+      };
+    });
   }
 
   function openComplaintSheet(ticket, win) {
@@ -5101,11 +5370,12 @@ const POINT_KEY = "piaogen.v0.points";
       const c = PG.complaintFor(ticket, win, variant);
       $("#sheetTitle").textContent = "写投诉";
       $("#sheetBody").innerHTML = `
-        <div class="seg" role="group" aria-label="投诉版本">
+        <div class="seg seg-wrap" role="group" aria-label="投诉版本">
           <button type="button" data-v="12315" class="${variant === "12315" ? "on" : ""}">12315</button>
           <button type="button" data-v="12345" class="${variant === "12345" ? "on" : ""}">12345</button>
           <button type="button" data-v="platform" class="${variant === "platform" ? "on" : ""}">平台介入</button>
           <button type="button" data-v="heimao" class="${variant === "heimao" ? "on" : ""}">黑猫</button>
+          <button type="button" data-v="lawsuit" class="${variant === "lawsuit" ? "on" : ""}">诉讼准备</button>
         </div>
         <div class="checks">
           ${c.checks.map((x) => `<span class="${x.ok ? "ok" : "no"}">${x.ok ? "✓" : "○"} ${escapeHtml(x.label)}</span>`).join("")}
@@ -6161,6 +6431,7 @@ const POINT_KEY = "piaogen.v0.points";
       </div>
       <div class="report-actions">
         <button class="btn primary" id="shareReport" type="button">生成${escapeHtml(info.word)}报告卡</button>
+        <button class="btn ghost" id="printReport" type="button">打印 / 存 PDF</button>
         <button class="btn ghost" id="reportBack" type="button">回到今天</button>
         <button class="btn ghost" id="reportRules" type="button">看规则库</button>
       </div>
@@ -6181,6 +6452,8 @@ const POINT_KEY = "piaogen.v0.points";
       if (c) openFinanceCase(c);
     }));
     $("#shareReport").addEventListener("click", () => shareReport(period, report));
+    const printBtn = $("#printReport");
+    if (printBtn) printBtn.addEventListener("click", () => window.print());
     $("#reportBack").addEventListener("click", () => show("today"));
     $("#reportRules").addEventListener("click", openRulesSheet);
   }
@@ -6305,17 +6578,52 @@ const POINT_KEY = "piaogen.v0.points";
 
   function openAiConfigSheet() {
     const cfg = aiConfig();
+    const presets = [
+      { id: "deepseek", name: "DeepSeek", endpoint: "https://api.deepseek.com/v1/chat/completions", model: "deepseek-chat" },
+      { id: "qwen", name: "通义千问", endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", model: "qwen-plus" },
+      { id: "kimi", name: "Kimi", endpoint: "https://api.moonshot.cn/v1/chat/completions", model: "moonshot-v1-8k" },
+      { id: "ollama", name: "本机 Ollama", endpoint: "http://127.0.0.1:11434/v1/chat/completions", model: "qwen2.5:7b" }
+    ];
     openSheet("模型与隐私", `
       <p class="sheet-hint">任意 OpenAI 兼容的 /chat/completions 端点。Key 只存本机，不进入备份。</p>
+      <div class="ai-presets" role="group" aria-label="端点预设">
+        ${presets.map((preset) => `<button type="button" data-ai-preset="${preset.id}">${preset.name}</button>`).join("")}
+      </div>
       ${field("端点", "aiEndpoint", cfg.endpoint, "text", "http://127.0.0.1:11434/v1/chat/completions")}
       ${field("模型", "aiModel", cfg.model, "text", "例如 qwen2.5:7b / gpt-4o-mini")}
       ${field("Key（可留空）", "aiKey", cfg.key, "password", "只存本机，不进入备份")}
       <p class="annual-note">本地 Ollama 需设置 OLLAMA_ORIGINS 允许浏览器访问；云端端点若不允许跨域，会显示失败，规则结论仍可用。</p>
       <div class="sheet-actions">
         <button class="btn primary" id="aiCfgSave" type="button">保存</button>
+        <button class="btn ghost" id="aiCfgTest" type="button">测试连接</button>
         <button class="btn ghost" id="aiCfgClear" type="button">清除 Key</button>
         <button class="btn ghost" id="aiCfgOff" type="button">关闭 AI 建议</button>
       </div>`, () => {
+      $$("#sheetBody [data-ai-preset]").forEach((btn) => {
+        btn.onclick = () => {
+          const preset = presets.find((item) => item.id === btn.dataset.aiPreset);
+          if (!preset) return;
+          $("#f-aiEndpoint").value = preset.endpoint;
+          $("#f-aiModel").value = preset.model;
+        };
+      });
+      $("#aiCfgTest").onclick = async () => {
+        const endpoint = $("#f-aiEndpoint").value.trim();
+        const model = $("#f-aiModel").value.trim();
+        const key = $("#f-aiKey").value;
+        if (!endpoint) return toast("先填端点");
+        const started = Date.now();
+        try {
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: Object.assign({ "content-type": "application/json" }, key ? { authorization: `Bearer ${key}` } : {}),
+            body: JSON.stringify({ model, messages: [{ role: "user", content: "只回复 OK" }], max_tokens: 16 })
+          });
+          toast(res.ok ? `连接成功 · ${Date.now() - started}ms` : `连接失败 · HTTP ${res.status}`);
+        } catch (error) {
+          toast("连接失败：端点不通或被跨域拦截");
+        }
+      };
       $("#aiCfgSave").onclick = () => {
         saveAiConfig({
           endpoint: $("#f-aiEndpoint").value.trim(),
@@ -6371,7 +6679,9 @@ const POINT_KEY = "piaogen.v0.points";
         row("主流程冒烟", "OK", "首屏、六栏、导入、案卷、报告"),
         row("真实订单样例", "40/40", "结构已脱敏，只验证字段与规则"),
         row("订单样本", "19/19", "订单页字段与分拣"),
-        row("MCP", "8/8", "initialize / tools/list / tools/call"),
+        row("MCP（stdio）", "8/8", "initialize / tools/list / tools/call"),
+        row("MCP（本地 HTTP 桥）", "6/6", "JSON-RPC over HTTP，只绑 127.0.0.1"),
+        row("材料与路径", "5 类模板", "12315 / 12345 / 平台 / 黑猫 / 诉讼准备"),
         row("本地线上同构", "35/35", "以 PIAOGEN_URL 指向本地运行"),
         row("文档一致性", "通过", "版本、哈希、入口与交接文档")
       ])}
@@ -6391,11 +6701,13 @@ const POINT_KEY = "piaogen.v0.points";
       <p class="annual-note">金额三口径分开：争议金额、预计可追回、确认解决。只有你确认到账或解决，才计入“已确认解决”；不承诺保证退回或拒付成功。</p>
       <div class="sheet-actions">
         <button class="btn ghost" id="evidenceRules" type="button">打开规则库</button>
+        <button class="btn ghost" id="evidencePublic" type="button">公开页</button>
         <button class="btn ghost" id="evidenceClose" type="button">关闭</button>
       </div>`;
     openSheet("核验与边界", body, () => {
       $("#evidenceClose").addEventListener("click", closeSheet);
       $("#evidenceRules").addEventListener("click", () => { closeSheet(); openRulesSheet(); });
+      $("#evidencePublic").addEventListener("click", () => window.open("evidence.html", "_blank", "noopener"));
     });
   }
 
@@ -6457,6 +6769,10 @@ const POINT_KEY = "piaogen.v0.points";
     if (devCall) devCall.onclick = openDevCallSheet;
     const subs = $("#openSubs");
     if (subs) subs.onclick = openSubsSheet;
+    const cancelGuide = $("#openCancelGuide");
+    if (cancelGuide) cancelGuide.onclick = openCancelGuideSheet;
+    const afterpay = $("#openAfterpay");
+    if (afterpay) afterpay.onclick = () => window.open("afterpay.html", "_blank", "noopener");
     const coupons = $("#openCoupons");
     if (coupons) coupons.onclick = openCouponSheet;
     const pts = $("#openPoints");

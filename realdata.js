@@ -1080,6 +1080,112 @@ window.PG_REAL = {
       }
     }
   },
+  "cancelGuide": {
+    "checkedAt": "2026-11-23",
+    "note": "先看扣款方是谁：扣款方是支付宝/微信/Apple，走渠道关闭；扣款方是商户，渠道只停代扣，合同可能仍在续期，需要另外解约。",
+    "items": [
+      {
+        "id": "alipay",
+        "group": "支付渠道",
+        "name": "支付宝",
+        "via": "支付宝",
+        "steps": ["支付宝", "我的", "设置", "支付设置", "免密支付/自动扣款", "选择服务", "关闭服务"],
+        "note": "关闭后回到列表确认状态；已关闭的服务会显示在“已关闭”。",
+        "source": "支付宝客服帮助",
+        "confidence": "official-help"
+      },
+      {
+        "id": "wechat",
+        "group": "支付渠道",
+        "name": "微信支付",
+        "via": "微信",
+        "steps": ["微信", "我", "服务", "钱包", "支付设置", "扣费服务/免密支付", "选择服务", "关闭扣费服务"],
+        "note": "微信里叫“扣费服务”，不是“订阅”；找不到就用微信支付客服搜商户名。",
+        "source": "媒体核对（新华网/光明网）",
+        "confidence": "media-checked"
+      },
+      {
+        "id": "apple",
+        "group": "应用商店",
+        "name": "Apple ID 订阅",
+        "via": "Apple",
+        "steps": ["设置", "顶部 Apple ID", "订阅", "选择订阅", "取消订阅"],
+        "note": "通过 App Store 订阅的会员必须在这里取消；只在 App 内删账号不会停止扣款。",
+        "source": "Apple 官方支持",
+        "confidence": "official"
+      },
+      {
+        "id": "jd_plus",
+        "group": "电商会员",
+        "name": "京东 PLUS",
+        "via": "京东",
+        "steps": ["京东 App", "我的", "PLUS 会员", "自动续费管理", "关闭自动续费"],
+        "note": "若扣款方显示为“京东支付/网银在线”，先在这里关，再去支付宝/微信核对代扣是否也关了。",
+        "source": "常见路径整理（以 App 内页面为准）",
+        "confidence": "generic"
+      },
+      {
+        "id": "taobao_88vip",
+        "group": "电商会员",
+        "name": "淘宝 88VIP",
+        "via": "淘宝",
+        "steps": ["淘宝 App", "我的淘宝", "88VIP", "自动续费管理", "关闭"],
+        "note": "88VIP 可能绑定优酷/饿了么等联名权益，关闭后联名权益同时到期。",
+        "source": "常见路径整理（以 App 内页面为准）",
+        "confidence": "generic"
+      },
+      {
+        "id": "tencent_video",
+        "group": "视频音乐",
+        "name": "腾讯视频 VIP",
+        "via": "腾讯视频",
+        "steps": ["腾讯视频 App", "我的", "VIP 会员", "自动续费管理", "关闭自动续费"],
+        "note": "在微信/QQ 内开通的，可能要去对应渠道再关一次。",
+        "source": "常见路径整理（以 App 内页面为准）",
+        "confidence": "generic"
+      },
+      {
+        "id": "iqiyi",
+        "group": "视频音乐",
+        "name": "爱奇艺黄金 VIP",
+        "via": "爱奇艺",
+        "steps": ["爱奇艺 App", "我的", "会员中心", "自动续费管理", "取消自动续费"],
+        "note": "如果是支付宝/微信代扣，关完这里再回支付渠道确认。",
+        "source": "常见路径整理（以 App 内页面为准）",
+        "confidence": "generic"
+      },
+      {
+        "id": "netease_music",
+        "group": "视频音乐",
+        "name": "网易云音乐黑胶 VIP",
+        "via": "网易云音乐",
+        "steps": ["网易云音乐 App", "我的", "会员中心", "自动续费管理", "关闭"],
+        "note": "通过 Apple 订阅的，只能去 Apple ID 订阅里取消。",
+        "source": "常见路径整理（以 App 内页面为准）",
+        "confidence": "generic"
+      },
+      {
+        "id": "douyin",
+        "group": "应用内会员",
+        "name": "抖音/抖音商城会员",
+        "via": "抖音",
+        "steps": ["抖音 App", "我", "更多服务/会员中心", "自动续费管理", "关闭"],
+        "note": "抖音内购买的会员也常见“月付/连续包月”字样，关完看订单状态是否变为“已取消续费”。",
+        "source": "常见路径整理（以 App 内页面为准）",
+        "confidence": "generic"
+      },
+      {
+        "id": "meituan",
+        "group": "应用内会员",
+        "name": "美团会员/神券包",
+        "via": "美团",
+        "steps": ["美团 App", "我的", "会员中心", "自动续费管理", "关闭"],
+        "note": "神券包有时是“到期自动续购”，不是订阅；以订单页的续费说明为准。",
+        "source": "常见路径整理（以 App 内页面为准）",
+        "confidence": "generic"
+      }
+    ]
+  },
   "replyRules": {
     "checkedAt": "2026-11-21",
     "note": "只解析用户主动提供的商家回复截图/文字；解析结果必须让用户确认，不能直接当事实。",

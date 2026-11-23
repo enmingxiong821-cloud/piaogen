@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>核验与边界 · 票根</title>
+<meta name="description" content="票根的可验证事实：规则依据、测试基线、数据与 AI、已知局限。" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+<main class="doc doc-shell">
+  <nav class="doc-nav" aria-label="页面导航">
+    <a class="doc-back" href="index.html"><span aria-hidden="true">&larr;</span> 返回票根</a>
+    <span class="doc-mark">票根</span>
+  </nav>
+
+  <p class="doc-kicker">票根 · V9.4</p>
+  <h1>核验与边界</h1>
+  <p class="doc-meta">核对日期：2026-11-23　·　这一页只写能当场复核的事实</p>
+
+  <p class="lede">评委不需要翻文档：这一页列出规则条数、测试基线、数据处理方式、AI 的位置，以及我们明确不做的事。数字来自当天实跑；与页面不一致时，以实际运行结果为准。</p>
+
+  <h2>1. 这个作品现在是什么</h2>
+  <ul>
+    <li>可安装的 Web 应用（PWA），纯静态、无后端、无账号；数据只存本机 localStorage。</li>
+    <li>六栏：今天 / 案卷 / 资金 / 资产 / 导入 / 我的；消费权利与资金售后共用同一套案卷、证据、回执引擎。</li>
+    <li>可被调用：本地 MCP server 六个工具，协议 <code>initialize → tools/list → tools/call</code>；另附本地 JSON-RPC over HTTP 桥（只绑 127.0.0.1）。</li>
+    <li>未接入：支付宝小程序、支付后 1403、订阅消息、蚂蚁阿宝真实调用。这些只在路线里，不在产品里。</li>
+  </ul>
+
+  <h2>2. 规则与依据</h2>
+  <ul>
+    <li>规则库 <strong>20 条</strong>，每条带条款号、施行日期与原文链接。</li>
+    <li>自动续费以《互联网平台价格行为规则》为准：2026-04-10 起，每次扣款前应显著提醒时间、金额、取消途径，并允许随时取消。</li>
+    <li>三包目录 18 类；目录外商品不显示法定 7/15 日；线上 7 天无理由从签收日算，三包 7/15 日从发票日算，两个时钟分开显示。</li>
+    <li>价保是平台/商家承诺，不是法定权利；没有订单页价保标识就不显示倒计时。</li>
+  </ul>
+
+  <h2>3. 测试基线（2026-11-23 实跑）</h2>
+  <ul>
+    <li><code>test_users_smoke.py</code>：118 / 118</li>
+    <li><code>smoke.py</code>：通过，无控制台报错</li>
+    <li><code>real_smoke.py</code>：40 / 40</li>
+    <li><code>order_samples_smoke.py</code>：19 / 19</li>
+    <li><code>mcp_smoke.py</code>：8 / 8；<code>mcp_http_smoke.py</code>：6 / 6</li>
+    <li><code>live_check.py</code>：本地 35 / 35，线上 35 / 35</li>
+    <li><code>doc_check.py</code>：通过（隐私 / 协议 / 许可三页，320 与 1440 无横向溢出）</li>
+  </ul>
+  <p>这些是自动化测试，不等于真人使用验证。5 个测试用户是合成夹具；真人可用性测试包已准备好，但尚未执行，页面上不写成“已完成”。</p>
+
+  <h2>4. 数据与 AI</h2>
+  <ul>
+    <li>票据图片、PDF、OFD 在本机识别；不上传原图，不写入远端数据库。</li>
+    <li>AI 建议层<strong>默认关闭</strong>。打开后由用户自填 OpenAI 兼容端点、模型与 Key；发送前展示将发送的字段，金额与日期默认不发送。</li>
+    <li>AI 只产出建议文本，只进“事实与诉求”备注；不改金额、日期、状态、证据，不参与结论。</li>
+    <li>关掉 AI，权利窗口、证据门、路径、回执全部照常工作。</li>
+    <li>资金案卷只填卡尾号；不索取完整卡号、CVV、验证码、网银密码。</li>
+  </ul>
+
+  <h2>5. 明确不做</h2>
+  <ul>
+    <li>不代登录、不代提交、不代收款、不托管资金。</li>
+    <li>不承诺“保证退回 / 保证拒付成功”，不做法律、金融、医疗的确定性结论。</li>
+    <li>不做贷款推荐、保险推荐、投资建议、征信修复。</li>
+    <li>没有公开依据的固定天数不倒计时。</li>
+    <li>争议金额、预计可追回、确认解决金额三口径分开；只有用户确认到账，才计入已解决金额。</li>
+    <li>示例数据标“示例”；MCP 不暴露 shell、文件系统、浏览器、支付或任意 HTTP。</li>
+  </ul>
+
+  <h2>6. 已知局限</h2>
+  <ul>
+    <li>纯 localStorage，没有云同步与多设备；家庭是“帮谁办”的标记，不是共享账号。</li>
+    <li>中文票据 OCR 仍会错字；金额与日期必须用户核对；复杂 OFD 不支持。</li>
+    <li>远程 MCP 未托管；官方 Streamable HTTP 未实现。</li>
+    <li>支付宝小程序壳与支付后入口只有设计与原型，未接入。</li>
+  </ul>
+
+  <h2>7. 怎么复核</h2>
+  <p>在项目 <code>v0/</code> 目录运行：</p>
+  <pre><code>python -m http.server 8765
+python test_users_smoke.py
+python smoke.py
+python real_smoke.py
+python order_samples_smoke.py
+python mcp_smoke.py
+python mcp_http_smoke.py
+python doc_check.py</code></pre>
+  <p>MCP 复核：<code>node mcp/server.js</code>（stdio）或 <code>node mcp/http-server.js</code>（本地 HTTP 桥），再按 <a href="mcp/README.md">mcp/README.md</a> 调 <code>tools/list</code>。</p>
+
+  <p class="doc-foot"><a href="index.html">返回票根</a> · <a href="privacy.html">隐私政策</a> · <a href="terms.html">用户协议</a> · <a href="licenses.html">开源许可</a></p>
+</main>
+</body>
+</html>

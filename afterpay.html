@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>支付后入口 · 原型 · 票根</title>
+<meta name="description" content="票根的支付后入口原型：付款成功那一屏，权利开始计时。当前未接入支付宝。" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="styles.css" />
+<style>
+  body{background:var(--bg);color:var(--text)}
+  .ap-wrap{max-width:560px;margin:0 auto;padding:20px 16px 48px}
+  .ap-banner{display:flex;gap:8px;align-items:center;border:1px solid var(--amber);background:rgba(244,184,96,.08);color:var(--amber);font-size:12px;line-height:1.5;padding:10px 12px;border-radius:12px;margin-bottom:16px}
+  .ap-banner b{font-weight:600}
+  .ap-phone{border:1px solid var(--line);border-radius:26px;padding:18px 16px;background:var(--panel)}
+  .ap-top{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-3)}
+  .ap-ok{display:flex;align-items:center;gap:10px;margin-top:18px}
+  .ap-ok i{width:28px;height:28px;border-radius:50%;background:var(--mint);color:#06110C;display:grid;place-items:center;font-style:normal;font-weight:700}
+  .ap-ok b{font-size:15px}
+  .ap-amount{font-family:var(--num);font-size:40px;font-weight:700;color:var(--mint);margin:10px 0 2px;letter-spacing:-.02em}
+  .ap-merchant{font-size:13px;color:var(--text-2)}
+  .ap-divide{height:1px;background:var(--line);margin:16px 0}
+  .ap-title{font-size:17px;font-weight:700;margin:0 0 4px}
+  .ap-sub{font-size:12px;color:var(--text-3);margin:0 0 12px}
+  .ap-clock{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)}
+  .ap-clock:last-child{border-bottom:0}
+  .ap-clock b{font-size:13px}
+  .ap-clock span{font-family:var(--num);font-size:13px;color:var(--mint)}
+  .ap-clock small{display:block;font-size:10px;color:var(--text-3);margin-top:2px;font-weight:400}
+  .ap-actions{display:grid;gap:8px;margin-top:16px}
+  .ap-actions a,.ap-actions button{display:grid;place-items:center;min-height:46px;border-radius:12px;font-size:14px;font-weight:600;text-decoration:none;font-family:inherit;cursor:pointer}
+  .ap-primary{background:var(--mint);color:#06110C;border:0}
+  .ap-ghost{border:1px solid var(--line);color:var(--text);background:transparent}
+  .ap-ghost:disabled{opacity:.55;cursor:default}
+  .ap-note{font-size:10.5px;line-height:1.6;color:var(--text-3);margin:14px 0 0}
+  .ap-section{margin-top:22px;font-size:12.5px;line-height:1.75;color:var(--text-2)}
+  .ap-section h2{font-size:14px;color:var(--text);margin:0 0 6px}
+  .ap-section ol{padding-left:18px;margin:6px 0}
+  .ap-section a{color:var(--mint)}
+  .ap-back{display:inline-block;margin-top:20px;font-size:12px;color:var(--text-3)}
+</style>
+</head>
+<body>
+<main class="ap-wrap">
+  <p class="ap-banner"><b>原型演示</b> · 未接入支付宝。下面这一屏是“如果拿到支付后入口，票根会怎么出现”的设计稿，所有数据都是示例。</p>
+
+  <div class="ap-phone" aria-label="支付后回执原型">
+    <div class="ap-top"><span>票根 · 支付后</span><span>示例</span></div>
+    <div class="ap-ok"><i>✓</i><b>支付成功</b></div>
+    <p class="ap-amount">¥3,299.00</p>
+    <p class="ap-merchant">某家电卖场 · 1.5 匹空调</p>
+
+    <div class="ap-divide"></div>
+
+    <h1 class="ap-title">这笔钱的权利，开始计时。</h1>
+    <p class="ap-sub">先把三个截止日记下来，过期再找就晚了。</p>
+    <div class="ap-clock"><div><b>退货</b><small>线上 7 天无理由</small></div><span>剩 3 天</span></div>
+    <div class="ap-clock"><div><b>价保</b><small>以订单页标识为准</small></div><span>待确认</span></div>
+    <div class="ap-clock"><div><b>保修</b><small>整机与主要部件不同</small></div><span>按发票</span></div>
+
+    <div class="ap-actions">
+      <a class="ap-primary" href="index.html?demo=1">看权利回执</a>
+      <a class="ap-ghost" href="index.html?demo=1">先存下来，明天再说</a>
+      <button class="ap-ghost" type="button" onclick="this.textContent='原型：这里会关掉这一屏';this.disabled=true">这次不需要</button>
+    </div>
+    <p class="ap-note">这一屏只带订单号与金额来打开回执；不读卡号、不读余额、不代付款。示例数字不是承诺，实际天数以订单页与合同为准。</p>
+  </div>
+
+  <section class="ap-section">
+    <h2>接入会怎么做（现在没做）</h2>
+    <ol>
+      <li>支付宝开放平台申请“支付后推荐位 / 小程序跳转”能力；审核通过后才会有真实入口。</li>
+      <li>支付成功回调里带 <code>out_trade_no</code> 与金额，打开票根回执页；不传手机号、不传卡信息。</li>
+      <li>回执页用本地规则算窗口；用户确认后写入本机，再按需设置日历提醒。</li>
+    </ol>
+    <p>当前状态：只有这一张原型页；没有商户号、没有申请入口、没有真实支付回调。作品本身是可用 Web 应用，不依赖这个入口。</p>
+    <a class="ap-back" href="index.html">← 返回票根</a>
+  </section>
+</main>
+</body>
+</html>

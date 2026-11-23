@@ -3,6 +3,8 @@
   const REAL = window.PG_REAL || {};
   const SANBAO_ITEMS = (REAL.sanbao && REAL.sanbao.items) || [];
   const PATHS = (REAL.paths || []);
+  const CANCEL_GUIDE = (REAL.cancelGuide && REAL.cancelGuide.items) || [];
+  const CANCEL_NOTE = (REAL.cancelGuide && REAL.cancelGuide.note) || "";
   const PRICE_RULES = REAL.priceRules || {};
   const BRANDS = (REAL.brands && REAL.brands.brands) || [];
   const EVIDENCE = REAL.evidence || {};
@@ -559,8 +561,19 @@
       };
     }
     if (action === "subscription") {
-      const id = channel.platform === "alipay" ? "alipay_autopay" : channel.platform === "wechat" ? "wechat_autopay" : "alipay_autopay";
-      const p = PATHS.find((x) => x.id === id);
+      const map = { alipay: "alipay", wechat: "wechat", apple: "apple", jd: "jd_plus", taobao: "taobao_88vip", douyin: "douyin", meituan: "meituan" };
+      const item = CANCEL_GUIDE.find((x) => x.id === (map[channel.platform] || "alipay"));
+      if (item) {
+        return {
+          label: `关闭${item.name}的自动续费`,
+          path: item.steps.slice(),
+          url: "",
+          fallback: item.note,
+          source: item.source,
+          confidence: item.confidence
+        };
+      }
+      const p = PATHS.find((x) => x.id === "alipay_autopay");
       return p || { label: "关闭自动续费", path: ["支付 App", "支付设置", "自动扣款/免扣费", "关闭服务"], url: "", fallback: "联系签约商户解约", source: "路径库", confidence: "generic" };
     }
     const wanted = `${channel.platform}_${action}`;
@@ -763,6 +776,36 @@ ${f.date}，我在 ${f.merchant} 购买 ${f.product}，支付 ${f.amount}。${cl
 【证据】
 ${ev}` };
     }
+    if (variant === "lawsuit") {
+      return { checks, title: "起诉前的准备清单（不是起诉状）", body: `【说明】下面是去法院立案前要准备好的材料清单与要点，不是法律意见；是否起诉、怎么写诉状，请咨询律师或立案庭。
+
+【一、当事人】
+原告：请填写姓名、身份证号、住址、联系电话
+被告：${f.merchant}（需要它的完整工商登记名称与统一社会信用代码，可在国家企业信用信息公示系统查询）
+
+【二、诉讼请求（写清金额）】
+${claim}
+标的金额：${f.amount}
+
+【三、事实与理由要点】
+1. ${f.date} 在 ${f.merchant} 购买 ${f.product}，支付 ${f.amount}，订单号 ${f.orderNo}。
+2. 与经营者协商未果（写清时间、方式、对方答复）。
+3. 法律依据：${basis.law}${basis.article}——${basis.text}
+
+【四、证据目录】
+${ev}
+另需：付款凭证、发票/订单详情、聊天或通话记录、商品问题照片/检测结论。
+
+【五、管辖与时效】
+- 管辖：一般向被告住所地或合同履行地基层法院起诉，具体以立案庭告知为准。
+- 时效：普通诉讼时效为三年（《民法典》第一百八十八条），从知道或应当知道权利受损起算；临近时效请先书面催告并留痕。
+
+【六、提交前自检】
+□ 被告名称与统一社会信用代码已核对
+□ 诉讼请求金额与证据能对上
+□ 证据按时间编号，原件留存
+□ 已确认管辖法院与立案方式（现场/网上）` };
+    }
     if (variant === "heimao") {
       return { checks, title: `${f.merchant} 拒绝处理 ${f.product}（${f.amount}）`, body: `【投诉对象】${f.merchant}
 【涉及金额】${f.amount}
@@ -884,7 +927,7 @@ ${ev}` };
 
   window.PG = {
     CATEGORY, CHANNEL, BASIS, RULES_META, EFFECTIVE,
-    REAL,
+    REAL, CANCEL_GUIDE, CANCEL_NOTE,
     categoryOf, channelOf, buildWindows, depositCalc,
     objectionsFor, taxHints, complaintFor, detectSubscriptions,
     priority, scriptFor, checklistFor, portalFor, pathFor,

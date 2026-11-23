@@ -918,8 +918,13 @@ const POINT_KEY = "piaogen.v0.points";
       });
     });
     if (onMount) onMount($("#sheetBody"));
-    const first = $("#sheetBody").querySelector("input:not([type=hidden]), select, textarea, button");
-    (first || $("#sheetClose")).focus({ preventScroll: true });
+    const candidates = Array.from($("#sheetBody").querySelectorAll("input:not([type=hidden]), select, textarea, button"))
+      .filter((el) => el.offsetParent !== null);
+    const target = candidates[0] || $("#sheetClose");
+    target.focus({ preventScroll: true });
+    if (document.activeElement !== target && $("#sheetClose")) {
+      $("#sheetClose").focus({ preventScroll: true });
+    }
   }
 
   function closeSheet() {

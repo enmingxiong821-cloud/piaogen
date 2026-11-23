@@ -21,6 +21,23 @@ node server.js
 }
 ```
 
+## 本地 HTTP 桥（可选）
+
+除 stdio 外还提供一个零依赖的 JSON-RPC over HTTP 入口，方便用 curl / 浏览器工具调：
+
+```bash
+node http-server.js          # 默认 127.0.0.1:8787
+curl -s http://127.0.0.1:8787/health
+curl -s http://127.0.0.1:8787/mcp \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+- 端口用 `MCP_HTTP_PORT` 覆盖；默认只绑 `127.0.0.1`，不对外。
+- 支持单条与批量 JSON-RPC；`notifications/*` 返回 202。
+- 这是普通 JSON-RPC POST，**不是** MCP 官方 Streamable HTTP（无 SSE、无会话 ID），
+  也不代表已有公网托管地址；公网 MCP 仍是后续路线。
+
 ## 工具
 
 | 工具 | 作用 | 写操作 |
@@ -34,7 +51,7 @@ node server.js
 
 ## 验证
 
-1. 在 `v0/` 下运行 `python mcp_smoke.py`，期望 `8/8`。
+1. 在 `v0/` 下运行 `python mcp_smoke.py`（stdio，期望 `8/8`）与 `python mcp_http_smoke.py`（HTTP 桥，期望 `6/6`）。
 2. 运行 `npx @modelcontextprotocol/inspector@latest`。
 3. Transport 选 `STDIO`，Command 填 `node`，Args 填 `<解压目录>/v0/mcp/server.js`。
 4. `tools/list` 应出现上述 6 个工具。
@@ -49,7 +66,7 @@ node server.js
 | “帮我把退款案卷推进下一步” | `finance.plan {"caseId":"FM-20261121-0001"}` | 证据门、官方路径、话术、禁止事项 |
 | “把这个结果记下来” | `finance.record {"caseId":"…","status":"waiting","note":"银行受理"}` | 只写进程内示例案卷，不代提交 |
 
-跨宿主验证：MCP Inspector（STDIO）→ `tools/list` 6 个 → 调 `rights.lookup` 返回窗口；Claude Desktop / Cursor 用上面的配置各跑一次。远程 Streamable HTTP MCP 是后续路线，**当前未部署**，不要写成“已接入阿宝”。
+跨宿主验证：MCP Inspector（STDIO）→ `tools/list` 6 个 → 调 `rights.lookup` 返回窗口；Claude Desktop / Cursor 用上面的配置各跑一次。本地 HTTP 桥可独立跑通 `initialize → tools/list → tools/call`；官方 Streamable HTTP 与公网托管是后续路线，**当前未部署**，不要写成“已接入阿宝”。
 
 ## 数据与边界
 

@@ -336,11 +336,10 @@ function financeRecord(args) {
   };
 }
 
-function send(id, result, error) {
-  const payload = error
+function reply(id, result, error) {
+  return error
     ? { jsonrpc: "2.0", id, error }
     : { jsonrpc: "2.0", id, result };
-  process.stdout.write(JSON.stringify(payload) + "\n");
 }
 
 function callTool(name, args) {
@@ -353,42 +352,51 @@ function callTool(name, args) {
   return { error: `未知工具：${name}` };
 }
 
-function handle(message) {
+function dispatch(message) {
   const id = message.id;
   const method = message.method;
   if (method === "initialize") {
-    return send(id, {
+    return reply(id, {
       protocolVersion: "2024-11-05",
       capabilities: { tools: { listChanged: false } },
       serverInfo: { name: "piaogen-rights-finance", version: "0.3.0" }
     });
   }
-  if (method === "notifications/initialized") return;
-  if (method === "ping") return send(id, {});
-  if (method === "tools/list") return send(id, { tools: TOOLS });
+  if (method === "tools/list") return reply(id, { tools: TOOLS });
   if (method === "tools/call") {
     const params = message.params || {};
     const payload = callTool(params.name, params.arguments || {});
     if (payload && payload.error) {
-      return send(id, { content: [{ type: "text", text: payload.error }], isError: true });
+      return reply(id, { content: [{ type: "text", text: payload.error }], isError: true });
     }
-    return send(id, { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }], isError: false });
+    return reply(id, { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }], isError: false });
   }
-  return send(id, null, { code: -32601, message: `Method not found: ${method}` });
+  if (method === "ping") return reply(id, {});
+  if (method === "notifications/initialized" || method === undefined) return null;
+  return reply(id, null, { code: -32601, message: `Method not found: ${method}` });
 }
 
-const rl = readline.createInterface({ input: process.stdin, terminal: false });
-rl.on("line", (line) => {
-  if (!line.trim()) return;
-  let message;
-  try {
-    message = JSON.parse(line);
-  } catch (error) {
-    return send(null, null, { code: -32700, message: "Parse error" });
-  }
-  try {
-    handle(message);
-  } catch (error) {
-    send(message.id, null, { code: -32603, message: String(error && error.message ? error.message : error) });
-  }
-});
+function send(payload) {
+  if (!payload) return;
+  process.stdout.write(JSON.stringify(payload) + "\n");
+}
+
+module.exports = { dispatch, TOOLS };
+
+if (require.main === module) {
+  const rl = readline.createInterface({ input: process.stdin, terminal: false });
+  rl.on("line", (line) => {
+    if (!line.trim()) return;
+    let message;
+    try {
+      message = JSON.parse(line);
+    } catch (error) {
+      return send(reply(null, null, { code: -32700, message: "Parse error" }));
+    }
+    try {
+      send(dispatch(message));
+    } catch (error) {
+      send(reply(message.id, null, { code: -32603, message: String(error && error.message ? error.message : error) }));
+    }
+  });
+}

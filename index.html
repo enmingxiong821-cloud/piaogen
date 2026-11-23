@@ -161,6 +161,11 @@
               <span class="source-text"><b>电子发票</b><small>PDF / OFD / XML</small></span>
               <span class="chev">›</span>
             </button>
+            <button class="source" data-source="policy" type="button">
+              <span class="source-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.2-2.9 7.4-7 9-4.1-1.6-7-4.8-7-9V6l7-3Z"/><path d="M9 12l2 2 4-4"/></svg></span>
+              <span class="source-text"><b>保单 / 合同</b><small>只取机构、金额、天数；不存证件</small></span>
+              <span class="chev">›</span>
+            </button>
             <button class="source" data-source="bill" type="button">
               <span class="source-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span>
               <span class="source-text"><b>粘贴支付宝 / 微信账单</b><small>一行一单，自动拆成多张票</small></span>
@@ -176,11 +181,12 @@
               <span class="chev">›</span>
             </button>
           </div>
-          <p class="note">照片只在本机识别，不上传。金额/日期以票据为准。</p>
+          <p class="note">照片只在本机识别，不上传。金额/日期以票据为准。保单 / 合同只保留机构、金额、天数，不保存证件原件、证件号与完整文字。</p>
           <p class="note" id="ocrWarmNote">快速识别只需约 2MB，打开这一页就会在后台准备；要更准时可在结果页点“精确模式”（再下约 19MB，仅一次）。</p>
           <input id="fileCamera" type="file" accept="image/*" capture="environment" hidden />
           <input id="fileOrder" type="file" accept="image/*,video/*" hidden />
           <input id="fileInvoice" type="file" accept=".pdf,.ofd,.xml,image/*" hidden />
+          <input id="filePolicy" type="file" accept=".pdf,image/*" hidden />
         </section>
 
         <section class="screen" data-screen="parsing" aria-label="解析">
@@ -367,6 +373,7 @@
             <button class="setting-row" id="openSubs" type="button"><div><b>自动续费体检</b><small>从账单里找出周期性扣款</small></div><span>›</span></button>
             <button class="setting-row" id="openCancelGuide" type="button"><div><b>各平台取消指引</b><small>支付宝、微信、Apple 与常见会员</small></div><span>›</span></button>
             <button class="setting-row" id="openAfterpay" type="button"><div><b>支付后入口</b><small>原型演示，未接入支付宝</small></div><span>›</span></button>
+            <button class="setting-row" id="openMiniapp" type="button"><div><b>小程序壳</b><small>设计演示，未接入支付宝小程序</small></div><span>›</span></button>
             <button class="setting-row" id="openRules" type="button"><div><b>规则库</b><small>依据、条款号与施行日期</small></div><span>›</span></button>
             <button class="setting-row" id="openEvidence" type="button"><div><b>核验与边界</b><small>规则依据、测试基线、已知局限</small></div><span>›</span></button>
             <button class="setting-row" id="openDevCall" type="button"><div><b>开发者调用</b><small>MCP 六工具、配置与能力边界</small></div><span>›</span></button>

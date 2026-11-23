@@ -1644,6 +1644,51 @@ const POINT_KEY = "piaogen.v0.points";
     }
   }
 
+  async function handlePolicyFile(file) {
+    showParse("正在读保单 / 合同", "只找机构、金额和期限；证件号、手机号与原文都不保存。");
+    let doc = null;
+    try {
+      const extracted = await Promise.race([
+        fileToText(file),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("识别包下载太慢，先手动填三项")), 90000))
+      ]);
+      doc = PG.parsePolicyDoc(extracted.text || "", file.name);
+      if (!doc) throw new Error("没有读到可用的机构或金额");
+      setParse(100, "读完了，只留下三项", [
+        { text: "读取文件", done: true },
+        { text: "识别文字", done: true },
+        { text: "丢弃证件与原文", done: true }
+      ]);
+    } catch (error) {
+      toast(`没读全：${error.message || "请手动填三项"}`);
+      doc = null;
+    }
+    setTimeout(() => openPolicyBuilder(doc), 300);
+  }
+
+  function openPolicyBuilder(doc) {
+    const kind = doc && doc.kind === "insurance" ? "insurance" : "prepaid";
+    const prefill = doc ? {
+      merchant: doc.merchant || "",
+      amount: doc.amount || "",
+      date: doc.signedDate || "",
+      signedDate: doc.signedDate || "",
+      coolingDays: doc.coolingDays || "",
+      premium: doc.amount || "",
+      insurer: doc.merchant || "",
+      policyType: doc.policyType || "其他",
+      paid: doc.amount || "",
+      notes: `由${doc.kind === "insurance" ? "保单" : "合同"} OCR 预填，请核对。只保留机构、金额、期限；未保存证件与原文${doc.term ? `。合同期限 ${doc.term}` : ""}${doc.piiSeen ? "。检测到证件号/手机号，已忽略未保存" : ""}`
+    } : { notes: "OCR 未读出，手动填机构、金额与期限" };
+    if (doc && doc.coolingDays && doc.signedDate) {
+      const d = new Date(doc.signedDate);
+      d.setDate(d.getDate() + Number(doc.coolingDays));
+      prefill.deadline = d.toISOString().slice(0, 10);
+    }
+    openFinanceBuilder(kind, prefill);
+    if (doc) toast("只提取了机构、金额与期限；原件没有保存");
+  }
+
   function defaultWindows(ticket) {
     ticket.windows = PG.buildWindows(ticket).map((window) => ({ ...window, id: uid() }));
     return ticket;
@@ -1665,6 +1710,7 @@ const POINT_KEY = "piaogen.v0.points";
         if (source === "camera") $("#fileCamera").click();
         if (source === "order") $("#fileOrder").click();
         if (source === "invoice") $("#fileInvoice").click();
+        if (source === "policy") $("#filePolicy").click();
         if (source === "manual") openManual();
     if (source === "bill") openBill();
         if (source === "demo") addDemo();
@@ -6773,6 +6819,8 @@ const POINT_KEY = "piaogen.v0.points";
     if (cancelGuide) cancelGuide.onclick = openCancelGuideSheet;
     const afterpay = $("#openAfterpay");
     if (afterpay) afterpay.onclick = () => window.open("afterpay.html", "_blank", "noopener");
+    const miniapp = $("#openMiniapp");
+    if (miniapp) miniapp.onclick = () => window.open("miniapp.html", "_blank", "noopener");
     const coupons = $("#openCoupons");
     if (coupons) coupons.onclick = openCouponSheet;
     const pts = $("#openPoints");
@@ -6908,6 +6956,14 @@ const POINT_KEY = "piaogen.v0.points";
         if (file) handleFile(file);
       });
     });
+    const policyInput = $("#filePolicy");
+    if (policyInput) {
+      policyInput.addEventListener("change", () => {
+        const file = policyInput.files && policyInput.files[0];
+        policyInput.value = "";
+        if (file) handlePolicyFile(file);
+      });
+    }
     $("#triageImport").addEventListener("click", importSelected);
     $("#triageAll").addEventListener("click", () => {
       state.pending.forEach((ticket) => state.selected.add(ticket.id));

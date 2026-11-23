@@ -925,6 +925,100 @@ ${ev}` };
     return out;
   }
 
+  // 保单 / 合同：只提取机构、金额、期限。证件号、手机号与原文一律不返回。
+  function parsePolicyDoc(text, fileName = "") {
+    const raw = String(text || "").replace(/\r/g, "");
+    const compact = raw.replace(/[ \t]+/g, " ").trim();
+    if (compact.length < 4) return null;
+
+    const kind = /保险|保单|投保|保费|犹豫期|承保|退保/.test(compact)
+      ? "insurance"
+      : (/合同|协议|课程|健身|会籍|预付费|服务期|培训/.test(compact) ? "prepaid" : "unknown");
+
+    const cleanName = (value) => String(value || "")
+      .replace(/^[（(]?\d+[)）]?\s*/, "")
+      .replace(/^(?:保险人|投保人|被保险人|甲方|乙方|机构|公司|名称)[:：\s]*/, "")
+      .replace(/[，,。；;:：\s]+$/, "")
+      .trim()
+      .slice(0, 24);
+
+    let merchant = "";
+    const namePatterns = [
+      /([一-龥（）()]{2,24}(?:保险|人寿|财险)(?:股份)?(?:有限)?(?:责任)?公司)/,
+      /([一-龥（）()]{2,24}(?:健身|教育|培训|美容|俱乐部|会所|学院|中心|有限公司|公司))/,
+    ];
+    for (const pattern of namePatterns) {
+      const hit = compact.match(pattern);
+      if (hit && hit[1]) { merchant = cleanName(hit[1]); break; }
+    }
+    if (!merchant) {
+      const line = compact.split("\n").map((item) => item.trim())
+        .find((item) => item.length >= 2 && item.length <= 24 && !/\d{6,}/.test(item) && /[一-龥]/.test(item) && !/保险单号|保单号|合同编号/.test(item));
+      if (line) merchant = cleanName(line);
+    }
+
+    const toNumber = (value) => {
+      const n = Number(String(value).replace(/[,，\s]/g, ""));
+      if (!Number.isFinite(n) || n <= 0 || n >= 1e8) return null;
+      if (/^(?:19|20)\d{2}$/.test(String(value).replace(/\D/g, ""))) return null;
+      return n;
+    };
+    let amount = null;
+    const amountPatterns = [
+      /(?:保险费|保费|合同金额|合同总价|合同价款|总金额|合计金额|应付金额|费用总额|总价款|课程总价|服务总价|金额)[^0-9¥￥\n]{0,6}[¥￥]?\s*(\d[\d,]*(?:\.\d{1,2})?)/,
+      /[¥￥]\s*(\d[\d,]*(?:\.\d{1,2})?)/,
+      /(\d[\d,]*(?:\.\d{2}))\s*元/
+    ];
+    for (const pattern of amountPatterns) {
+      const hit = compact.match(pattern);
+      if (!hit) continue;
+      const n = toNumber(hit[1]);
+      if (n !== null) { amount = n; break; }
+    }
+
+    let coolingDays = null;
+    const cooling = compact.match(/(?:犹豫期|冷静期|退费期|退款期|无理由退货期|无理由退换期)[^0-9]{0,8}(\d{1,3})\s*(?:个)?(?:自然)?\s*(天|日)/);
+    if (cooling) {
+      const n = Number(cooling[1]);
+      if (n > 0 && n <= 365) coolingDays = n;
+    }
+
+    let term = "";
+    const termHit = compact.match(/(?:保障期|保险期间|合同期限|有效期|服务期|使用期|会籍期)[^0-9]{0,8}(\d{1,3})\s*((?:个)?(?:年|月|天|日))/);
+    if (termHit) term = `${termHit[1]} ${termHit[2]}`;
+
+    const dateMatch = compact.match(/(?:签收|签单|投保|签署|签订|合同|生效|起算)日期[:：\s]*(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})/)
+      || compact.match(/(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})/);
+    let signedDate = "";
+    if (dateMatch) {
+      const y = Number(dateMatch[1]);
+      const m = Number(dateMatch[2]);
+      const d = Number(dateMatch[3]);
+      if (y >= 2000 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        signedDate = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      }
+    }
+
+    const policyType = /重疾|重大疾病|长期健康|医疗险/.test(compact)
+      ? "长期健康险"
+      : (/银保/.test(compact) ? "银保一年期以上" : (/财产|车险|家财/.test(compact) ? "财产险" : (/一年期|短期/.test(compact) ? "一年期健康险" : "其他")));
+
+    const piiSeen = /\d{17}[\dXx]/.test(compact) || /\b1[3-9]\d{9}\b/.test(compact);
+    return {
+      kind,
+      merchant,
+      amount,
+      coolingDays,
+      term,
+      signedDate,
+      policyType,
+      piiSeen,
+      confidence: (merchant && amount) ? "high" : (merchant || amount ? "medium" : "low"),
+      note: "只保留机构、金额与期限；证件号、手机号与原文不保存",
+      fileName: String(fileName || "").slice(0, 60)
+    };
+  }
+
   window.PG = {
     CATEGORY, CHANNEL, BASIS, RULES_META, EFFECTIVE,
     REAL, CANCEL_GUIDE, CANCEL_NOTE,
@@ -932,6 +1026,6 @@ ${ev}` };
     objectionsFor, taxHints, complaintFor, detectSubscriptions,
     priority, scriptFor, checklistFor, portalFor, pathFor,
     daysLeft, fmt, addDays, addBusinessDays, addMonths, addYears, startOfDay,
-    catalogFor, brandFor, parseMerchantReply
+    catalogFor, brandFor, parseMerchantReply, parsePolicyDoc
   };
 })();

@@ -1,6 +1,6 @@
 # 票根 MCP server
 
-版本 `piaogen-rights-finance 0.3.0`，零依赖 stdio，6 个工具。用于证明票根不仅能被人类点开，也能被外部 Agent 调用。
+版本 `piaogen-rights-finance 0.4.0`，零依赖 stdio，7 个工具。用于证明票根不仅能被人类点开，也能被外部 Agent 调用。
 
 ## 启动
 
@@ -48,13 +48,14 @@ curl -s http://127.0.0.1:8787/mcp \
 | `finance.lookup` | 按资金问题查六类售后规则 | 否 |
 | `finance.plan` | 生成资金售后路径与材料 | 否 |
 | `finance.record` | 写入示例资金案卷 | 仅进程内 |
+| `policy.parse` | 从保单 / 合同文字只提取机构、金额、期限与签单日期；不返回证件号、手机号或原文 | 否（无存储） |
 
 ## 验证
 
-1. 在 `v0/` 下运行 `python mcp_smoke.py`（stdio，期望 `8/8`）与 `python mcp_http_smoke.py`（HTTP 桥，期望 `6/6`）。
+1. 在 `v0/` 下运行 `python mcp_smoke.py`（stdio，期望 `11/11`）与 `python mcp_http_smoke.py`（HTTP 桥，期望 `6/6`）。
 2. 运行 `npx @modelcontextprotocol/inspector@latest`。
 3. Transport 选 `STDIO`，Command 填 `node`，Args 填 `<解压目录>/v0/mcp/server.js`。
-4. `tools/list` 应出现上述 6 个工具。
+4. `tools/list` 应出现上述 7 个工具。
 5. 调 `rights.lookup`，`query="空气炸锅"`，应返回价保 / 退货 / 保修窗口。
 
 ## 典型意图 → 工具
@@ -65,8 +66,9 @@ curl -s http://127.0.0.1:8787/mcp \
 | “我妈的会员自动续费能退吗？” | `finance.lookup {"query":"自动续费"}` | 关闭代扣、提醒义务、可主张部分 |
 | “帮我把退款案卷推进下一步” | `finance.plan {"caseId":"FM-20261121-0001"}` | 证据门、官方路径、话术、禁止事项 |
 | “把这个结果记下来” | `finance.record {"caseId":"…","status":"waiting","note":"银行受理"}` | 只写进程内示例案卷，不代提交 |
+| “这张保单只帮我提机构、钱和天数” | `policy.parse {"text":"…OCR 文字…"}` | 机构、金额、犹豫期/期限、签单日；不含证件与原文 |
 
-跨宿主验证：MCP Inspector（STDIO）→ `tools/list` 6 个 → 调 `rights.lookup` 返回窗口；Claude Desktop / Cursor 用上面的配置各跑一次。本地 HTTP 桥可独立跑通 `initialize → tools/list → tools/call`；官方 Streamable HTTP 与公网托管是后续路线，**当前未部署**，不要写成“已接入阿宝”。
+跨宿主验证：MCP Inspector（STDIO）→ `tools/list` 7 个 → 调 `rights.lookup` 返回窗口；Claude Desktop / Cursor 用上面的配置各跑一次。本地 HTTP 桥可独立跑通 `initialize → tools/list → tools/call`；官方 Streamable HTTP 与公网托管是后续路线，**当前未部署**，不要写成“已接入阿宝”。
 
 ## 数据与边界
 

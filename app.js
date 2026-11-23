@@ -895,7 +895,17 @@ const POINT_KEY = "piaogen.v0.points";
     if (name === "financeCase" && state.currentFinance) renderFinanceCase(state.currentFinance);
   }
 
+  let sheetReturnFocus = null;
+
+  function sheetFocusables() {
+    const root = $("#sheetOverlay");
+    if (!root) return [];
+    return Array.from(root.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+  }
+
   function openSheet(title, body, onMount) {
+    sheetReturnFocus = document.activeElement;
     $("#sheetTitle").textContent = title;
     $("#sheetBody").innerHTML = body;
     $("#sheetOverlay").hidden = false;
@@ -908,10 +918,16 @@ const POINT_KEY = "piaogen.v0.points";
       });
     });
     if (onMount) onMount($("#sheetBody"));
+    const first = $("#sheetBody").querySelector("input:not([type=hidden]), select, textarea, button");
+    (first || $("#sheetClose")).focus({ preventScroll: true });
   }
 
   function closeSheet() {
     $("#sheetOverlay").hidden = true;
+    if (sheetReturnFocus && typeof sheetReturnFocus.focus === "function") {
+      sheetReturnFocus.focus({ preventScroll: true });
+    }
+    sheetReturnFocus = null;
   }
 
   function field(label, name, value, type = "text", options) {
@@ -6786,7 +6802,7 @@ const POINT_KEY = "piaogen.v0.points";
           ["帮我把退款案卷推进下一步", "finance.plan"]
         ].map(([intent, tool]) => `<div class="setting-row"><div><b>${escapeHtml(intent)}</b><small>${escapeHtml(tool)}</small></div><span>›</span></div>`).join("")}
       </div>
-      <p class="annual-note">验证：python mcp_smoke.py 应 8/8；MCP Inspector 选 STDIO，tools/list 应出现 6 个工具。远程 MCP 尚未部署，当前是本地 stdio 调用。演示数据不是线上实时用户数据；不代提交、不收款、不访问 shell / 文件系统 / 任意 HTTP。</p>
+      <p class="annual-note">验证：python mcp_smoke.py 应 11/11；MCP Inspector 选 STDIO，tools/list 应出现 7 个工具。远程 MCP 尚未部署，当前是本地 stdio 调用。演示数据不是线上实时用户数据；不代提交、不收款、不访问 shell / 文件系统 / 任意 HTTP。</p>
       <div class="sheet-actions">
         <button class="btn primary" id="devCallCopy" type="button">复制配置</button>
         <button class="btn ghost" id="devCallClose" type="button">关闭</button>
@@ -7007,6 +7023,14 @@ const POINT_KEY = "piaogen.v0.points";
     $("#sheetOverlay").addEventListener("click", (event) => { if (event.target === $("#sheetOverlay")) closeSheet(); });
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && !$("#sheetOverlay").hidden) closeSheet();
+      if (event.key === "Tab" && !$("#sheetOverlay").hidden) {
+        const items = sheetFocusables();
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      }
     });
   }
 

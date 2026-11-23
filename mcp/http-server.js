@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-// 本地 JSON-RPC over HTTP 桥，复用 server.js 的六个工具。
+// 本地 JSON-RPC over HTTP 桥，复用 server.js 的七个工具。
 // 只绑 127.0.0.1、只读示例数据、不代提交、不代收款；公网未托管。
 
 const http = require("http");
@@ -49,7 +49,7 @@ const server = http.createServer((req, res) => {
     return json(res, 200, {
       ok: true,
       name: "piaogen-rights-finance",
-      version: "0.3.0",
+      version: "0.4.0",
       transport: "json-rpc-over-http (local only)",
       tools: TOOLS.map((tool) => tool.name)
     });

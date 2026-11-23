@@ -17,7 +17,7 @@
     <span class="doc-mark">票根</span>
   </nav>
 
-  <p class="doc-kicker">票根 · V9.5</p>
+  <p class="doc-kicker">票根 · V9.6</p>
   <h1>核验与边界</h1>
   <p class="doc-meta">核对日期：2026-11-23　·　这一页只写能当场复核的事实</p>
 
@@ -27,7 +27,7 @@
   <ul>
     <li>可安装的 Web 应用（PWA），纯静态、无后端、无账号；数据只存本机 localStorage。</li>
     <li>六栏：今天 / 案卷 / 资金 / 资产 / 导入 / 我的；消费权利与资金售后共用同一套案卷、证据、回执引擎。</li>
-    <li>可被调用：本地 MCP server 六个工具，协议 <code>initialize → tools/list → tools/call</code>；另附本地 JSON-RPC over HTTP 桥（只绑 127.0.0.1）。</li>
+    <li>可被调用：本地 MCP server 七个工具（含 <code>policy.parse</code>），协议 <code>initialize → tools/list → tools/call</code>；另附本地 JSON-RPC over HTTP 桥（只绑 127.0.0.1）。</li>
     <li>保单 / 合同导入只提取机构、金额、期限三项，不保存证件原件、证件号与完整文字；结果由用户确认后才建立资金案卷。</li>
     <li>未接入：支付宝小程序、支付后 1403、订阅消息、蚂蚁阿宝真实调用。壳与入口只有原型：<a href="miniapp.html">小程序壳</a>、<a href="afterpay.html">支付后入口</a>。</li>
   </ul>
@@ -46,7 +46,7 @@
     <li><code>smoke.py</code>：通过，无控制台报错</li>
     <li><code>real_smoke.py</code>：40 / 40</li>
     <li><code>order_samples_smoke.py</code>：19 / 19</li>
-    <li><code>mcp_smoke.py</code>：8 / 8；<code>mcp_http_smoke.py</code>：6 / 6；<code>policy_ocr_smoke.py</code>：13 / 13</li>
+    <li><code>mcp_smoke.py</code>：11 / 11；<code>mcp_http_smoke.py</code>：6 / 6；<code>policy_ocr_smoke.py</code>：13 / 13；<code>offline_smoke.py</code>：4 / 4</li>
     <li><code>live_check.py</code>：本地 35 / 35，线上 35 / 35</li>
     <li><code>doc_check.py</code>：通过（隐私 / 协议 / 许可三页，320 与 1440 无横向溢出）</li>
   </ul>

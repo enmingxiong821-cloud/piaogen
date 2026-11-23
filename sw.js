@@ -1,7 +1,14 @@
-const CACHE = "piaogen-v9-8";
+const CACHE = "piaogen-v9-9";
 const CORE = [
   "./",
   "./index.html",
+  "./miniapp.html",
+  "./afterpay.html",
+  "./evidence.html",
+  "./privacy.html",
+  "./terms.html",
+  "./licenses.html",
+  "./docs.css",
   "./styles.css",
   "./app.js",
   "./rules.js",
@@ -41,10 +48,13 @@ self.addEventListener("fetch", (event) => {
       fetch(request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put("./index.html", copy));
+          caches.open(CACHE).then((cache) => cache.put(request, copy));
           return response;
         })
-        .catch(() => caches.match("./index.html"))
+        .catch(async () => {
+          const hit = await caches.match(request);
+          return hit || caches.match("./index.html");
+        })
     );
     return;
   }

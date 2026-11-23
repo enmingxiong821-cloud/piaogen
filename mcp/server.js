@@ -1,0 +1,394 @@
+#!/usr/bin/env node
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const readline = require("readline");
+
+const DATA = JSON.parse(fs.readFileSync(path.join(__dirname, "case-demo.json"), "utf8"));
+const cases = DATA.cases.map((item) => ({ ...item, actions: Array.isArray(item.actions) ? item.actions.slice() : [] }));
+const FINANCE_DATA = JSON.parse(fs.readFileSync(path.join(__dirname, "finance-demo.json"), "utf8"));
+const financeCases = FINANCE_DATA.cases.map((item) => ({ ...item, actions: Array.isArray(item.actions) ? item.actions.slice() : [] }));
+
+const TOOLS = [
+  {
+    name: "rights.lookup",
+    description: "查一笔购买对应的消费权利回执：还能做什么、最近哪一天关闭、缺什么证据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "一句话或关键词，例如“空气炸锅”“上周买的”" },
+        merchant: { type: "string", description: "商家名" },
+        category: { type: "string", description: "品类 key，例如 appliance / furniture / renovation" },
+        date: { type: "string", description: "购买日期 YYYY-MM-DD" },
+        amount: { type: "number", description: "金额" }
+      }
+    }
+  },
+  {
+    name: "rights.plan",
+    description: "给一宗案卷生成下一步：主行动、材料清单、话术、入口和禁止事项。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        caseId: { type: "string", description: "案卷编号，例如 PG-20261113-0001" }
+      },
+      required: ["caseId"]
+    }
+  },
+  {
+    name: "rights.record",
+    description: "把办理结果写回案卷；金额分预计与已确认，不代提交。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        caseId: { type: "string", description: "案卷编号" },
+        status: {
+          type: "string",
+          enum: ["submitted", "refunded", "repaired", "promise", "rejected", "abandoned"],
+          description: "结果状态"
+        },
+        amount: { type: "number", description: "已确认金额，没有就省略" },
+        note: { type: "string", description: "备注，例如“平台客服说 3 天到账”" }
+      },
+      required: ["caseId", "status"]
+    }
+  },
+  {
+    name: "finance.lookup",
+    description: "查资金售后案卷：退款没到、银行卡争议、自动续费、预付卡、分期息费或保险犹豫期。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "一句话或关键词，例如“退款没到”“银行卡半夜被刷”" },
+        type: {
+          type: "string",
+          enum: ["payment", "chargeback", "renewal", "prepaid", "installment", "insurance"],
+          description: "资金售后类型"
+        },
+        merchant: { type: "string", description: "商家 / 机构" },
+        amount: { type: "number", description: "争议金额" }
+      }
+    }
+  },
+  {
+    name: "finance.plan",
+    description: "给一宗资金案卷生成下一步：先补什么证据、官方路径、可直接说的话和禁止事项。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        caseId: { type: "string", description: "资金案卷编号，例如 FM-20261121-0001" }
+      },
+      required: ["caseId"]
+    }
+  },
+  {
+    name: "finance.record",
+    description: "记录资金售后进度；只有调用方明确 confirmed=true 且用户确认到账/解决时，才记录已解决金额。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        caseId: { type: "string", description: "资金案卷编号" },
+        status: {
+          type: "string",
+          enum: ["submitted", "accepted", "waiting", "resolved", "rejected", "closed"],
+          description: "进度状态"
+        },
+        confirmed: { type: "boolean", description: "用户是否确认到账/已解决；resolved 必须为 true" },
+        amount: { type: "number", description: "确认解决金额，没有就省略" },
+        note: { type: "string", description: "备注，例如“银行受理，等待补件”" }
+      },
+      required: ["caseId", "status"]
+    }
+  }
+];
+
+function nearest(item) {
+  const open = (item.windows || [])
+    .filter((win) => typeof win.daysLeft === "number" && win.daysLeft >= 0)
+    .sort((a, b) => a.daysLeft - b.daysLeft);
+  return open[0] || null;
+}
+
+function summary(item) {
+  const win = nearest(item);
+  return {
+    caseId: item.caseId,
+    merchant: item.merchant,
+    product: item.product,
+    amount: item.amount,
+    date: item.date,
+    status: item.status,
+    evidenceCount: (item.evidence || []).length,
+    missing: item.missing || [],
+    nearest: win ? { type: win.type, label: win.label, end: win.end, daysLeft: win.daysLeft } : null,
+    primary: item.primary ? item.primary.label : null
+  };
+}
+
+function score(item, args) {
+  let n = 0;
+  const query = String(args.query || "").trim();
+  if (query) {
+    if (query.includes(item.merchant) || item.merchant.includes(query)) n += 4;
+    if (query.includes(item.product) || item.product.includes(query)) n += 4;
+    if (query.includes(item.caseId)) n += 4;
+    const tokens = query.split(/[\s，。！？、,]+/).filter((x) => x.length >= 2);
+    for (const token of tokens) {
+      if (item.product.includes(token) || item.merchant.includes(token)) n += 1;
+    }
+  }
+  if (args.merchant && item.merchant.includes(String(args.merchant))) n += 3;
+  if (args.category && item.category === args.category) n += 2;
+  if (args.date && item.date === args.date) n += 2;
+  if (typeof args.amount === "number" && Number(item.amount) === args.amount) n += 2;
+  return n;
+}
+
+function lookup(args) {
+  const ranked = cases
+    .map((item) => ({ item, score: score(item, args || {}) }))
+    .sort((a, b) => b.score - a.score);
+  const hasQuery = Object.keys(args || {}).some((key) => args[key] !== undefined && args[key] !== "");
+  const picked = hasQuery ? ranked.filter((row) => row.score > 0) : ranked;
+  return {
+    count: picked.length,
+    cases: picked.slice(0, 10).map((row) => summary(row.item))
+  };
+}
+
+function plan(args) {
+  const item = cases.find((row) => row.caseId === args.caseId);
+  if (!item) return { error: `没有找到案卷 ${args.caseId}` };
+  const win = nearest(item);
+  return {
+    caseId: item.caseId,
+    merchant: item.merchant,
+    product: item.product,
+    status: item.status,
+    primary: item.primary,
+    nearest: win ? { type: win.type, label: win.label, end: win.end, daysLeft: win.daysLeft } : null,
+    evidence: item.evidence || [],
+    missing: item.missing || [],
+    doNot: item.doNot || [],
+    humanApproval: true
+  };
+}
+
+function record(args) {
+  const item = cases.find((row) => row.caseId === args.caseId);
+  if (!item) return { error: `没有找到案卷 ${args.caseId}` };
+  const status = String(args.status || "");
+  const allowed = ["submitted", "refunded", "repaired", "promise", "rejected", "abandoned"];
+  if (!allowed.includes(status)) return { error: `不支持的结果状态：${status}` };
+  const action = {
+    id: `A-${Date.now().toString(36)}`,
+    status,
+    amount: typeof args.amount === "number" ? args.amount : null,
+    note: String(args.note || ""),
+    at: new Date().toISOString()
+  };
+  item.actions.push(action);
+  if (["refunded", "repaired", "promise"].includes(status)) item.status = "已办结";
+  else if (status === "rejected") item.status = "被拒";
+  else if (status !== "abandoned") item.status = "进行中";
+  const win = nearest(item);
+  const predicted = win ? Number(win.amount) || 0 : 0;
+  const confirmed = item.actions
+    .filter((row) => ["refunded", "repaired", "promise"].includes(row.status))
+    .reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  return {
+    caseId: item.caseId,
+    status: item.status,
+    action,
+    outcome: { predicted, confirmed },
+    audit: [
+      `记录 ${status}`,
+      "不代提交；结果由调用方或用户确认后写入",
+      `累计 ${item.actions.length} 条动作`
+    ]
+  };
+}
+
+function financeDeadline(item) {
+  if (!item.deadline) return { date: null, daysLeft: null, source: "未填写，不生成倒计时" };
+  const target = new Date(String(item.deadline).replace(/\./g, "-"));
+  if (Number.isNaN(target.getTime())) return { date: null, daysLeft: null, source: "日期无法解析，不生成倒计时" };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+  return {
+    date: item.deadline,
+    daysLeft: Math.round((target - today) / 86400000),
+    source: "用户填写的截止日；不是系统推断"
+  };
+}
+
+function financeSummary(item) {
+  const due = financeDeadline(item);
+  return {
+    caseId: item.caseId,
+    type: item.type,
+    label: item.label,
+    merchant: item.merchant,
+    amount: item.amount,
+    date: item.date,
+    status: item.status,
+    deadline: due,
+    evidenceReady: (item.evidence || []).filter((row) => row.status === "ready").length,
+    evidenceTotal: (item.evidence || []).length,
+    missing: item.missing || [],
+    primary: item.primary ? item.primary.label : null
+  };
+}
+
+function financeScore(item, args) {
+  let score = 0;
+  const query = String(args.query || "").trim();
+  const intentHints = {
+    payment: /退款|没到账|重复扣|没收到|金额不对|货不对板/,
+    chargeback: /盗刷|银行卡|信用卡|拒付|未授权|争议交易/,
+    renewal: /自动续费|连续包月|会员|代扣|免密|扣费/,
+    prepaid: /预付|储值|健身|美容|教培|洗车|余额/,
+    installment: /分期|月供|手续费|年化|利息|贷款|息费/,
+    insurance: /保险|保单|犹豫期|退保|保费/
+  };
+  if (query) {
+    for (const token of [item.merchant, item.label, item.caseId, item.type]) {
+      if (token && (query.includes(token) || token.includes(query))) score += 4;
+    }
+    for (const token of query.split(/[\s，。！？、,]+/).filter((x) => x.length >= 2)) {
+      if (String(item.merchant || "").includes(token) || String(item.label || "").includes(token)) score += 1;
+    }
+    if (intentHints[item.type] && intentHints[item.type].test(query)) score += 4;
+  }
+  if (args.type && item.type === args.type) score += 4;
+  if (args.merchant && String(item.merchant || "").includes(String(args.merchant))) score += 3;
+  if (typeof args.amount === "number" && Number(item.amount) === args.amount) score += 2;
+  return score;
+}
+
+function financeLookup(args) {
+  const hasQuery = Object.keys(args || {}).some((key) => args[key] !== undefined && args[key] !== "");
+  const ranked = financeCases
+    .map((item) => ({ item, score: financeScore(item, args || {}) }))
+    .sort((a, b) => b.score - a.score);
+  const picked = hasQuery ? ranked.filter((row) => row.score > 0) : ranked;
+  return {
+    count: picked.length,
+    cases: picked.slice(0, 10).map((row) => financeSummary(row.item))
+  };
+}
+
+function financePlan(args) {
+  const item = financeCases.find((row) => row.caseId === args.caseId);
+  if (!item) return { error: `没有找到资金案卷 ${args.caseId}` };
+  const summary = financeSummary(item);
+  const missing = item.missing || [];
+  return {
+    ...summary,
+    primary: item.primary,
+    fields: item.fields || {},
+    evidence: item.evidence || [],
+    routes: item.routes || [],
+    script: item.script || "",
+    doNot: item.doNot || [],
+    humanApproval: true,
+    submitPolicy: "只准备材料和路径；由用户自己提交，不代提交、不代收款。"
+  };
+}
+
+function financeRecord(args) {
+  const item = financeCases.find((row) => row.caseId === args.caseId);
+  if (!item) return { error: `没有找到资金案卷 ${args.caseId}` };
+  const status = String(args.status || "");
+  const allowed = ["submitted", "accepted", "waiting", "resolved", "rejected", "closed"];
+  if (!allowed.includes(status)) return { error: `不支持的进度状态：${status}` };
+  if (status === "resolved" && args.confirmed !== true) {
+    return { error: "resolved 必须由用户确认 confirmed=true；不能把受理或口头承诺写成已解决" };
+  }
+  const amount = status === "resolved" && typeof args.amount === "number" ? args.amount : 0;
+  const action = {
+    id: `FA-${Date.now().toString(36)}`,
+    status,
+    amount,
+    note: String(args.note || ""),
+    at: new Date().toISOString(),
+    confirmed: args.confirmed === true
+  };
+  item.actions.push(action);
+  item.status = status;
+  item.updatedAt = new Date().toISOString();
+  if (status === "resolved") item.recoveredAmount = amount;
+  return {
+    caseId: item.caseId,
+    status,
+    action,
+    outcome: {
+      disputed: Number(item.amount) || 0,
+      confirmed: amount
+    },
+    audit: [
+      `记录 ${status}`,
+      "只记录调用方声明的进度；未确认到账不写已解决",
+      "不代提交、不代收款"
+    ]
+  };
+}
+
+function send(id, result, error) {
+  const payload = error
+    ? { jsonrpc: "2.0", id, error }
+    : { jsonrpc: "2.0", id, result };
+  process.stdout.write(JSON.stringify(payload) + "\n");
+}
+
+function callTool(name, args) {
+  if (name === "rights.lookup" || name === "case.lookup") return lookup(args || {});
+  if (name === "rights.plan" || name === "case.plan") return plan(args || {});
+  if (name === "rights.record" || name === "case.record") return record(args || {});
+  if (name === "finance.lookup" || name === "funds.lookup") return financeLookup(args || {});
+  if (name === "finance.plan" || name === "funds.plan") return financePlan(args || {});
+  if (name === "finance.record" || name === "funds.record") return financeRecord(args || {});
+  return { error: `未知工具：${name}` };
+}
+
+function handle(message) {
+  const id = message.id;
+  const method = message.method;
+  if (method === "initialize") {
+    return send(id, {
+      protocolVersion: "2024-11-05",
+      capabilities: { tools: { listChanged: false } },
+      serverInfo: { name: "piaogen-rights-finance", version: "0.3.0" }
+    });
+  }
+  if (method === "notifications/initialized") return;
+  if (method === "ping") return send(id, {});
+  if (method === "tools/list") return send(id, { tools: TOOLS });
+  if (method === "tools/call") {
+    const params = message.params || {};
+    const payload = callTool(params.name, params.arguments || {});
+    if (payload && payload.error) {
+      return send(id, { content: [{ type: "text", text: payload.error }], isError: true });
+    }
+    return send(id, { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }], isError: false });
+  }
+  return send(id, null, { code: -32601, message: `Method not found: ${method}` });
+}
+
+const rl = readline.createInterface({ input: process.stdin, terminal: false });
+rl.on("line", (line) => {
+  if (!line.trim()) return;
+  let message;
+  try {
+    message = JSON.parse(line);
+  } catch (error) {
+    return send(null, null, { code: -32700, message: "Parse error" });
+  }
+  try {
+    handle(message);
+  } catch (error) {
+    send(message.id, null, { code: -32603, message: String(error && error.message ? error.message : error) });
+  }
+});

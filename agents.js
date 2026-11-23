@@ -2,12 +2,12 @@
   const PG = (window.PG = window.PG || {});
 
   const AGENTS = [
-    { id: "reader", name: "读票员" },
-    { id: "rule", name: "条款官" },
-    { id: "price", name: "比价员" },
-    { id: "negotiator", name: "谈判员" },
+    { id: "reader", name: "读票" },
+    { id: "rule", name: "规则" },
+    { id: "price", name: "比价" },
+    { id: "negotiator", name: "陪办" },
     { id: "steward", name: "管家" },
-    { id: "auditor", name: "审计员" }
+    { id: "auditor", name: "审计" }
   ];
 
   const money = (value) => {
@@ -25,7 +25,8 @@
   function statusOf(ticket) {
     const actions = ticket.actions || [];
     if (actions.some((a) => ["refunded", "repaired", "promise"].includes(a.status))) return "已办结";
-    if ((ticket.windows || []).some((w) => w.status !== "closed" && w.daysLeft !== null && w.daysLeft >= 0)) return "进行中";
+    if (actions.some((a) => a.status === "acknowledged")) return "进行中";
+    if ((ticket.windows || []).some((w) => w.applicability === "applicable" && w.status !== "closed" && w.daysLeft !== null && w.daysLeft >= 0)) return "进行中";
     return "待补证据";
   }
 
@@ -42,7 +43,7 @@
 
     findings.push({
       id: "reader",
-      name: "读票员",
+      name: "读票",
       status: review ? "confirm" : "assert",
       claim: review
         ? "金额或日期的 OCR 置信偏低，先核对再往下走。"
@@ -55,7 +56,7 @@
 
     findings.push({
       id: "rule",
-      name: "条款官",
+      name: "规则",
       status: prio ? "assert" : "abstain",
       claim: prio
         ? `${prio.label} ${prio.daysLeft} 天后关闭（${prio.end || "日期待确认"}）。`
@@ -67,12 +68,15 @@
     });
 
     const priceCheck = ticket.priceCheck;
+    const priceRelevant = (ticket.windows || []).some((w) => w.type === "price" && w.applicability !== "not_applicable");
     const priceOk = priceCheck && priceCheck.sameModel;
     findings.push({
       id: "price",
-      name: "比价员",
-      status: priceOk ? "assert" : "abstain",
-      claim: priceOk
+      name: "比价",
+      status: !priceRelevant ? "abstain" : priceOk ? "assert" : "abstain",
+      claim: !priceRelevant
+        ? "本案不涉及价保，弃权。"
+        : priceOk
         ? `同款 ${priceCheck.model} 现价 ${money(priceCheck.price)}，价差 ${money(Number(ticket.amount) - Number(priceCheck.price))}。`
         : priceCheck
           ? `找到 ${money(priceCheck.price)}，但型号是 ${priceCheck.model}，与小票不一致，弃权。`
@@ -88,7 +92,7 @@
     const negReady = !review && !missingForAction.length;
     findings.push({
       id: "negotiator",
-      name: "谈判员",
+      name: "陪办",
       status: negReady ? "assert" : "confirm",
       claim: negReady
         ? `可以起草「${prio ? prio.label : "这件事"}」的申请，引用条款和证据，不代提交。`
@@ -117,7 +121,7 @@
     const veto = review;
     findings.push({
       id: "auditor",
-      name: "审计员",
+      name: "审计",
       status: veto ? "veto" : (missingForAction.length || missing.length) ? "confirm" : "assert",
       claim: veto
         ? "OCR 需复核，金额和日期不能进入主行动。"
@@ -136,7 +140,7 @@
         body: "OCR 置信偏低时，价差和期限都不能当作确定结论。先改字段，再重算。",
         action: "edit"
       };
-    } else if (!priceOk) {
+    } else if (priceRelevant && !priceOk) {
       const hasPrice = !!priceCheck;
       conflict = {
         tone: "amber",
@@ -150,7 +154,7 @@
 
     let primary;
     if (veto) {
-      primary = { label: "先核对金额和日期", detail: "改完字段后，六方会重新合议。", action: "edit" };
+      primary = { label: "先核对金额和日期", detail: "改完字段后，规则会重新合议。", action: "edit" };
     } else if (prio) {
       primary = {
         label: `去办：${prio.label}`,
@@ -158,7 +162,10 @@
         action: "action"
       };
     } else {
-      primary = { label: "补一张带金额和日期的票", detail: "没有截止日，先补证据再判断。", action: "import" };
+      const unknown = (ticket.windows || []).filter((w) => w.applicability === "unknown");
+      primary = unknown.length
+        ? { label: "先补资格/证据", detail: `${unknown.map((w) => w.label).join("、")} 还待确认；补上后再算。`, action: "edit" }
+        : { label: "补一张带金额和日期的票", detail: "没有可适用权利，先补证据再判断。", action: "import" };
     }
 
     return {
@@ -168,7 +175,13 @@
       conflict,
       primary,
       agents: AGENTS,
-      headline: veto ? "这宗案卷先核对，再往下办。" : prio ? `${prio.label} ${prio.daysLeft} 天后关闭。` : "这宗案卷暂时没有截止日。"
+      headline: veto
+        ? "这宗案卷先核对，再往下办。"
+        : prio
+          ? `${prio.label} ${prio.daysLeft} 天后关闭。`
+          : (ticket.windows || []).some((w) => w.applicability === "unknown")
+            ? "这宗案卷还有资格待确认。"
+            : "这宗案卷暂时没有可适用权利。"
     };
   }
 

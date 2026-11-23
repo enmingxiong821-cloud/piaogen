@@ -38,6 +38,7 @@
   </script>
 </head>
 <body>
+<a class="skip-link" href="#main">跳到主要内容</a>
   <div class="shell">
     <div class="app" id="app">
       <header class="topbar">
@@ -53,7 +54,7 @@
         </div>
       </header>
 
-      <main id="main">
+      <main id="main" tabindex="-1">
         <section class="screen on" data-screen="today" aria-label="今天">
           <div id="todayEmpty" class="empty">
             <div class="empty-icon" aria-hidden="true">
@@ -184,7 +185,7 @@
           <p class="note">照片只在本机识别，不上传。金额/日期以票据为准。保单 / 合同只保留机构、金额、天数，不保存证件原件、证件号与完整文字。</p>
           <p class="note" id="ocrWarmNote">快速识别只需约 2MB，打开这一页就会在后台准备；要更准时可在结果页点“精确模式”（再下约 19MB，仅一次）。</p>
           <input id="fileCamera" type="file" accept="image/*" capture="environment" hidden />
-          <input id="fileOrder" type="file" accept="image/*,video/*" hidden />
+          <input id="fileOrder" type="file" accept="image/*,video/*" multiple hidden />
           <input id="fileInvoice" type="file" accept=".pdf,.ofd,.xml,image/*" hidden />
           <input id="filePolicy" type="file" accept=".pdf,image/*" hidden />
         </section>

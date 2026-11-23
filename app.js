@@ -878,7 +878,12 @@ const POINT_KEY = "piaogen.v0.points";
   function show(name) {
     const navName = name === "financeCase" ? "finance" : name;
     $$(".screen").forEach((screen) => screen.classList.toggle("on", screen.dataset.screen === name));
-    $$(".tabbar-item").forEach((item) => item.classList.toggle("on", item.dataset.nav === navName));
+    $$(".tabbar-item").forEach((item) => {
+      const on = item.dataset.nav === navName;
+      item.classList.toggle("on", on);
+      if (on) item.setAttribute("aria-current", "page");
+      else item.removeAttribute("aria-current");
+    });
     const main = $("#main");
     if (typeof main.scrollTo === "function") main.scrollTo({ top: 0, left: 0, behavior: "instant" });
     else main.scrollTop = 0;
@@ -1626,24 +1631,43 @@ const POINT_KEY = "piaogen.v0.points";
     });
   }
 
-  async function handleFile(file) {
-    if (file && file.type && file.type.startsWith("video/")) {
+  function blankTicket(file, error) {
+    const text = `识别失败：${error.message || "未知错误"}`;
+    const ticket = parseReceipt("", file.name);
+    ticket.review = true;
+    ticket.ocrError = error.message || "未知错误";
+    ticket.missing = ["商家", "金额", "购买日期", "商品名"];
+    ticket.needsConfirm = true;
+    ticket.evidence = [{ id: uid(), type: detectFileType(file.name), label: file.name, detail: text, confidence: 0, status: "needs" }];
+    return ticket;
+  }
+
+  async function readTicket(file, label) {
+    if (file.type && file.type.startsWith("video/")) {
       const frame = await pickVideoFrame(file);
-      if (!frame) { toast("这个视频没法取帧，请直接截一张图"); return; }
-      return handleFile(frame);
+      if (!frame) throw new Error("这个视频没法取帧，请直接截一张图");
+      return readTicket(frame, label);
     }
+    if (file.type && file.type.startsWith("image/")) state.lastFile = file;
+    const extracted = await Promise.race([
+      fileToText(file),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("识别包下载太慢，先手动填三项")), 90000))
+    ]);
+    const text = extracted.text;
+    if (!text || text.trim().length < 4) throw new Error("没有读到文字");
+    setParse(88, `核对金额和日期…${label ? `（${label}）` : ""}`, [
+      { text: "读取文件", done: true },
+      { text: "识别文字", done: true },
+      { text: "核对关键字段", done: false }
+    ]);
+    const refined = await refineOrderFields(extracted).catch(() => ({}));
+    return parseReceipt(text, file.name, extracted.confidence, refined);
+  }
+
+  async function handleFile(file) {
     showParse("正在读这张票", "先看文件，再找出商家、金额、日期和截止日。");
     try {
-      if (file.type && file.type.startsWith("image/")) state.lastFile = file;
-      const extracted = await Promise.race([
-        fileToText(file),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("识别包下载太慢，先手动填三项")), 90000))
-      ]);
-      const text = extracted.text;
-      if (!text || text.trim().length < 4) throw new Error("没有读到文字");
-      setParse(88, "核对金额和日期…", [{ text: "读取文件", done: true }, { text: "识别文字", done: true }, { text: "核对关键字段", done: false }]);
-      const refined = await refineOrderFields(extracted).catch(() => ({}));
-      const ticket = parseReceipt(text, file.name, extracted.confidence, refined);
+      const ticket = await readTicket(file);
       state.pending = [ticket];
       state.selected = new Set(ticket.needsConfirm ? [] : [ticket.id]);
       state.tab = ticket.needsConfirm ? "pending" : "window";
@@ -1663,6 +1687,29 @@ const POINT_KEY = "piaogen.v0.points";
       toast(text);
       show("triage");
     }
+  }
+
+  async function handleFiles(files) {
+    const list = Array.from(files || []);
+    if (!list.length) return;
+    if (list.length === 1) return handleFile(list[0]);
+    showParse(`正在读 ${list.length} 张`, "逐张识别；读不出的会标出来，核对后再一起导入。");
+    const tickets = [];
+    for (let i = 0; i < list.length; i += 1) {
+      setParse(8 + Math.round((i / list.length) * 80), `第 ${i + 1} / ${list.length} 张：读取中…`, [
+        { text: `第 ${i + 1} / ${list.length} 张`, done: false }
+      ]);
+      try {
+        tickets.push(await readTicket(list[i], `${i + 1}/${list.length}`));
+      } catch (error) {
+        tickets.push(blankTicket(list[i], error));
+      }
+    }
+    state.pending = tickets;
+    state.selected = new Set(tickets.filter((ticket) => !ticket.needsConfirm).map((ticket) => ticket.id));
+    state.tab = tickets.some((ticket) => ticket.needsConfirm) ? "pending" : "window";
+    setParse(100, `读完了 ${tickets.length} 张`, tickets.map((ticket, i) => ({ text: `第 ${i + 1} 张`, done: true })));
+    setTimeout(() => show("triage"), 260);
   }
 
   async function handlePolicyFile(file) {
@@ -6972,9 +7019,12 @@ const POINT_KEY = "piaogen.v0.points";
     });
     $$("#fileCamera,#fileOrder,#fileInvoice").forEach((input) => {
       input.addEventListener("change", () => {
-        const file = input.files && input.files[0];
+        const files = input.files ? Array.from(input.files) : [];
+        const multi = input.id === "fileOrder" && files.length > 1;
         input.value = "";
-        if (file) handleFile(file);
+        if (!files.length) return;
+        if (multi) handleFiles(files);
+        else handleFile(files[0]);
       });
     });
     const policyInput = $("#filePolicy");
@@ -7060,6 +7110,10 @@ const POINT_KEY = "piaogen.v0.points";
     bind();
     if (/[?&]demo=1/.test(location.search) && !state.tickets.length) {
       addDemo();
+    }
+    const navParam = new URLSearchParams(location.search).get("nav");
+    if (navParam && navParam !== "today" && document.querySelector(`[data-nav="${navParam}"]`)) {
+      show(navParam);
     }
     renderToday();
     renderImport();

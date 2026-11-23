@@ -842,11 +842,11 @@ h1{font-family:var(--serif);font-size:34px;letter-spacing:-.012em;font-weight:60
 
 .clock-list{margin-top:18px;border-top:1px solid var(--rule)}
 .clock-row{
-  display:grid;grid-template-columns:44px minmax(0,1fr) 54px;
+  display:grid;grid-template-columns:52px minmax(0,1fr) 54px;
   align-items:center;gap:8px 10px;padding:12px 0 11px;
   border-bottom:1px solid var(--rule-2);
 }
-.clock-label{font-size:11.5px;font-weight:600;color:var(--ink)}
+.clock-label{font-size:11.5px;font-weight:600;color:var(--ink);white-space:nowrap}
 .clock-track{position:relative;height:2px;background:var(--rule);overflow:visible}
 .clock-track i{
   position:absolute;left:0;top:0;height:2px;width:var(--p,0%);
@@ -996,7 +996,7 @@ h1{font-family:var(--serif);font-size:34px;letter-spacing:-.012em;font-weight:60
 @media (max-width:420px){
   .receipt-merchant b{font-size:22px}
   .receipt-amount{font-size:24px}
-  .clock-row{grid-template-columns:40px minmax(0,1fr) 48px}
+  .clock-row{grid-template-columns:50px minmax(0,1fr) 48px}
   .stamp-mark{top:52px;right:12px}
   .council-head span{display:none}
 }

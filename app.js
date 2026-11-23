@@ -3179,28 +3179,45 @@ const POINT_KEY = "piaogen.v0.points";
     });
   }
 
+  const CLOCK_LABEL = {
+    return: "退货",
+    three_return: "三包退货",
+    three_exchange: "三包换货",
+    quality: "三包维修",
+    price: "价保",
+    warranty: "保修"
+  };
+
+  function clockRank(win) {
+    const open = win.applicability === "applicable" && win.status !== "closed" && win.daysLeft !== null && win.daysLeft >= 0;
+    if (open) return 0;
+    if (win.applicability === "unknown" || (win.applicability === "applicable" && win.daysLeft === null)) return 1;
+    if (win.applicability === "applicable") return 2;
+    return 3;
+  }
+
   function clockView(ticket, types, fallback) {
-    const label = types[0] === "return" ? "退货" : types[0] === "price" ? "价保" : "保修";
-    const windows = ticket.windows || [];
-    let win = null;
-    for (const type of types) {
-      win = windows.find((w) => w.type === type);
-      if (win) break;
-    }
+    const label = CLOCK_LABEL[types[0]] || "权利";
+    const windows = (ticket.windows || []).filter((w) => types.includes(w.type));
+    windows.sort((a, b) => clockRank(a) - clockRank(b) || (a.daysLeft ?? 1e6) - (b.daysLeft ?? 1e6));
+    const win = windows[0] || null;
     if (!win) return { label, value: "—", note: fallback, cls: "unknown", pct: 0 };
+    const winLabel = CLOCK_LABEL[win.type] || label;
     if (win.applicability === "not_applicable") {
-      return { label, value: "不适用", note: String(win.source || "页面/规则排除").slice(0, 34), cls: "na", pct: 0 };
+      return { label: winLabel, value: "不适用", note: String(win.source || "页面/规则排除").slice(0, 34), cls: "na", pct: 0 };
     }
     if (win.status === "closed" || (win.daysLeft !== null && win.daysLeft < 0)) {
-      return { label, value: "已关闭", note: win.end ? `到 ${win.end} 关闭` : fallback, cls: "closed", pct: 100 };
+      return { label: winLabel, value: "已关闭", note: win.end ? `到 ${win.end} 关闭` : fallback, cls: "closed", pct: 100 };
     }
     if (win.daysLeft === null) {
-      return { label, value: "待确认", note: fallback, cls: "unknown", pct: 0 };
+      return { label: winLabel, value: "待确认", note: fallback, cls: "unknown", pct: 0 };
     }
+    const alsoOpen = windows.filter((w) => w !== win && clockRank(w) === 0);
+    const alsoNote = alsoOpen.length ? `；另有${CLOCK_LABEL[alsoOpen[0].type] || "一条"} ${alsoOpen[0].daysLeft} 天` : "";
     return {
-      label,
+      label: winLabel,
       value: `${win.daysLeft} 天`,
-      note: win.end ? `到 ${win.end} 关闭` : fallback,
+      note: (win.end ? `到 ${win.end} 关闭` : fallback) + alsoNote,
       cls: win.daysLeft <= 3 ? "urgent" : "open",
       pct: Math.max(2, Math.min(100, windowProgress(win)))
     };

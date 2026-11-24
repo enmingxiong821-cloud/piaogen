@@ -2176,3 +2176,67 @@ body{
 .skip-link{position:absolute;left:12px;top:-56px;z-index:200;background:var(--mint);color:#06110C;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:650;text-decoration:none;transition:top 160ms var(--ease-out)}
 .skip-link:focus{top:10px}
 @media print{.skip-link{display:none}}
+
+/* V9.8 借鉴层：首启说明、依据卡、决策卡、免费公示 */
+.recover-note{color:var(--text-3);font-size:10.5px}
+
+.intro-card{margin:0 0 14px;padding:14px 14px 12px;border:1px solid var(--line);border-left:2px solid var(--mint);border-radius:12px;background:var(--panel)}
+.intro-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.intro-top span{font-size:11px;letter-spacing:.08em;color:var(--mint)}
+.intro-steps{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px;counter-reset:intro}
+.intro-steps li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;font-size:12px;line-height:1.6;color:var(--text-2)}
+.intro-steps li b,.intro-steps li span{grid-column:2;min-width:0}
+.intro-steps li::before{counter-increment:intro;content:counter(intro);display:grid;place-items:center;width:22px;height:22px;border-radius:50%;border:1px solid var(--line);font-family:var(--num);font-size:11px;color:var(--mint)}
+.intro-steps b{display:block;color:var(--text);font-weight:600}
+.intro-steps span{display:block;color:var(--text-2)}
+.intro-note{margin:10px 0 0;font-size:10.5px;line-height:1.6;color:var(--text-3)}
+.intro-actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+
+.law-card{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel);margin-bottom:10px}
+.law-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;border-bottom:1px solid var(--line);padding-bottom:8px}
+.law-head b{font-size:12.5px;color:var(--text);font-weight:600}
+.law-head span{font-family:var(--num);font-size:10.5px;color:var(--mint);text-align:right}
+.law-sec{margin-top:9px}
+.law-sec span{display:block;font-size:10px;letter-spacing:.08em;color:var(--text-3)}
+.law-sec p{margin:3px 0 0;font-size:11.5px;line-height:1.65;color:var(--text-2)}
+.law-actions{display:flex;gap:14px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.law-actions a{font-size:11px;color:var(--mint);text-decoration:none}
+.law-note{font-size:10px;color:var(--text-3)}
+
+.decision-block{border-color:rgba(157,240,194,.22)}
+.decision-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:10px}
+.decision-metrics div{background:var(--panel);padding:9px 10px}
+.decision-metrics span{display:block;font-size:10px;color:var(--text-3)}
+.decision-metrics b{display:block;margin-top:3px;font-family:var(--num);font-size:14px;color:var(--text)}
+.decision-metrics b.warn{color:#FF715B}
+.decision-paths{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.decision-path{text-align:left;border:1px solid var(--line);border-radius:10px;padding:10px 11px;background:transparent;cursor:pointer;transition:border-color 140ms var(--ease-out),transform 140ms var(--ease-out)}
+.decision-path:hover{border-color:var(--mint)}
+.decision-path:active{transform:scale(.99)}
+.decision-path:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
+.decision-path b{display:block;font-size:13px;color:var(--text)}
+.decision-path span{display:block;margin-top:3px;font-size:10.5px;line-height:1.5;color:var(--text-2)}
+.decision-path em{display:block;margin-top:6px;font-style:normal;font-size:10px;color:var(--mint)}
+.decision-note{margin:10px 0 0;font-size:10.5px;line-height:1.6;color:var(--text-3)}
+.decision-note b{color:var(--text)}
+
+.plan-list{list-style:none;margin:10px 0;padding:0;display:grid;gap:6px}
+.plan-list li{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:11.5px;color:var(--text-2)}
+.plan-list b{color:var(--text);font-weight:600}
+.plan-list span{font-family:var(--num);font-size:10.5px;color:var(--text-3)}
+
+.refund-next{display:block;margin-top:6px;font-size:10.5px;line-height:1.55;color:var(--mint)}
+.refund-copy{margin-top:6px}
+
+.free-note{margin:12px 0 0;padding:11px 12px;border:1px solid rgba(157,240,194,.3);border-radius:10px;background:rgba(157,240,194,.06)}
+.free-note b{display:block;font-size:12px;color:var(--mint)}
+.free-note span{display:block;margin-top:4px;font-size:10.5px;line-height:1.6;color:var(--text-2)}
+
+@media (max-width:520px){
+  .decision-metrics{grid-template-columns:repeat(2,1fr)}
+  .decision-paths{grid-template-columns:1fr}
+  .intro-actions .btn{flex:1 1 auto}
+}
+@media (prefers-reduced-motion:reduce){
+  .decision-path{transition:none}
+}

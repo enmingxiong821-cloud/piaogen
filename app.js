@@ -1385,6 +1385,17 @@ const POINT_KEY = "piaogen.v0.points";
     return "文件";
   }
 
+  let parseSeq = 0;
+
+  function cancelParse() {
+    parseSeq += 1;
+    state.pending = [];
+    state.selected = new Set();
+    setParse(0, "已取消", []);
+    toast("已取消，没有导入任何票据");
+    show("import");
+  }
+
   function setParse(progress, text, logs = []) {
     const bar = $("#parseBar");
     const count = $("#parseCount");
@@ -1738,15 +1749,18 @@ const POINT_KEY = "piaogen.v0.points";
   }
 
   async function handleFile(file) {
+    const run = ++parseSeq;
     showParse("正在读这张票", "先看文件，再找出商家、金额、日期和截止日。");
     try {
       const ticket = await readTicket(file);
+      if (run !== parseSeq) return;
       state.pending = [ticket];
       state.selected = new Set(ticket.needsConfirm ? [] : [ticket.id]);
       state.tab = ticket.needsConfirm ? "pending" : "window";
       setParse(100, "读完了", [{ text: "读取文件", done: true }, { text: "识别文字", done: true }, { text: "整理字段", done: true }]);
-      setTimeout(() => show("triage"), 260);
+      setTimeout(() => { if (run === parseSeq) show("triage"); }, 260);
     } catch (error) {
+      if (run !== parseSeq) return;
       const text = `识别失败：${error.message || "未知错误"}`;
       const ticket = parseReceipt("", file.name);
       ticket.review = true;
@@ -1766,26 +1780,33 @@ const POINT_KEY = "piaogen.v0.points";
     const list = Array.from(files || []);
     if (!list.length) return;
     if (list.length === 1) return handleFile(list[0]);
+    const run = ++parseSeq;
     showParse(`正在读 ${list.length} 张`, "逐张识别；读不出的会标出来，核对后再一起导入。");
     const tickets = [];
     for (let i = 0; i < list.length; i += 1) {
+      if (run !== parseSeq) return;
       setParse(8 + Math.round((i / list.length) * 80), `第 ${i + 1} / ${list.length} 张：读取中…`, [
         { text: `第 ${i + 1} / ${list.length} 张`, done: false }
       ]);
       try {
-        tickets.push(await readTicket(list[i], `${i + 1}/${list.length}`));
+        const ticket = await readTicket(list[i], `${i + 1}/${list.length}`);
+        if (run !== parseSeq) return;
+        tickets.push(ticket);
       } catch (error) {
+        if (run !== parseSeq) return;
         tickets.push(blankTicket(list[i], error));
       }
     }
+    if (run !== parseSeq) return;
     state.pending = tickets;
     state.selected = new Set(tickets.filter((ticket) => !ticket.needsConfirm).map((ticket) => ticket.id));
     state.tab = tickets.some((ticket) => ticket.needsConfirm) ? "pending" : "window";
     setParse(100, `读完了 ${tickets.length} 张`, tickets.map((ticket, i) => ({ text: `第 ${i + 1} 张`, done: true })));
-    setTimeout(() => show("triage"), 260);
+    setTimeout(() => { if (run === parseSeq) show("triage"); }, 260);
   }
 
   async function handlePolicyFile(file) {
+    const run = ++parseSeq;
     showParse("正在读保单 / 合同", "只找机构、金额和期限；证件号、手机号与原文都不保存。");
     let doc = null;
     try {
@@ -1793,6 +1814,7 @@ const POINT_KEY = "piaogen.v0.points";
         fileToText(file),
         new Promise((_, reject) => setTimeout(() => reject(new Error("识别包下载太慢，先手动填三项")), 90000))
       ]);
+      if (run !== parseSeq) return;
       doc = PG.parsePolicyDoc(extracted.text || "", file.name);
       if (!doc) throw new Error("没有读到可用的机构或金额");
       setParse(100, "读完了，只留下三项", [
@@ -1801,10 +1823,11 @@ const POINT_KEY = "piaogen.v0.points";
         { text: "丢弃证件与原文", done: true }
       ]);
     } catch (error) {
+      if (run !== parseSeq) return;
       toast(`没读全：${error.message || "请手动填三项"}`);
       doc = null;
     }
-    setTimeout(() => openPolicyBuilder(doc), 300);
+    setTimeout(() => { if (run === parseSeq) openPolicyBuilder(doc); }, 300);
   }
 
   function openPolicyBuilder(doc) {
@@ -5936,13 +5959,23 @@ const POINT_KEY = "piaogen.v0.points";
     });
     const missingFields = (ticket.missing || []).filter(Boolean);
     const nextWin = PG.priority(ticket);
-    g.fillStyle = "#82918D"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
-    g.fillText("权利护照 · 可转给家人一起核对", 88, 1100);
+    const confirmed = confirmedAmountOf(ticket);
+    const expected = expectedAmountOf(ticket);
+    g.strokeStyle = "#273234"; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(88, 1064); g.lineTo(W - 88, 1064); g.stroke();
+    g.fillStyle = "#9DF0C2"; g.font = '700 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText("权利护照", 88, 1112);
+    g.textAlign = "right";
+    g.fillStyle = "#B6C4C0"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText(`已确认 ${money(confirmed)} · 预计 ${money(expected)}`, W - 88, 1110);
+    g.textAlign = "left";
+    g.fillStyle = "#82918D"; g.font = '400 18px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText(`${todayLabel().replace("今天 · ", "")} 生成 · 可转给家人一起核对`, 88, 1142);
     g.fillStyle = missingFields.length ? "#F4B860" : "#9DF0C2";
-    g.font = '500 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
-    g.fillText(missingFields.length ? `还缺 ${missingFields.length} 项：${missingFields.slice(0, 3).join("、")}` : "关键字段已齐，按证据清单再核一遍", 88, 1146);
-    g.fillStyle = "#B6C4C0"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
-    g.fillText(nextWin ? `下一步：${nextWin.label} · 还剩 ${nextWin.daysLeft} 天` : "下一步：补一张订单页或发票", 88, 1186);
+    g.font = '500 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText(missingFields.length ? `还缺 ${missingFields.length} 项：${missingFields.slice(0, 3).join("、")}` : "关键字段已齐，按证据清单再核一遍", 88, 1180);
+    g.fillStyle = "#B6C4C0"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillText(nextWin ? `下一步：${nextWin.label} · 还剩 ${nextWin.daysLeft} 天` : "下一步：补一张订单页或发票", 88, 1212);
     g.strokeStyle = "#273234"; g.beginPath(); g.moveTo(88, H - 210); g.lineTo(W - 88, H - 210); g.stroke();
     g.fillStyle = "#9DF0C2"; g.font = '600 26px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("付款之后，权利开始计时。", 88, H - 150);
@@ -7367,6 +7400,7 @@ const POINT_KEY = "piaogen.v0.points";
         if (file) handlePolicyFile(file);
       });
     }
+    if ($("#parseCancel")) $("#parseCancel").addEventListener("click", cancelParse);
     $("#triageImport").addEventListener("click", importSelected);
     $("#triageAll").addEventListener("click", () => {
       state.pending.forEach((ticket) => state.selected.add(ticket.id));

@@ -10,6 +10,44 @@ const cases = DATA.cases.map((item) => ({ ...item, actions: Array.isArray(item.a
 const FINANCE_DATA = JSON.parse(fs.readFileSync(path.join(__dirname, "finance-demo.json"), "utf8"));
 const financeCases = FINANCE_DATA.cases.map((item) => ({ ...item, actions: Array.isArray(item.actions) ? item.actions.slice() : [] }));
 
+// 本地持久化：写在 server.js 同目录，文件不可写时自动退回内存模式。
+// 只存动作与状态，不存票据原文、证件号、手机号。
+// PG_MCP_STORE=off 用于测试，不落盘；也可指定自定义路径。
+const STORE_MODE = process.env.PG_MCP_STORE || "";
+const STORE_PATH = STORE_MODE === "off" ? null : (STORE_MODE || path.join(__dirname, "records.local.json"));
+let storedRecords = [];
+if (STORE_PATH) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(STORE_PATH, "utf8"));
+    if (Array.isArray(parsed)) storedRecords = parsed;
+  } catch (error) {
+    storedRecords = [];
+  }
+}
+
+function applyStoredRecord(row) {
+  if (!row || !row.caseId || !row.action) return;
+  const pool = row.kind === "finance" ? financeCases : cases;
+  const target = pool.find((item) => item.caseId === row.caseId);
+  if (!target) return;
+  target.actions = (target.actions || []).concat(row.action);
+  if (row.caseStatus) target.status = row.caseStatus;
+}
+
+storedRecords.forEach(applyStoredRecord);
+
+function persistRecord(row) {
+  storedRecords.push(row);
+  if (storedRecords.length > 500) storedRecords = storedRecords.slice(-500);
+  if (!STORE_PATH) return false;
+  try {
+    fs.writeFileSync(STORE_PATH, JSON.stringify(storedRecords, null, 2));
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 const TOOLS = [
   {
     name: "rights.lookup",
@@ -38,7 +76,7 @@ const TOOLS = [
   },
   {
     name: "rights.record",
-    description: "把办理结果写回案卷；金额分预计与已确认，不代提交。",
+    description: "把办理结果写回案卷，并持久化到本地 records.local.json；金额分预计与已确认，不代提交。",
     inputSchema: {
       type: "object",
       properties: {
@@ -84,7 +122,7 @@ const TOOLS = [
   },
   {
     name: "finance.record",
-    description: "记录资金售后进度；只有调用方明确 confirmed=true 且用户确认到账/解决时，才记录已解决金额。",
+    description: "记录资金售后进度并持久化到本地 records.local.json；只有调用方明确 confirmed=true 且用户确认到账/解决时，才记录已解决金额。",
     inputSchema: {
       type: "object",
       properties: {
@@ -209,14 +247,17 @@ function record(args) {
   const confirmed = item.actions
     .filter((row) => ["refunded", "repaired", "promise"].includes(row.status))
     .reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const persisted = persistRecord({ kind: "rights", caseId: item.caseId, caseStatus: item.status, action });
   return {
     caseId: item.caseId,
     status: item.status,
     action,
     outcome: { predicted, confirmed },
+    persisted,
     audit: [
       `记录 ${status}`,
       "不代提交；结果由调用方或用户确认后写入",
+      persisted ? "已写入本地 records.local.json" : "本次未落盘，仅保留在本次进程内",
       `累计 ${item.actions.length} 条动作`
     ]
   };
@@ -332,6 +373,7 @@ function financeRecord(args) {
   item.status = status;
   item.updatedAt = new Date().toISOString();
   if (status === "resolved") item.recoveredAmount = amount;
+  const persisted = persistRecord({ kind: "finance", caseId: item.caseId, caseStatus: status, action });
   return {
     caseId: item.caseId,
     status,
@@ -340,9 +382,11 @@ function financeRecord(args) {
       disputed: Number(item.amount) || 0,
       confirmed: amount
     },
+    persisted,
     audit: [
       `记录 ${status}`,
       "只记录调用方声明的进度；未确认到账不写已解决",
+      persisted ? "已写入本地 records.local.json" : "本次未落盘，仅保留在本次进程内",
       "不代提交、不代收款"
     ]
   };
@@ -460,7 +504,7 @@ function dispatch(message) {
     return reply(id, {
       protocolVersion: "2024-11-05",
       capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: "piaogen-rights-finance", version: "0.4.0" }
+      serverInfo: { name: "piaogen-rights-finance", version: "0.4.1" }
     });
   }
   if (method === "tools/list") return reply(id, { tools: TOOLS });

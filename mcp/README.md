@@ -1,6 +1,6 @@
 # 票根 MCP server
 
-版本 `piaogen-rights-finance 0.4.0`，零依赖 stdio，7 个工具。用于证明票根不仅能被人类点开，也能被外部 Agent 调用。
+版本 `piaogen-rights-finance 0.4.1`，零依赖 stdio，7 个工具。用于证明票根不仅能被人类点开，也能被外部 Agent 调用。
 
 ## 启动
 
@@ -38,16 +38,25 @@ curl -s http://127.0.0.1:8787/mcp \
 - 这是普通 JSON-RPC POST，**不是** MCP 官方 Streamable HTTP（无 SSE、无会话 ID），
   也不代表已有公网托管地址；公网 MCP 仍是后续路线。
 
+## 写入落盘
+
+`rights.record` / `finance.record` 默认写入 `server.js` 同目录的 `records.local.json`，
+重启后自动回放动作与状态；只存状态、金额、备注和时间，不存票据原文、证件号、手机号。
+
+- 测试时设 `PG_MCP_STORE=off` 关闭落盘（`mcp_smoke.py` / `mcp_http_smoke.py` 已默认关闭）。
+- 也可用 `PG_MCP_STORE=<路径>` 指定文件。
+- 文件不可写时自动退回内存模式，返回 `persisted: false`。
+
 ## 工具
 
 | 工具 | 作用 | 写操作 |
 |---|---|---|
 | `rights.lookup` | 按商品 / 问题查消费权利窗口 | 否 |
 | `rights.plan` | 生成消费权利办理路径 | 否 |
-| `rights.record` | 写入示例案卷 | 仅进程内 |
+| `rights.record` | 写入示例案卷 | 落盘 `records.local.json` |
 | `finance.lookup` | 按资金问题查六类售后规则 | 否 |
 | `finance.plan` | 生成资金售后路径与材料 | 否 |
-| `finance.record` | 写入示例资金案卷 | 仅进程内 |
+| `finance.record` | 写入示例资金案卷 | 落盘 `records.local.json` |
 | `policy.parse` | 从保单 / 合同文字只提取机构、金额、期限与签单日期；不返回证件号、手机号或原文 | 否（无存储） |
 
 ## 验证

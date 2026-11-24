@@ -49,7 +49,7 @@ const server = http.createServer((req, res) => {
     return json(res, 200, {
       ok: true,
       name: "piaogen-rights-finance",
-      version: "0.4.0",
+      version: "0.4.1",
       transport: "json-rpc-over-http (local only)",
       tools: TOOLS.map((tool) => tool.name)
     });

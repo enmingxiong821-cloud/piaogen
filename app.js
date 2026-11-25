@@ -5108,8 +5108,10 @@ const POINT_KEY = "piaogen.v0.points";
   function renderAgent() {
     if (AGENT_STATE.view === "buddy") { renderBuddy(); return; }
     document.body.classList.toggle("agent-busy", !!AGENT_STATE.busy);
-    const send = document.querySelector("#aiForm .agent-send");
-    if (send) send.textContent = AGENT_STATE.busy ? "停止" : "发送";
+    ["#aiForm .agent-send", "#agentForm .agent-send"].forEach((sel) => {
+      const send = document.querySelector(sel);
+      if (send) send.textContent = AGENT_STATE.busy ? "停止" : "发送";
+    });
     const page = AGENT_STATE.view === "page";
     const log = document.getElementById(page ? "aiLog" : "agentLog");
     if (!log) return;

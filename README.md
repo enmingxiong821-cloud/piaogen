@@ -383,7 +383,7 @@ python -X utf8 v0\live_docs.py    # 隐私/协议/许可三页 + 320/1440 溢出
 4. 接 ofdkit/服务端 OCR，提升 OFD/复杂票据。
 5. 做真正的家庭只读/代办/转交/撤回权限。
 
-## 2026-11-25 V10.8（已构建，待部署）
+## 2026-11-25 V10.8（已部署）
 
 - **五栏导航**：今天 / 案卷 / 资产 / 助手 / 我的。
 - **资产与资金合并**：同一屏分段切换，资金在途数做角标；资金案卷返回仍落在资金分段。
@@ -393,4 +393,5 @@ python -X utf8 v0\live_docs.py    # 隐私/协议/许可三页 + 320/1440 溢出
 - **我的瘦身**：24 行 → 16 行；报告移到案卷页，积分/券/续费体检从「我的」移除（仍在资产与办事台）。
 - **长辈模式**：整页字号、按钮、底栏放大；今天页隐藏速报与工具格；顶部常驻可关闭横幅。
 - **验收**：`v108_smoke.py` 59/59；`test_users_smoke.py` 118/118；其余套件全部回归通过；320–1440 无横向溢出。
-- **产物**：`dist_app/piaogen-v9-app.zip`，72 文件 / 约 34.3MB，SHA-256 以 `接管_2026-11-23/HANDOFF.json` 为准；sw `piaogen-v10-8`。
+- **产物**：`dist_app/piaogen-v9-app.zip`，72 文件 / 约 34.3MB；sw `piaogen-v10-8`。
+- **交付**：GitHub Pages commit `ea0f2be`、CloudBase 72 文件 `--verify`；公网 GitHub `live_check` 35/35、`v108_smoke` 59/59、`policy_ocr` 18/18、`offline` 4/4、`batch_import` 5/5，CloudBase `live_check` 35/35。SHA-256 以 `接管_2026-11-23/HANDOFF.json` 为准。

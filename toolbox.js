@@ -1647,6 +1647,7 @@
       <section class="tb-section"><h2>边界</h2><p class="tb-note">${esc(s.note)}</p></section>
       <div class="tb-actions">
         <button class="btn primary" type="button" data-tb="find-complaint" data-id="${s.id}">生成诉求草稿</button>
+        ${s.id === "courier" ? `<button class="btn ghost" type="button" data-tb="find-delivery">签收异议 72 小时</button>` : ""}
         <button class="btn ghost" type="button" data-tb="find-copy" data-id="${s.id}">复制材料清单</button>
         <button class="btn ghost" type="button" data-tb="find-case" data-id="${s.id}">建案卷</button>
       </div>
@@ -2363,6 +2364,7 @@ ${mats}
     if (action === "sub-copy") { copyText(decidedText()); return; }
     if (action === "find-cat") { findCat = button.dataset.cat; render(); return; }
     if (action === "find-open") { openScenario(button.dataset.id); return; }
+    if (action === "find-delivery") { openDeliverySheet({}); return; }
     if (action === "find-complaint") {
       const s = SCENARIOS.find((x) => x.id === button.dataset.id);
       if (!s) return;

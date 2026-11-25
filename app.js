@@ -4810,7 +4810,7 @@ const POINT_KEY = "piaogen.v0.points";
 
 
   // 内置规则 Agent：意图 → 工具 → 槽位 → 动作。不依赖外部模型，不联网也能用。
-  const AGENT_STATE = { messages: [], pending: null, context: null, mode: "local", busy: false, view: "sheet" };
+  const AGENT_STATE = { messages: [], pending: null, context: null, mode: "local", busy: false, view: "sheet", controller: null, stopped: false, lastText: "" };
 
   let currentScreen = "today";
 
@@ -5098,9 +5098,18 @@ const POINT_KEY = "piaogen.v0.points";
     return `<div class="agent-msg"><div class="agent-bubble">${badge}${m.html}${trace}${actions ? `<div class="agent-actions">${actions}</div>` : ""}</div></div>`;
   }
 
+  function clearAgentChat() {
+    AGENT_STATE.messages = [];
+    AGENT_STATE.context = null;
+    renderAgent();
+    toast("对话已清空");
+  }
+
   function renderAgent() {
     if (AGENT_STATE.view === "buddy") { renderBuddy(); return; }
     document.body.classList.toggle("agent-busy", !!AGENT_STATE.busy);
+    const send = document.querySelector("#aiForm .agent-send");
+    if (send) send.textContent = AGENT_STATE.busy ? "停止" : "发送";
     const page = AGENT_STATE.view === "page";
     const log = document.getElementById(page ? "aiLog" : "agentLog");
     if (!log) return;
@@ -5190,6 +5199,12 @@ const POINT_KEY = "piaogen.v0.points";
     return document.getElementById(id);
   }
 
+  function stopAgent() {
+    if (!AGENT_STATE.busy) return;
+    AGENT_STATE.stopped = true;
+    if (AGENT_STATE.controller) AGENT_STATE.controller.abort();
+  }
+
   function agentTurn(text) {
     const raw = String(text || "").trim();
     if (!raw || AGENT_STATE.busy) return;
@@ -5202,6 +5217,7 @@ const POINT_KEY = "piaogen.v0.points";
       reply = { role: "assistant", html: "<p>这次没接上，换个说法再试一次；数据没有被改动。</p>", trace: [["状态", "出错，未写入"]], chips: ["这周先办什么", "退款还没到"] };
     }
     AGENT_STATE.messages.push(reply);
+    AGENT_STATE.lastText = raw;
     if (AGENT_STATE.messages.length > 40) AGENT_STATE.messages = AGENT_STATE.messages.slice(-40);
     renderAgent();
   }
@@ -5610,9 +5626,11 @@ const POINT_KEY = "piaogen.v0.points";
     if (c.fin) lines.push(`资金售后有 <b>${c.fin}</b> 宗在办`);
     if (c.coupons) lines.push(`<b>${c.coupons}</b> 张券 30 天内到期`);
     if (!lines.length) lines.push("现在没有已确认的到期项。拍一张票、粘一段账单，或者直接问我怎么办。");
+    const hour = new Date().getHours();
+    const hello = hour < 6 ? "夜深了" : hour < 11 ? "早上好" : hour < 14 ? "中午好" : hour < 18 ? "下午好" : "晚上好";
     return {
       role: "assistant",
-      html: `<p class="agent-hello">我在。${c.urgent ? `今天有 <b>${c.urgent}</b> 件已确认的到期项。` : ""}</p>
+      html: `<p class="agent-hello">${hello}，我在。${c.urgent ? `今天有 <b>${c.urgent}</b> 件已确认的到期项。` : ""}</p>
         <ul class="agent-list">${lines.map((x) => `<li>${x}</li>`).join("")}</ul>
         <p class="agent-note">想让我更会聊，可以接入你自己的模型；不接也能用全部规则。</p>`,
       trace: [["工具", "本地案卷 + 到期 + 资产"]],
@@ -5740,6 +5758,17 @@ const POINT_KEY = "piaogen.v0.points";
       return;
     }
     if (act === "aiConfig") { openAiConfigSheet(); return; }
+    if (act === "retrySmart") {
+      closeSheet();
+      if (AGENT_STATE.lastText) {
+        AGENT_STATE.mode = "smart";
+        saveAiConfig({ agentSmart: true });
+        renderAiMeta();
+        agentTurn(AGENT_STATE.lastText);
+      }
+      return;
+    }
+    if (act === "clearChat") { closeSheet(); clearAgentChat(); return; }
     if (act === "toolbox" || act === "toolboxComplaint") {
       closeSheet();
       show("toolbox");
@@ -5885,7 +5914,7 @@ const POINT_KEY = "piaogen.v0.points";
       renderAgent();
       $("#agentForm").addEventListener("submit", (event) => {
         event.preventDefault();
-        if (AGENT_STATE.busy) return;
+        if (AGENT_STATE.busy) { stopAgent(); return; }
         const input = $("#agentInput");
         const text = input.value.trim();
         if (!text) return;
@@ -5898,7 +5927,7 @@ const POINT_KEY = "piaogen.v0.points";
   }
 
   // ---------- 智能模式：外接 OpenAI 兼容模型，只调用本地只读工具 ----------
-  const AGENT_ACTS = ["today", "import", "bill", "assets", "case", "finance", "health", "rights", "aiConfig", "toolbox", "toolboxComplaint"];
+  const AGENT_ACTS = ["today", "import", "bill", "assets", "case", "finance", "health", "rights", "aiConfig", "toolbox", "toolboxComplaint", "retrySmart", "clearChat"];
 
   const AGENT_TOOLS = {
     list_urgent: {
@@ -6086,6 +6115,7 @@ const POINT_KEY = "piaogen.v0.points";
     '{"tool":"工具名","args":{...}} 表示调用工具；',
     '{"final":{"reply":"给用户的回答","actions":[{"label":"按钮文字","act":"today|import|bill|assets|case|finance|health|rights|aiConfig|toolbox|toolboxComplaint"}],"chips":["可选追问"]}} 表示结束。',
     "规则：先查工具再回答；最多 3 步；reply 用简体中文，120 字以内，可换行；没有把握就直说缺什么信息；",
+    "用户可能在追问：结合上面的对话和本地概况回答，不要重复问已经给过的信息；信息够就直接给结论。",
     "涉及条款、依据、施行日期，先调 search_rules；涉及天数、截止日，先调 deadline_calc；不要把记忆里的法条当事实。",
     "不做法律、金融、医疗结论；不承诺退款或拒付成功；不代提交、不代收款；不索取卡号、CVV、验证码。",
     "可用工具：",
@@ -6134,26 +6164,45 @@ const POINT_KEY = "piaogen.v0.points";
     }
   }
 
-  async function agentLlmCall(cfg, messages) {
-    const controller = new AbortController();
+  function agentLlmError(status) {
+    if (status === 401) return "HTTP 401 · Key 不对或已过期";
+    if (status === 403) return "HTTP 403 · Key 没有这个模型的权限";
+    if (status === 404) return "HTTP 404 · 端点或模型名不对";
+    if (status === 429) return "HTTP 429 · 请求太频繁";
+    if (status >= 500) return `HTTP ${status} · 服务商暂时不可用`;
+    return `HTTP ${status}`;
+  }
+
+  async function agentLlmCall(cfg, messages, extSignal) {
     const local = /(?:127\.0\.0\.1|localhost)(?::\d+)?/i.test(String(cfg.endpoint || ""));
-    const timer = setTimeout(() => controller.abort(), local ? 90000 : 25000);
-    try {
-      const response = await fetch(cfg.endpoint, {
+    const timeout = local ? 90000 : 30000;
+    const once = () => new Promise((resolve, reject) => {
+      const controller = new AbortController();
+      if (extSignal && extSignal.aborted) { reject(Object.assign(new Error("aborted"), { name: "AbortError" })); return; }
+      const onAbort = () => controller.abort();
+      if (extSignal) extSignal.addEventListener("abort", onAbort, { once: true });
+      const timer = setTimeout(() => controller.abort(), timeout);
+      fetch(cfg.endpoint, {
         method: "POST",
         headers: Object.assign({ "Content-Type": "application/json" }, cfg.key ? { Authorization: `Bearer ${cfg.key}` } : {}),
         body: JSON.stringify({ model: cfg.model, temperature: 0.1, max_tokens: 700, messages }),
         signal: controller.signal
+      }).then(resolve, reject).finally(() => {
+        clearTimeout(timer);
+        if (extSignal) extSignal.removeEventListener("abort", onAbort);
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      const message = data && data.choices && data.choices[0] && data.choices[0].message;
-      const content = message && (typeof message.content === "string" ? message.content : Array.isArray(message.content) ? message.content.map((part) => part.text || "").join("") : "");
-      if (!content) throw new Error("模型返回为空");
-      return content;
-    } finally {
-      clearTimeout(timer);
+    });
+    let response = await once();
+    if (!response.ok && (response.status === 429 || response.status >= 500)) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      response = await once();
     }
+    if (!response.ok) throw new Error(agentLlmError(response.status));
+    const data = await response.json();
+    const message = data && data.choices && data.choices[0] && data.choices[0].message;
+    const content = message && (typeof message.content === "string" ? message.content : Array.isArray(message.content) ? message.content.map((part) => part.text || "").join("") : "");
+    if (!content) throw new Error("模型返回为空");
+    return content;
   }
 
   function agentNumbers(text) {
@@ -6198,16 +6247,26 @@ const POINT_KEY = "piaogen.v0.points";
       return;
     }
     AGENT_STATE.messages.push({ role: "user", text });
+    AGENT_STATE.lastText = text;
     const thinking = {
       role: "assistant",
       mode: "smart",
       thinking: true,
-      html: `<p class="agent-thinking">正在查本地案卷并请模型判断…最多 3 步。</p>`,
+      html: `<p class="agent-thinking">正在请模型判断…</p>`,
       trace: [["模式", "智能 · 工具调用"]],
       chips: []
     };
     AGENT_STATE.messages.push(thinking);
     AGENT_STATE.busy = true;
+    AGENT_STATE.stopped = false;
+    const ctrl = new AbortController();
+    AGENT_STATE.controller = ctrl;
+    const started = Date.now();
+    let stepLabel = "正在请模型判断";
+    const ticker = setInterval(() => {
+      const el = document.querySelector(".agent-thinking");
+      if (el) el.textContent = `${stepLabel}… ${Math.round((Date.now() - started) / 1000)}s`;
+    }, 1000);
     const agentInput = agentInputEl();
     if (agentInput) agentInput.disabled = true;
     renderAgent();
@@ -6219,7 +6278,7 @@ const POINT_KEY = "piaogen.v0.points";
         { role: "system", content: `${AGENT_SMART_PROMPT}\n本地概况：${JSON.stringify(agentBriefContext())}` }
       ].concat(agentHistory());
       for (let step = 0; step < 3; step += 1) {
-        const content = await agentLlmCall(cfg, messages);
+        const content = await agentLlmCall(cfg, messages, ctrl.signal);
         const plan = agentParseJson(content);
         if (!plan) throw new Error("模型没有返回可解析的 JSON");
         const tool = plan.tool && AGENT_TOOLS[plan.tool] ? AGENT_TOOLS[plan.tool] : null;
@@ -6231,6 +6290,10 @@ const POINT_KEY = "piaogen.v0.points";
           trace.push(["工具", `${plan.tool} · ${tool.label}`]);
           messages.push({ role: "assistant", content });
           messages.push({ role: "user", content: `工具结果（${plan.tool}）：${payload.slice(0, 1500)}` });
+          stepLabel = `已查「${tool.label}」，继续核对`;
+          thinking.html = `<p class="agent-thinking">${escapeHtml(stepLabel)}（${step + 1}/3）</p>`;
+          thinking.trace = trace.slice();
+          renderAgent();
           continue;
         }
         if (plan.final) {
@@ -6244,12 +6307,21 @@ const POINT_KEY = "piaogen.v0.points";
       }
       throw new Error("超过 3 步仍未给出结论");
     } catch (error) {
-      const fallback = agentBrain(text);
-      fallback.html = `<p class="agent-warn">智能模式没接上（${escapeHtml(String((error && error.message) || "网络错误").slice(0, 60))}），已用本地规则回答。</p>` + fallback.html;
       const index = AGENT_STATE.messages.indexOf(thinking);
-      if (index >= 0) AGENT_STATE.messages[index] = fallback;
+      if (AGENT_STATE.stopped) {
+        const stopped = { role: "assistant", html: "<p>已停止这次回答。本地数据没有改动，可以重新发送，或继续用本地规则。</p>", trace: [], chips: ["这周先办什么", "退款还没到"] };
+        if (index >= 0) AGENT_STATE.messages[index] = stopped;
+      } else {
+        const fallback = agentBrain(text);
+        fallback.html = `<p class="agent-warn">智能模式没接上（${escapeHtml(String((error && error.message) || "网络错误").slice(0, 70))}），已用本地规则回答。</p>` + fallback.html;
+        fallback.actions = (fallback.actions || []).concat([{ label: "重试智能", act: "retrySmart" }]);
+        if (index >= 0) AGENT_STATE.messages[index] = fallback;
+      }
     } finally {
+      clearInterval(ticker);
       AGENT_STATE.busy = false;
+      AGENT_STATE.controller = null;
+      AGENT_STATE.stopped = false;
       if (AGENT_STATE.messages.length > 40) AGENT_STATE.messages = AGENT_STATE.messages.slice(-40);
       renderAgent();
       const agentInputNow = agentInputEl();
@@ -8831,6 +8903,7 @@ const POINT_KEY = "piaogen.v0.points";
         <button class="btn primary" id="aiCfgSaveOn" type="button">测试并启用</button>
         <button class="btn ghost" id="aiCfgTest" type="button">测试连接</button>
         <button class="btn ghost" id="aiCfgSave" type="button">仅保存</button>
+        <button class="btn ghost" id="aiCfgModels" type="button">拉取模型列表</button>
         <button class="btn ghost" id="aiCfgOllama" type="button">检测本机 Ollama</button>
         <button class="btn ghost" id="aiCfgClear" type="button">清除 Key</button>
       </div>`, () => {
@@ -8904,6 +8977,30 @@ const POINT_KEY = "piaogen.v0.points";
         renderSettings();
         renderAiMeta();
         toast("模型已接入，智能模式已开启");
+      };
+      $("#aiCfgModels").onclick = async () => {
+        const form = readForm();
+        if (!form.endpoint) { setStatus("先填端点。", "warn"); return; }
+        const base = form.endpoint.replace(/\/chat\/completions\/?$/i, "");
+        setStatus("正在拉取模型列表…", "busy");
+        try {
+          const res = await fetch(base + "/models", {
+            headers: form.key ? { authorization: `Bearer ${form.key}` } : {}
+          });
+          if (!res.ok) {
+            setStatus(`拉取失败 · HTTP ${res.status}${res.status === 401 ? " · Key 不对" : res.status === 404 ? " · 该端点没有 /models" : ""}`, "warn");
+            return;
+          }
+          const data = await res.json();
+          const list = (Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : [])
+            .map((m) => m.id || m.name).filter(Boolean);
+          if (!list.length) { setStatus("端点没有返回模型列表，可手动填模型名。", "warn"); return; }
+          const datalist = $("#aiModelList");
+          if (datalist) datalist.innerHTML = list.map((m) => `<option value="${escapeHtml(m)}"></option>`).join("");
+          setStatus(`拉到 ${list.length} 个模型：${escapeHtml(list.slice(0, 4).join("、"))}${list.length > 4 ? "…" : ""}`, "ok");
+        } catch (error) {
+          setStatus("拉取失败：端点不通，或服务商不允许浏览器跨域。", "warn");
+        }
       };
       $("#aiCfgOllama").onclick = async () => {
         const controller = new AbortController();
@@ -9238,7 +9335,7 @@ curl -s -X POST …/piaogen-mcp -H "Content-Type: application/json" \\
     if ($("#aiForm")) {
       $("#aiForm").addEventListener("submit", (event) => {
         event.preventDefault();
-        if (AGENT_STATE.busy) return;
+        if (AGENT_STATE.busy) { stopAgent(); return; }
         const input = $("#aiInput");
         const text = input.value.trim();
         if (!text) return;
@@ -9248,6 +9345,10 @@ curl -s -X POST …/piaogen-mcp -H "Content-Type: application/json" \\
       $("#aiMic").addEventListener("click", () => voiceTo($("#aiInput"), (text) => { if (!AGENT_STATE.busy) agentTurn(text); }));
       $("#aiConfigBtn").addEventListener("click", openAiConfigSheet);
       $("#aiDemoBtn").addEventListener("click", agentDemoSheet);
+      if ($("#aiClearBtn")) $("#aiClearBtn").addEventListener("click", () => {
+        if (!AGENT_STATE.messages.length) { toast("还没有对话"); return; }
+        clearAgentChat();
+      });
       $("#aiSmartBtn").addEventListener("click", toggleAgentMode);
       $('[data-screen="ai"]').addEventListener("click", (event) => {
         const chip = event.target.closest("[data-agent-chip]");

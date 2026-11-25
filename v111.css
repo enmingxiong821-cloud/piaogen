@@ -1,0 +1,54 @@
+/* 票根 V11.1 · 对话手感与细节
+   只追加：思考指示、停止态、chip 渐隐、设置面板底部分隔。 */
+
+/* 思考中：薄荷点呼吸，配合 JS 每秒更新的步骤文字。 */
+.agent-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.agent-thinking::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--mint);
+  animation: thinkPulse 1.1s ease-in-out infinite;
+}
+@keyframes thinkPulse {
+  0%, 100% { opacity: .2; transform: scale(.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* 请求进行中，发送键变成中性的「停止」，避免和主行动混在一起。 */
+body.agent-busy .agent-send {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid rgba(255, 113, 91, .45);
+  box-shadow: none;
+}
+body.agent-busy .agent-send:hover { filter: none; }
+
+/* 窄屏追问行可横向滚动：右侧渐隐，提示还有内容。 */
+@media (max-width: 760px) {
+  .agent-chips {
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  }
+}
+
+/* 设置面板的吸附按钮与表单之间留一道分隔，避免看成覆盖。 */
+.ai-cfg-actions {
+  box-shadow: 0 -14px 24px -18px rgba(0, 0, 0, .85);
+  border-top: 1px solid rgba(39, 50, 52, .6);
+}
+
+/* 对话里的草稿与追问保持可读行高。 */
+@media (max-width: 430px) {
+  .agent-draft { font-size: 12px; line-height: 1.8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-thinking::after { animation: none; opacity: .8; }
+}

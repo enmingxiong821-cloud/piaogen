@@ -565,14 +565,14 @@
         </button>`).join("") : `<p>今天没有到期项。可以先做一次账单体检，或把家里的卡和券记进来。</p>`}
         <button class="tb-brief-all" type="button" data-tb="go" data-view="deadline">看全部到期项 ›</button>
       </div>
-      ${groups.map((g) => `<section class="tb-group"><h2>${g.label}</h2><div class="tb-grid">
-        ${g.items.map((item) => `<button class="tb-card" type="button" data-tb="go" data-view="${item.id}">
+      <section class="tb-group"><h2>全部 11 件</h2><div class="tb-grid">
+        ${groups.flatMap((g) => g.items).map((item) => `<button class="tb-card" type="button" data-tb="go" data-view="${item.id}">
           <span class="tb-k">${item.k}</span>
           <b>${esc(item.title)}</b>
           <span class="tb-desc">${esc(item.desc)}</span>
           <em>${esc(item.meta)}</em>
         </button>`).join("")}
-      </div></section>`).join("")}
+      </div></section>
       <p class="note">所有记录只在本机。票根整理路径与材料，不代提交、不代收款，也不承诺处理结果。</p>`;
   }
 
@@ -895,7 +895,7 @@
 
   function buyOutHtml(r) {
     return `<div class="tb-buy-out ${r.tone === "warn" ? "warn" : ""}">
-      <div class="tb-buy-verdict"><b>${esc(r.verdict)}</b><span>到手 ${money(r.eff)}</span></div>
+      <div class="tb-buy-verdict"><b>${esc(r.verdict)}</b>${/到手/.test(r.verdict) ? "" : `<span>到手 ${money(r.eff)}</span>`}</div>
       <div class="tb-buy-grid">
         <div><span>${esc(r.aName)}</span><b>${money(r.a)}</b></div>
         <div><span>${esc(r.bName)}</span><b>${money(r.b)}</b></div>
@@ -1085,6 +1085,11 @@
     return "";
   }
 
+  function extractCardLast4(text) {
+    const m = text.match(/(?:尾号|末四位|后四位)\s*([0-9]{4})/);
+    return m ? m[1] : "";
+  }
+
   function extractMerchant(text) {
     const bracket = text.match(/【([^】]{2,24})】/);
     if (bracket) return bracket[1].trim();
@@ -1112,6 +1117,8 @@
       date: extractDate(line),
       merchant: extractMerchant(line),
       orderNo: extractOrderNo(line),
+      cardLast4: extractCardLast4(line),
+      renewal: /连续包月|连续包年|自动续费|自动扣款|自动扣费|自动续订|订阅|包月|包年|会员年费|年费/.test(line),
       text: line.replace(/\s+/g, " ").slice(0, 160)
     })).filter((item) => {
       const key = `${item.type}|${item.amount}|${item.date}|${item.merchant}|${item.text}`;
@@ -1135,14 +1142,16 @@
       </div>
       ${noticeItems.length ? `<section class="tb-section"><div class="tb-section-head"><h2>这条消息想让你做什么</h2><span>${noticeItems.length} 条</span></div>
         ${noticeItems.map((item, index) => `<div class="tb-notice">
-          <div class="tb-notice-head"><b>${NOTICE_TYPES[item.type].label}</b>${item.amount ? `<strong>¥${item.amount}</strong>` : ""}</div>
+          <div class="tb-notice-head"><b>${item.type === "charge" && item.renewal ? "续费扣款" : NOTICE_TYPES[item.type].label}</b>${item.amount ? `<strong>¥${item.amount}</strong>` : ""}</div>
           <p class="tb-notice-text">${esc(item.text)}</p>
-          <div class="tb-notice-meta">${item.merchant ? `对方：${esc(item.merchant)}` : "对方未识别"}${item.date ? ` · 日期：${esc(item.date)}` : ""}${item.orderNo ? ` · 订单号：${esc(item.orderNo)}` : ""}</div>
+          <div class="tb-notice-meta">${item.merchant ? `对方：${esc(item.merchant)}` : "对方未识别"}${item.date ? ` · ${item.type === "charge" && item.renewal ? "扣款日" : "日期"}：${esc(item.date)}` : ""}${item.orderNo ? ` · 订单号：${esc(item.orderNo)}` : ""}</div>
           <div class="tb-notice-actions">
             ${item.type === "fraud"
               ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="fraud" data-idx="${index}">先看防诈自检</button>`
               : `<button class="link-btn" type="button" data-tb="notice-act" data-act="case" data-idx="${index}">建资金案卷</button>
-                 ${item.type === "charge" ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="sub" data-idx="${index}">记为续费</button>` : ""}
+                 ${item.type === "charge" ? (item.renewal
+                   ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="sub" data-idx="${index}">记为续费</button>`
+                   : `<button class="link-btn" type="button" data-tb="notice-act" data-act="cardcase" data-idx="${index}">银行卡争议</button>`) : ""}
                  ${(item.type === "charge" || item.type === "refund") ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="bill" data-idx="${index}">记一笔流水</button>` : ""}
                  ${(item.type === "expiry" || item.type === "delivery" || item.type === "appointment") ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="reminder" data-idx="${index}">加到期提醒</button>` : ""}
                  ${item.type === "overdue" ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="find" data-idx="${index}">找谁问清楚</button>` : ""}
@@ -2039,10 +2048,20 @@ ${mats}
       const act = button.dataset.act;
       if (act === "case") {
         if (!A.openFinanceBuilder) { A.toast("资金案卷暂不可用"); return; }
-        A.openFinanceBuilder("payment", {
+        A.openFinanceBuilder(item.type === "charge" && item.renewal ? "renewal" : "payment", {
           merchant: item.merchant || "", amount: item.amount || "", date: item.date || isoToday(),
           orderNo: item.orderNo || "",
           notes: `来自粘贴的通知：\n${item.text}`
+        });
+        return;
+      }
+      if (act === "cardcase") {
+        if (!A.openFinanceBuilder) { A.toast("资金案卷暂不可用"); return; }
+        A.openFinanceBuilder("chargeback", {
+          merchant: item.merchant || "", amount: item.amount || "", date: item.date || isoToday(),
+          cardLast4: item.cardLast4 || "", bank: item.merchant || "",
+          account: item.cardLast4 ? `尾号 ${item.cardLast4}` : "",
+          notes: `来自粘贴的银行通知：\n${item.text}`
         });
         return;
       }

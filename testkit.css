@@ -6,7 +6,9 @@
 .tk-consent{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:10px 0 12px}
 .tk-consent label{display:flex;gap:8px;align-items:flex-start;font-size:11.5px;line-height:1.6;color:var(--text-2);cursor:pointer}
 .tk-consent input{accent-color:var(--mint);margin-top:2px}
-.tk-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.tk-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;max-width:560px}
+.tk-time,.tk-verdict{white-space:nowrap}
+.tk-task-side .link-btn,.tk-task-side .text-btn{white-space:nowrap}
 .tk-field{display:flex;flex-direction:column;gap:5px;font-size:10px;color:var(--text-3);min-width:0;flex:1}
 .tk-field input,.tk-field select{height:38px;border:1px solid var(--line);border-radius:10px;background:var(--bg-2);color:var(--text);padding:0 10px;font-size:12px;outline:none;min-width:0}
 .tk-field input:focus,.tk-field select:focus{border-color:var(--mint);box-shadow:0 0 0 3px rgba(157,240,194,.12)}

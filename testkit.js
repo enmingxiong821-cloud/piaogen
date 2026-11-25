@@ -250,7 +250,7 @@
         </div>
         <div class="tk-row">
           <label class="tk-field"><span>测试者编号</span><input id="tkCode" value="${esc(has ? s.code : "T" + (db.sessions.length + 1))}" maxlength="12" /></label>
-          <button class="btn primary" id="tkStart" type="button">${has && !s.endedAt ? "重新开始一轮" : "开始一轮"}</button>
+          <button class="btn ${has && !s.endedAt ? "ghost" : "primary"}" id="tkStart" type="button">${has && !s.endedAt ? "重新开始（清空本轮）" : "开始一轮"}</button>
         </div>
         <details class="tk-script">
           <summary>测试主持脚本（照着念）</summary>

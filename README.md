@@ -119,7 +119,7 @@
 - **可选 AI 建议**：默认关闭；用户自填 OpenAI 兼容端点与 Key；发送前预览，金额/日期默认不发；输出只建议、只进备注，不改事实；支持过期、失败、数字校验与长辈模式隐藏。
 - **双时钟一致**：今天页三行时钟改为取同组窗口里最急的一条（三包退货优先于 7 天无理由），页头与卡片天数不再出现 1 天 / 3 天的错位；次要窗口以小字并列显示。
 - **验收**：`test_users_smoke.py` 118/118；`smoke.py` OK；`real_smoke.py` 40/40；`order_samples_smoke.py` 19/19；`mcp_smoke.py` 8/8；本地 `live_check.py` 35/35；`doc_check.py` 通过。
-- **交付状态**：已重建 `dist_app` 与 ZIP（34.1MB / 41 文件），SHA-256 与部署 commit 以 `../接管_2026-11-23/HANDOFF.json` 为准；GitHub Pages 主链接 https://enmingxiong821-cloud.github.io/piaogen/ 。SW 缓存名 `piaogen-v9-5`。
+- **交付状态**：V10.1 已构建并部署（34.1MB / 45 文件，SHA-256 与 commit 以 `../接管_2026-11-23/HANDOFF.json` 为准）；GitHub Pages 主链接 https://enmingxiong821-cloud.github.io/piaogen/ ，CloudBase 国内备用。SW 缓存名 `piaogen-v10-1`。
 
 ## 2026-11-21 P0 真实性修正（已落地）
 

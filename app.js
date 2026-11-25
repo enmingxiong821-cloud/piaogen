@@ -169,6 +169,8 @@ const POINT_KEY = "piaogen.v0.points";
     document.body.classList.toggle("elder", !!state.settings.elder);
     const label = $("#elderState");
     if (label) label.textContent = state.settings.elder ? "开" : "关";
+    const bar = $("#elderBar");
+    if (bar) bar.hidden = !state.settings.elder;
     const aiLabel = $("#aiState");
     if (aiLabel) aiLabel.textContent = aiConfig().enabled ? "开" : "关";
   }
@@ -950,8 +952,9 @@ const POINT_KEY = "piaogen.v0.points";
   }
 
   function show(name) {
-    const navName = name === "financeCase" ? "finance" : name === "toolbox" ? "assets" : name;
-    $$(".screen").forEach((screen) => screen.classList.toggle("on", screen.dataset.screen === name));
+    const screenName = name === "finance" ? "assets" : name;
+    const navName = name === "import" ? "today" : name === "finance" || name === "financeCase" || name === "toolbox" ? "assets" : name;
+    $$(".screen").forEach((screen) => screen.classList.toggle("on", screen.dataset.screen === screenName));
     $$(".tabbar-item").forEach((item) => {
       const on = item.dataset.nav === navName;
       item.classList.toggle("on", on);
@@ -969,11 +972,18 @@ const POINT_KEY = "piaogen.v0.points";
     if (name === "settings") renderSettings();
     if (name === "case" && state.current) renderCase(state.current);
     if (name === "cases") renderCases();
-    if (name === "assets") renderAssets();
-    if (name === "finance") renderFinance();
+    if (name === "assets" || name === "finance") setAssetsTab(name === "finance" ? "finance" : "assets");
     if (name === "financeCase" && state.currentFinance) renderFinanceCase(state.currentFinance);
     if (name === "toolbox" && window.PGToolbox) window.PGToolbox.render();
     if (name === "testkit" && window.PGTestkit) window.PGTestkit.render();
+    if (name === "ai") {
+      AGENT_STATE.view = "page";
+      AGENT_STATE.mode = (state.settings && state.settings.ai && state.settings.ai.agentSmart) ? "smart" : "local";
+      renderAgent();
+      renderAiMeta();
+    }
+    currentScreen = name;
+    updateBuddy();
   }
 
   window.PGApp = {
@@ -4795,7 +4805,85 @@ const POINT_KEY = "piaogen.v0.points";
 
 
   // 内置规则 Agent：意图 → 工具 → 槽位 → 动作。不依赖外部模型，不联网也能用。
-  const AGENT_STATE = { messages: [], pending: null, context: null, mode: "local", busy: false };
+  const AGENT_STATE = { messages: [], pending: null, context: null, mode: "local", busy: false, view: "sheet" };
+
+  let currentScreen = "today";
+
+  const BUDDY = {
+    today: { say: "我在。今天先把最急的一件办掉。", chips: ["今天先办哪一件？", "这周有什么到期？", "帮我排今天"] },
+    cases: { say: "先看有截止日的那宗，再补证据。", chips: ["哪宗最急？", "哪些案卷还缺证据？"] },
+    case: { say: "这宗我读过规则了，可以帮你核对材料。", chips: ["这宗还缺什么证据？", "下一步先找谁？"] },
+    result: { say: "这张票的权利和缺口都在这儿。", chips: ["这宗还缺哪些证据？", "这张还能退吗？"] },
+    action: { say: "办的时候卡住，就问我下一步。", chips: ["客服拒绝怎么办？", "怎么留证据？"] },
+    import: { say: "拍照、截图、PDF、OFD 都行，只在本机识别。", chips: ["这张票能退吗？", "支付宝账单怎么导入？"] },
+    assets: { say: "资产和资金在一页。想先看哪一边？", chips: ["这周哪笔钱最急？", "有哪些自动续费？", "哪些券快过期？"] },
+    finance: { say: "只按你填的截止日提醒，不编时限。", chips: ["这周哪笔钱最急？", "哪些自动续费要处理？"] },
+    financeCase: { say: "钱的事，先看证据齐不齐。", chips: ["这宗还缺什么证据？", "下一步先找谁？"] },
+    toolbox: { say: "办事台 11 件事，说一件我带你过去。", chips: ["账单里有哪些重复扣款？", "哪个券快过期？"] },
+    audit: { say: "先算家里悄悄亏了多少。", chips: ["家里最可能亏在哪？", "哪些续费可以关？"] },
+    settings: { say: "数据只在本机。要我解释哪一项？", chips: ["长辈模式怎么用？", "数据存在哪里？"] }
+  };
+  const BUDDY_LABEL = {
+    today: "今天", cases: "案卷", case: "案卷", result: "这张票", action: "陪办", import: "导入",
+    assets: "资产与资金", finance: "资金售后", financeCase: "资金案卷", toolbox: "办事台", audit: "家庭体检",
+    settings: "我的", annual: "权利报告", testkit: "测试台"
+  };
+
+  function buddyChipsHtml(chips) {
+    return (chips || []).slice(0, 4).map((c) => `<button class="agent-chip" type="button" data-agent-chip="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("");
+  }
+
+  function renderBuddy() {
+    const host = $("#buddyAnswer");
+    if (!host) return;
+    const chips = $("#buddyChips");
+    if (!AGENT_STATE.messages.length) {
+      const conf = BUDDY[currentScreen] || BUDDY.today;
+      host.innerHTML = `<p class="buddy-say">${escapeHtml(conf.say)}</p>`;
+      if (chips) chips.innerHTML = buddyChipsHtml(conf.chips);
+      return;
+    }
+    const last = AGENT_STATE.messages[AGENT_STATE.messages.length - 1];
+    host.innerHTML = agentMsgHtml(last);
+    if (chips) chips.innerHTML = buddyChipsHtml(last.chips);
+    host.scrollTop = host.scrollHeight;
+  }
+
+  function updateBuddy() {
+    const btn = $("#buddyBtn");
+    if (!btn) return;
+    const hide = currentScreen === "ai";
+    btn.hidden = hide;
+    if (hide) closeBuddy();
+    const where = $("#buddyWhere");
+    if (where) where.textContent = BUDDY_LABEL[currentScreen] || "票根";
+    if (AGENT_STATE.view === "buddy") renderBuddy();
+    else if (!AGENT_STATE.messages.length) renderBuddy();
+  }
+
+  function openBuddy() {
+    const panel = $("#buddyPanel");
+    const btn = $("#buddyBtn");
+    if (!panel) return;
+    panel.hidden = false;
+    if (btn) btn.setAttribute("aria-expanded", "true");
+    AGENT_STATE.view = "buddy";
+    renderBuddy();
+  }
+
+  function closeBuddy() {
+    const panel = $("#buddyPanel");
+    const btn = $("#buddyBtn");
+    if (panel) panel.hidden = true;
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+
+  function askBuddy(text) {
+    openBuddy();
+    const input = $("#buddyInput");
+    if (input) input.value = "";
+    if (text) agentTurn(text);
+  }
 
   function agentWelcome() {
     return {
@@ -4813,6 +4901,15 @@ const POINT_KEY = "piaogen.v0.points";
     };
   }
 
+  function agentPageWelcome() {
+    return {
+      role: "assistant",
+      html: `<p class="agent-hello">先问我，或点上面的常用问题。金额和日期只来自你的案卷与规则库；查不到就说不确定，不编数字。</p>`,
+      chips: ["帮我排今天", "这周先办什么", "退款还没到", "这个月花了多少", "会员年费多少", "哪些券快过期"],
+      trace: []
+    };
+  }
+
   function agentMsgHtml(m) {
     if (m.role === "user") {
       return `<div class="agent-msg user"><div class="agent-bubble">${escapeHtml(m.text)}</div></div>`;
@@ -4826,16 +4923,64 @@ const POINT_KEY = "piaogen.v0.points";
   }
 
   function renderAgent() {
-    const log = $("#agentLog");
+    if (AGENT_STATE.view === "buddy") { renderBuddy(); return; }
+    const page = AGENT_STATE.view === "page";
+    const log = document.getElementById(page ? "aiLog" : "agentLog");
     if (!log) return;
-    if (!AGENT_STATE.messages.length) AGENT_STATE.messages.push(agentWelcome());
+    if (!AGENT_STATE.messages.length) {
+      const welcome = page ? agentPageWelcome() : agentWelcome();
+      log.innerHTML = agentMsgHtml(welcome);
+      const chipsEl = document.getElementById(page ? "aiChips" : "agentChips");
+      if (chipsEl) chipsEl.innerHTML = buddyChipsHtml(welcome.chips);
+      if (!page) log.scrollTop = log.scrollHeight;
+      return;
+    }
     log.innerHTML = AGENT_STATE.messages.map(agentMsgHtml).join("");
     const last = AGENT_STATE.messages[AGENT_STATE.messages.length - 1] || {};
-    const chips = $("#agentChips");
+    const chips = document.getElementById(page ? "aiChips" : "agentChips");
     if (chips) {
       chips.innerHTML = (last.chips || []).map((c) => `<button class="agent-chip" type="button" data-agent-chip="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("");
     }
-    log.scrollTop = log.scrollHeight;
+    if (!page) log.scrollTop = log.scrollHeight;
+  }
+
+  function renderAiMeta() {
+    const smart = AGENT_STATE.mode === "smart";
+    const btn = $("#aiSmartBtn");
+    const label = $("#aiModeLabel");
+    if (label) label.textContent = smart ? "智能模式：开" : "智能模式：关";
+    if (btn) btn.setAttribute("aria-pressed", smart ? "true" : "false");
+    const foot = $("#aiFoot");
+    if (foot) {
+      foot.textContent = smart
+        ? "智能模式 · 只发当前这句话、本地案卷摘要与工具结果给你填的模型 · 工具只读本机数据 · 不代提交、不承诺结果。"
+        : "本地规则 Agent · 不联网也能用 · 结论来自规则库与公开依据，不构成法律意见；不代提交、不承诺结果。";
+    }
+    const input = $("#aiInput");
+    if (input) input.placeholder = smart ? "说一句；模型会先查本地案卷…" : "说一句要办的事…";
+  }
+
+  function toggleAgentMode() {
+    if (AGENT_STATE.mode === "smart") {
+      AGENT_STATE.mode = "local";
+      saveAiConfig({ agentSmart: false });
+      renderAiMeta();
+      return;
+    }
+    const cfg = aiConfig();
+    if (!cfg.endpoint || !cfg.model) {
+      toast("先填模型端点与模型名");
+      openAiConfigSheet();
+      return;
+    }
+    AGENT_STATE.mode = "smart";
+    saveAiConfig({ agentSmart: true });
+    renderAiMeta();
+  }
+
+  function agentInputEl() {
+    const id = AGENT_STATE.view === "page" ? "aiInput" : AGENT_STATE.view === "buddy" ? "buddyInput" : "agentInput";
+    return document.getElementById(id);
   }
 
   function agentTurn(text) {
@@ -5212,8 +5357,13 @@ const POINT_KEY = "piaogen.v0.points";
       </div>
       <p class="annual-note">模型 ${escapeHtml(AGENT_REAL_DEMO.model)} · ${escapeHtml(AGENT_REAL_DEMO.at)} · ${AGENT_REAL_DEMO.seconds}s · 金额与天数来自本地工具结果；未核对数字会标黄。评委仍需自备 Ollama 或 Key，不能把这段回放当成实时服务。</p>
       <div class="sheet-actions"><button class="btn primary" id="agentRealClose" type="button">知道了</button></div>`, () => {
-      $("#agentRealClose").onclick = () => { closeSheet(); openAgent(); };
+      $("#agentRealClose").onclick = () => { closeSheet(); backToAgent(); };
     });
+  }
+
+  function backToAgent() {
+    if (AGENT_STATE.view === "page") { closeSheet(); renderAgent(); renderAiMeta(); return; }
+    openAgent();
   }
 
   function agentDemoSheet() {
@@ -5232,13 +5382,14 @@ const POINT_KEY = "piaogen.v0.points";
         <button class="btn primary" id="agentRealDemo" type="button">看真实模型回放</button>
         <button class="btn ghost" id="agentDemoClose" type="button">知道了</button>
       </div>`, () => {
-      $("#agentDemoClose").onclick = () => { closeSheet(); openAgent(); };
+      $("#agentDemoClose").onclick = () => { closeSheet(); backToAgent(); };
       $("#agentRealDemo").onclick = agentRealDemoSheet;
     });
   }
 
   function openAgent() {
     const cfg = aiConfig();
+    AGENT_STATE.view = "sheet";
     AGENT_STATE.mode = (state.settings && state.settings.ai && state.settings.ai.agentSmart) ? "smart" : "local";
     openSheet("规则助手", `
       <div class="agent-modes" id="agentModes" role="group" aria-label="助手模式">
@@ -5613,7 +5764,8 @@ const POINT_KEY = "piaogen.v0.points";
     };
     AGENT_STATE.messages.push(thinking);
     AGENT_STATE.busy = true;
-    if ($("#agentInput")) $("#agentInput").disabled = true;
+    const agentInput = agentInputEl();
+    if (agentInput) agentInput.disabled = true;
     renderAgent();
     const trace = [];
     const known = agentKnownNumbers(text).concat([agentToday()]);
@@ -5656,7 +5808,8 @@ const POINT_KEY = "piaogen.v0.points";
       AGENT_STATE.busy = false;
       if (AGENT_STATE.messages.length > 40) AGENT_STATE.messages = AGENT_STATE.messages.slice(-40);
       renderAgent();
-      if ($("#agentInput")) $("#agentInput").disabled = false;
+      const agentInputNow = agentInputEl();
+      if (agentInputNow) agentInputNow.disabled = false;
     }
   }
 
@@ -5752,6 +5905,29 @@ const POINT_KEY = "piaogen.v0.points";
     const supplies = detectSupplies(state.tickets || []);
     const residual = caseTickets().filter((ticket) => ["appliance", "digital", "furniture", "auto"].includes(ticket.category));
     return { rights, subs, coupons, points, supplies, residual };
+  }
+
+  let assetsTab = "assets";
+
+  function setAssetsTab(tab) {
+    assetsTab = tab === "finance" ? "finance" : "assets";
+    $$("#assetsSeg [data-assets-tab]").forEach((btn) => {
+      const on = btn.dataset.assetsTab === assetsTab;
+      btn.classList.toggle("on", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    const aBody = $("#assetsBody");
+    const fPane = $("#assetsFinance");
+    if (aBody) aBody.hidden = assetsTab !== "assets";
+    if (fPane) fPane.hidden = assetsTab !== "finance";
+    const badge = $("#financeTabCount");
+    if (badge) {
+      const n = financeSummaryData().active.length;
+      badge.textContent = String(n);
+      badge.hidden = !n;
+    }
+    if (assetsTab === "assets") renderAssets();
+    else renderFinance();
   }
 
   function renderAssets() {
@@ -8272,7 +8448,7 @@ const POINT_KEY = "piaogen.v0.points";
       ])}
       ${sec("测试基线", [
         row("用户主流程", "118/118", "浏览器内点击、建案、导出与回执"),
-        row("主流程冒烟", "OK", "首屏、六栏、导入、案卷、报告"),
+        row("主流程冒烟", "OK", "首屏、五栏、导入、案卷、报告"),
         row("真实订单样例", "40/40", "结构已脱敏，只验证字段与规则"),
         row("订单样本", "19/19", "订单页字段与分拣"),
         row("内置 Agent", "18/18", "七类意图、槽位补齐、建案跳转"),
@@ -8364,7 +8540,8 @@ curl -s -X POST …/piaogen-mcp -H "Content-Type: application/json" \\
   }
 
   function renderSettings() {
-    $("#settingCount").textContent = String(state.tickets.length);
+    const settingCount = $("#settingCount");
+    if (settingCount) settingCount.textContent = String(state.tickets.length);
     const open = $("#openAnnual");
     if (open) open.onclick = () => openReport("week");
     const rules = $("#openRules");
@@ -8523,6 +8700,65 @@ curl -s -X POST …/piaogen-mcp -H "Content-Type: application/json" \\
   function bind() {
     $$("[data-nav]").forEach((button) => button.addEventListener("click", () => show(button.dataset.nav)));
     $$("[data-back]").forEach((button) => button.addEventListener("click", () => show(button.dataset.back)));
+    $$("#assetsSeg [data-assets-tab]").forEach((button) => button.addEventListener("click", () => show(button.dataset.assetsTab)));
+    if ($("#assetsImport")) $("#assetsImport").addEventListener("click", () => show("import"));
+    if ($("#casesReport")) $("#casesReport").addEventListener("click", () => openReport("week"));
+    if ($("#elderOff")) $("#elderOff").addEventListener("click", () => {
+      state.settings.elder = false;
+      saveSettings();
+      applySettings();
+      renderSettings();
+      toast("长辈模式已关");
+    });
+    if ($("#aiForm")) {
+      $("#aiForm").addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (AGENT_STATE.busy) return;
+        const input = $("#aiInput");
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = "";
+        agentTurn(text);
+      });
+      $("#aiMic").addEventListener("click", () => voiceTo($("#aiInput"), (text) => { if (!AGENT_STATE.busy) agentTurn(text); }));
+      $("#aiConfigBtn").addEventListener("click", openAiConfigSheet);
+      $("#aiDemoBtn").addEventListener("click", agentDemoSheet);
+      $("#aiSmartBtn").addEventListener("click", toggleAgentMode);
+      $('[data-screen="ai"]').addEventListener("click", (event) => {
+        const chip = event.target.closest("[data-agent-chip]");
+        if (chip) { agentTurn(chip.dataset.agentChip); return; }
+        const act = event.target.closest("[data-agent-act]");
+        if (act) agentAct(act.dataset.agentAct);
+      });
+    }
+    if ($("#buddyBtn")) {
+      $("#buddyBtn").addEventListener("click", () => {
+        const panel = $("#buddyPanel");
+        if (panel && !panel.hidden) closeBuddy(); else openBuddy();
+      });
+      $("#buddyClose").addEventListener("click", closeBuddy);
+      $("#buddyFull").addEventListener("click", () => { closeBuddy(); show("ai"); });
+      $("#buddyForm").addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (AGENT_STATE.busy) return;
+        const input = $("#buddyInput");
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = "";
+        AGENT_STATE.view = "buddy";
+        agentTurn(text);
+      });
+      $("#buddyPanel").addEventListener("click", (event) => {
+        const chip = event.target.closest("[data-agent-chip]");
+        if (chip) { AGENT_STATE.view = "buddy"; agentTurn(chip.dataset.agentChip); return; }
+        const act = event.target.closest("[data-agent-act]");
+        if (act) { closeBuddy(); agentAct(act.dataset.agentAct); }
+      });
+    }
+    document.addEventListener("click", (event) => {
+      const ask = event.target.closest("[data-ask-ai]");
+      if (ask) { event.preventDefault(); askBuddy(ask.dataset.askAi); }
+    });
     if ($("#agentBtn")) $("#agentBtn").addEventListener("click", openAgent);
     if ($("#sheetBody")) $("#sheetBody").addEventListener("click", (event) => {
       const chip = event.target.closest("[data-agent-chip]");

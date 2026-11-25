@@ -17,7 +17,7 @@
     <span class="doc-mark">票根</span>
   </nav>
 
-  <p class="doc-kicker">票根 · V10.7</p>
+  <p class="doc-kicker">票根 · V10.8</p>
   <h1>核验与边界</h1>
   <p class="doc-meta">核对日期：2026-11-25　·　这一页只写能当场复核的事实</p>
 
@@ -26,9 +26,10 @@
   <h2>1. 这个作品现在是什么</h2>
   <ul>
     <li>可安装的 Web 应用（PWA），纯静态、无后端、无账号；数据只存本机 localStorage。</li>
-    <li>六栏：今天 / 案卷 / 资金 / 资产 / 导入 / 我的；消费权利与资金售后共用同一套案卷、证据、回执引擎。</li>
+    <li>五栏：今天 / 案卷 / 资产 / 助手 / 我的；资产与资金售后在同一页用分段切换，导入并入今天与资产，消费权利与资金售后共用同一套案卷、证据、回执引擎。</li>
     <li>可被调用：本地 MCP server 七个工具（含 <code>policy.parse</code>），协议 <code>initialize → tools/list → tools/call</code>；另附本地 JSON-RPC over HTTP 桥（只绑 127.0.0.1）与<strong>公网只读端点</strong>（CloudBase，已上线，示例数据、限流、CORS 白名单）。</li>
-    <li>内置规则 Agent（顶栏 ✦）：七类意图——查到期、资金售后、权利窗口、材料准备、本月支出、会员年费、快过期券；“帮我排今天”会同时查到期、资金截止、证据缺口与周期扣款，排成 3 件事并给动作；逐轮补齐金额与日期，不联网、不需要 Key，支持语音输入。</li>
+    <li>内置规则 Agent（助手栏、顶栏 ✦ 与悬浮小票灵）：七类意图——查到期、资金售后、权利窗口、材料准备、本月支出、会员年费、快过期券；“帮我排今天”会同时查到期、资金截止、证据缺口与周期扣款，排成 3 件事并给动作；逐轮补齐金额与日期，不联网、不需要 Key，支持语音输入。</li>
+    <li>助手不再只是一个对话框：底部「助手」是完整对话页；每个页面右下角有悬浮的「小票灵」，按当前页给建议；这张票、案卷、导入、资金与办结页都有「问小票灵」按钮，带着当前场景直接问；同一段对话在悬浮窗与完整页之间接续，不清空。</li>
     <li>智能模式：可选外接任意 OpenAI 兼容模型（含本机 Ollama）。模型只调用七个本地只读工具（到期清单、搜案卷、读案卷、资金规则、材料清单、查规则、算截止日），每轮输出 JSON；金额与日期必须来自工具结果或你的原话，未核对数字会标黄；失败自动回落本地规则。</li>
     <li>没有 Key 也能看智能模式怎么工作：助手内有“协议示例”，展示模型如何先查案卷、再算截止日、最后给结论；示例标明不是实时模型输出。</li>
     <li>支付后入口已实现 URL 参数契约：<code>?from=afterpay&amp;merchant=…&amp;amount=…&amp;order=…</code>，同一交易号不重复建案；PWA 支持系统分享（<code>share_target</code>），分享文本会打开立案框。</li>
@@ -88,6 +89,7 @@
     <li><code>v106_smoke.py</code>：39 / 39（收件箱六类识别、订单号、去重与动作、自定义提醒增改删与 <code>.ics</code>、年付周期换算、家庭年度、打印、备份恢复、320 无溢出）</li>
     <li><code>testkit_smoke.py</code>：26 / 26（5 个任务自动判定、评分、导出、无 PII、390/1440 无溢出）
     <li><code>v107_smoke.py</code>：15 / 15（预付卡七日窗口与金额、窗口外不倒计时、签收异议 72 小时与 12305、转支付案卷、续费提醒要素落盘、周/月/季/年订阅识别）</li>
+    <li><code>v108_smoke.py</code>：59 / 59（五栏导航、资产/资金合并与返回落点、导入并入今天、助手页、悬浮小票灵与场景带入、我的瘦身、长辈模式实测字号与减负、320–1440 无横向溢出）</li>
     <li><code>cloudfunctions/piaogen-alipay/selftest.js</code>：10 / 10（密钥头、参数排序、签名验签、篡改拒绝、响应截取、字段裁剪、缺凭据、方法与订单号校验）</li>
     <li><code>parse_smoke.py</code>：11 / 11（金额行优先级、千分位、CSV 导出、重复备份去重）</li>
     <li><code>mcp_smoke.py</code>：13 / 13；<code>mcp_store_smoke.py</code>：9 / 9（落盘、重启回放、off 模式、损坏备份）；<code>mcp_http_smoke.py</code>：6 / 6；<code>policy_ocr_smoke.py</code>：18 / 18；<code>offline_smoke.py</code>：4 / 4；<code>a11y_smoke.py</code>：8 / 8；<code>batch_import_smoke.py</code>：5 / 5</li>

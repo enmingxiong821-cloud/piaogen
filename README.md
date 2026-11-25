@@ -169,7 +169,7 @@
 - **核验与边界**：设置里一页展示规则条数、测试基线、数据与 AI 状况、已知局限；数字来自当天实跑。
 - **可选 AI 建议**：默认关闭；用户自填 OpenAI 兼容端点与 Key；发送前预览，金额/日期默认不发；输出只建议、只进备注，不改事实；支持过期、失败、数字校验与长辈模式隐藏。
 - **双时钟一致**：今天页三行时钟改为取同组窗口里最急的一条（三包退货优先于 7 天无理由），页头与卡片天数不再出现 1 天 / 3 天的错位；次要窗口以小字并列显示。
-- **验收**：`test_users_smoke.py` 118/118；`smoke.py` OK；`real_smoke.py` 40/40；`order_samples_smoke.py` 19/19；`mcp_smoke.py` 13/13；`toolbox_smoke.py` 53/53；`v105_smoke.py` 40/40；`v106_smoke.py` 39/39；`testkit_smoke.py` 26/26；`v107_smoke.py` 15/15；`v103_smoke.py` 21/21；适配层 `selftest.js` 10/10；公网 MCP `selftest.js` 14/14；本地 `live_check.py` 35/35；`doc_check.py` 通过。
+- **验收**：`test_users_smoke.py` 118/118；`smoke.py` OK；`real_smoke.py` 40/40；`order_samples_smoke.py` 19/19；`mcp_smoke.py` 13/13；`toolbox_smoke.py` 55/55；`v105_smoke.py` 40/40；`v106_smoke.py` 39/39；`testkit_smoke.py` 26/26；`v107_smoke.py` 15/15；`v103_smoke.py` 21/21；适配层 `selftest.js` 10/10；公网 MCP `selftest.js` 14/14；本地 `live_check.py` 35/35；`doc_check.py` 通过。
 - **交付状态**：V10.7 已部署（sw `piaogen-v10-7`）：GitHub Pages commit `95194b5`、CloudBase 72 文件 `--verify` 通过；公网 GitHub `live_check` 35/35、`policy_ocr` 18/18、`offline` 4/4、`batch_import` 5/5，CloudBase `live_check` 35/35；公网只读 MCP `…/piaogen-mcp/health` 返回 `ok:true`。GitHub Pages 主链接 https://enmingxiong821-cloud.github.io/piaogen/ ，CloudBase 国内备用。
 
 ## 2026-11-21 P0 真实性修正（已落地）

@@ -369,14 +369,33 @@
   function copySummary() {
     const lines = db.sessions.map((s) => {
       const sum = summary(s);
-      return `${s.code}\t${sum.done}/${sum.total}\t中位 ${fmt(sum.med)}\t${s.ratings ? `懂${s.ratings.clear}/用${s.ratings.useful}/再${s.ratings.again}` : "未评分"}\t${s.note || ""}`;
+      const head = `【${s.code}】完成 ${sum.done}/${sum.total} · 中位 ${fmt(sum.med)} · ${s.ratings ? `懂${s.ratings.clear} / 用${s.ratings.useful} / 再${s.ratings.again}` : "未评分"}`;
+      const tasks = (s.tasks || []).map((t) => {
+        const dur = t.endedAt ? Math.max(0, Math.round((t.endedAt - t.startedAt) / 1000)) : null;
+        const state = t.completed ? "完成" : t.endedAt ? "没完成" : "未做";
+        return `- ${t.title || t.id}：${state}${dur !== null ? ` ${dur}s` : ""}${t.hints ? ` · 提示 ${t.hints} 次` : ""}`;
+      }).join("\n");
+      return [head, tasks, s.note ? `备注：${s.note}` : ""].filter(Boolean).join("\n");
     });
-    const text = ["编号\t完成\t中位用时\t评分\t备注", ...lines].join("\n");
+    const text = ["票根 · 真人测试汇总", `共 ${db.sessions.length} 位`, "", ...lines].join("\n\n");
+    const done = () => { if (window.PGApp) window.PGApp.toast("汇总已复制，直接粘贴发送"); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => { if (window.PGApp) window.PGApp.toast("汇总已复制"); }, () => {});
+      navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
     }
   }
 
+  function fallbackCopy(text, done) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:-1000px;left:-1000px;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); done(); } catch (e) { if (window.PGApp) window.PGApp.toast("复制失败，请用「导出全部 JSON」"); }
+    ta.remove();
+  }
   function bind() {
     const start = $("#tkStart");
     if (start) start.onclick = () => {

@@ -23,26 +23,34 @@
   <meta name="twitter:title" content="票根 · 付款之后，权利开始计时" />
   <meta name="twitter:description" content="付款之后，权利开始计时。消费售后、退款、拒付、续费、预付卡、分期与保险，都能办成一宗有证据、有路径、有回执的案卷。" />
   <meta name="twitter:image" content="https://enmingxiong821-cloud.github.io/piaogen/og.png" />
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="toolbox.css" />
-  <link rel="stylesheet" href="testkit.css" />
-  <link rel="stylesheet" href="v109.css" />
+  <link rel="stylesheet" href="styles.css?v=110" />
+  <link rel="stylesheet" href="toolbox.css?v=110" />
+  <link rel="stylesheet" href="testkit.css?v=110" />
+  <link rel="stylesheet" href="v109.css?v=110" />
+  <link rel="stylesheet" href="v110.css?v=110" />
   <script src="vendor/tesseract.min.js" defer></script>
   <script src="vendor/pdf.min.js" defer></script>
   <script src="vendor/jszip.min.js" defer></script>
-  <script src="realdata.js" defer></script>
-  <script src="rules.js" defer></script>
-  <script src="agents.js" defer></script>
-  <script src="app.js" defer></script>
-  <script src="toolbox-data.js" defer></script>
-  <script src="toolbox.js" defer></script>
-  <script src="library.js" defer></script>
-  <script src="health.js" defer></script>
-  <script src="datepicker.js" defer></script>
-  <script src="testkit.js" defer></script>
+  <script src="realdata.js?v=110" defer></script>
+  <script src="rules.js?v=110" defer></script>
+  <script src="agents.js?v=110" defer></script>
+  <script src="app.js?v=110" defer></script>
+  <script src="toolbox-data.js?v=110" defer></script>
+  <script src="toolbox.js?v=110" defer></script>
+  <script src="library.js?v=110" defer></script>
+  <script src="health.js?v=110" defer></script>
+  <script src="datepicker.js?v=110" defer></script>
+  <script src="testkit.js?v=110" defer></script>
   <script>
     if ("serviceWorker" in navigator) {
-      addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+      addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((reg) => {
+          reg.update().catch(() => {});
+          const again = () => reg.update().catch(() => {});
+          setInterval(again, 30 * 60 * 1000);
+          document.addEventListener("visibilitychange", () => { if (!document.hidden) again(); });
+        }).catch(() => {});
+      });
     }
   </script>
 </head>
@@ -523,8 +531,9 @@
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.09A1.7 1.7 0 0 0 8.95 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.09A1.7 1.7 0 0 0 4.6 8.95a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.95 4.6 1.7 1.7 0 0 0 9.98 3.04V3h4v.09A1.7 1.7 0 0 0 15.05 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.95a1.7 1.7 0 0 0 1.56 1.03H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg>
             </button>
           </div>
+          <div class="ai-status" id="aiStatus" aria-live="polite"></div>
           <div class="ai-intro">
-            <p><b>不联网也能用。</b>本地规则先查你的案卷、到期日与证据缺口，再把结果变成下一步，也能查权利库与健康账本；配置模型后可切到智能模式，模型只调只读工具。</p>
+            <p><b>不联网也能用。</b>本地规则先查你的案卷、到期日与证据缺口，再把结果变成下一步，也能查权利库与健康账本。<b>接入自己的大模型后</b>，可以随便问、让它起草话术；模型只能调只读工具，不改金额、日期和状态。</p>
             <div class="ai-quick" aria-label="常用问题">
               <button type="button" data-agent-chip="帮我排今天">排今天</button>
               <button type="button" data-agent-chip="这周先办什么">查到期</button>

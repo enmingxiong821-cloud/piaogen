@@ -5100,6 +5100,7 @@ const POINT_KEY = "piaogen.v0.points";
 
   function renderAgent() {
     if (AGENT_STATE.view === "buddy") { renderBuddy(); return; }
+    document.body.classList.toggle("agent-busy", !!AGENT_STATE.busy);
     const page = AGENT_STATE.view === "page";
     const log = document.getElementById(page ? "aiLog" : "agentLog");
     if (!log) return;
@@ -5134,6 +5135,36 @@ const POINT_KEY = "piaogen.v0.points";
     }
     const input = $("#aiInput");
     if (input) input.placeholder = smart ? "说一句；模型会先查本地案卷…" : "说一句要办的事…";
+    renderAiStatus();
+    document.body.classList.toggle("agent-busy", !!AGENT_STATE.busy);
+  }
+
+  function renderAiStatus() {
+    const el = $("#aiStatus");
+    if (!el) return;
+    const cfg = aiConfig();
+    const ready = !!(cfg.endpoint && cfg.model);
+    const smart = AGENT_STATE.mode === "smart";
+    if (!ready) {
+      el.className = "ai-status off";
+      el.innerHTML = `<button type="button" id="aiStatusBtn">
+        <span class="ai-status-dot" aria-hidden="true"></span>
+        <span class="ai-status-copy"><b>接入你的大模型</b><small>DeepSeek / 通义 / Kimi / 智谱 / OpenAI / 本机 Ollama · Key 只存这台设备</small></span>
+        <span class="ai-status-go">去接入 ›</span>
+      </button>`;
+    } else {
+      el.className = "ai-status " + (smart ? "on" : "ready");
+      el.innerHTML = `<button type="button" id="aiStatusBtn">
+        <span class="ai-status-dot" aria-hidden="true"></span>
+        <span class="ai-status-copy"><b>${smart ? "智能模式已开" : "模型已接入"}</b><small>${escapeHtml(cfg.model)} · ${smart ? "模型会先查本地案卷" : "开启智能模式后使用"}</small></span>
+        <span class="ai-status-go">${smart ? "设置" : "开启"} ›</span>
+      </button>`;
+    }
+    const btn = $("#aiStatusBtn");
+    if (btn) btn.onclick = () => {
+      if (ready && !smart) toggleAgentMode();
+      else openAiConfigSheet();
+    };
   }
 
   function toggleAgentMode() {
@@ -5407,6 +5438,46 @@ const POINT_KEY = "piaogen.v0.points";
     };
   }
 
+  function agentFindWho() {
+    AGENT_STATE.context = Object.assign({}, AGENT_STATE.context, { tool: "find" });
+    return {
+      role: "assistant",
+      html: `<p>「找谁」按 30 类麻烦整理：每类先找谁、走哪条路径、带什么材料，能直接复制发给对方。常见的顺序是：</p>
+        <ul class="agent-list">
+          <li>商品/服务问题：先找商家客服，再找平台介入</li>
+          <li>快递丢损/签收异议：快递员 → 企业客服 → 12305</li>
+          <li>价格/预付卡/虚假宣传：12315 或全国 12315 平台</li>
+          <li>银行扣款争议：发卡行 → 支付渠道 → 监管投诉</li>
+        </ul>
+        <p class="agent-note">号码与入口会变，以官方页面为准；票根不代打电话、不代提交。</p>`,
+      trace: [["工具", "找谁 · 30 类路径"]],
+      actions: [{ label: "打开找谁", act: "toolbox" }],
+      chips: ["还缺什么证据", "帮我写投诉", "退款还没到"]
+    };
+  }
+
+  function agentTicketAnswer(ticket) {
+    const win = PG.priority(ticket);
+    const evidence = ticket.evidence || [];
+    const ready = evidence.filter((e) => e.status !== "needs").length;
+    const missing = (ticket.missing || []).filter(Boolean);
+    const lines = [];
+    lines.push(`金额 <b>${money(ticket.amount)}</b> · 购买日 ${escapeHtml(ticket.date || "待补")}`);
+    if (win) lines.push(`还能办：<b>${escapeHtml(win.label)}</b>，还剩 <em>${win.daysLeft} 天</em>${win.source ? `；依据：${escapeHtml(String(win.source).slice(0, 50))}` : ""}`);
+    else lines.push("暂无已确认的截止日：先补订单页或发票，再判断。");
+    lines.push(`证据 <b>${ready}/${Math.max(evidence.length, ready)}</b>${missing.length ? `，还缺 ${escapeHtml(missing.slice(0, 3).join("、"))}` : ""}`);
+    AGENT_STATE.context = Object.assign({}, AGENT_STATE.context, { ticket });
+    return {
+      role: "assistant",
+      html: `<p><b>${escapeHtml(ticket.merchant || "商家待确认")}</b> · ${escapeHtml(ticket.product || "商品待确认")}：</p>
+        <ul class="agent-list">${lines.map((x) => `<li>${x}</li>`).join("")}</ul>
+        <p class="agent-note">期限按订单日期和公开规则计算；以合同与商家告知为准。</p>`,
+      trace: [["工具", "案卷 + 权利窗口 + 证据门"]],
+      actions: [{ label: "打开案卷", act: "case" }, { label: "准备材料", act: "toolboxComplaint" }],
+      chips: ["还缺什么证据", "下一步找谁", "帮我写投诉"]
+    };
+  }
+
   function agentMaterials() {
     const ticket = (AGENT_STATE.context && AGENT_STATE.context.ticket) || state.current || caseTickets()[0];
     if (!ticket) {
@@ -5440,6 +5511,33 @@ const POINT_KEY = "piaogen.v0.points";
       const fin = detectFinanceIntent(merged) || prev;
       if (fin) return agentFinance(fin, merged);
     }
+    if (/^(你好|您好|hi|hello|在吗|嗨|哈喽)[！!。.？?\s]*$/i.test(t) || /^(早上好|下午好|晚上好)/.test(t)) return agentGreeting();
+    if (/^(谢谢|多谢|谢谢你|好的|好|明白了|收到|可以)[！!。.\s]*$/.test(t)) {
+      return { role: "assistant", html: "<p>好。有新的票或扣款，随时叫我。</p>", trace: [], chips: ["帮我排今天", "这周先办什么"] };
+    }
+    if (/你是谁|你叫什么|你是什么|自我介绍/.test(t)) {
+      return {
+        role: "assistant",
+        html: `<p>我是票根助手：本地规则先查你的案卷、到期日和证据缺口；接入模型后可以自由问答。不做法律、金融、医疗结论，也不替你提交。</p>`,
+        trace: [["身份", "票根 · 付款后的权利回执层"]],
+        actions: [{ label: "接入模型", act: "aiConfig" }],
+        chips: ["你能做什么", "帮我排今天"]
+      };
+    }
+    if (/你能做什么|会什么|能干嘛|能做什么|怎么用|使用说明|帮助|功能/.test(t)) return agentCapabilities();
+    if (/接入模型|大模型|api\s*key|apikey|智能模式|配置模型|哪个模型|换模型|模型设置/.test(t)) return agentModelHelp();
+    if (/找谁|联系谁|打哪个电话|哪个部门|12315|12305|12345|投诉电话/.test(t)) return agentFindWho();
+    const ctxTicket = AGENT_STATE.context && AGENT_STATE.context.ticket;
+    if (ctxTicket && /(它|这宗|这个|那宗|这笔|这张票|这个票)/.test(t)) return agentTicketAnswer(ctxTicket);
+    if (/^(下一步|然后呢|接着呢|怎么办|还缺什么|缺什么|要带什么)[？?。！!\s]*$/.test(t)) {
+      return (AGENT_STATE.context && AGENT_STATE.context.ticket) ? agentMaterials() : agentDayPlan();
+    }
+    if (/(帮我写|起草|写一段|写个|写份|写一版).*(投诉|诉求|说明|话术|申请|邮件|邮件)/.test(t)) return agentDraftComplaint();
+    if (/帮我准备材料|准备材料|材料包|要带什么材料/.test(t)) return agentMaterials();
+    if (/(无理由|定金|订金|犹豫期|价保|保价|三包|保修期|预付卡|储值卡|解约|怎么取消|取消.*(续费|会员|订阅))/.test(t) && !/(没到|没收到|又扣|扣了|退我|要退)/.test(t)) {
+      const hit = agentRightsLookup(t);
+      if (hit) return hit;
+    }
     if (/帮我排|排今天|安排今天|今天先办|优先级/.test(t)) return agentDayPlan();
     if (/健康|体检|复诊|拿药|看病|医药费|医保|报销/.test(t) && !/退款|续费|价保/.test(t)) return agentHealth(t);
     if (/花了多少|花了多少钱|支出|消费.*多少|这个月.*花|上月.*花|上个月.*花/.test(t)) return agentSpend(t);
@@ -5459,11 +5557,19 @@ const POINT_KEY = "piaogen.v0.points";
     }
     if (/投诉|材料|话术|怎么写|准备|证据/.test(t)) return agentMaterials(t);
     if (/退|换|保修|维修|价保|定金|坏了|不好用|过期|不给退/.test(t)) return agentRights(t);
+    const c = agentCounts();
+    const hints = [];
+    if (c.nearest) hints.push(`最急：<b>${escapeHtml(c.nearest.merchant)}</b> · ${escapeHtml(c.nearest.label)} · ${c.nearest.days} 天`);
+    if (c.fin) hints.push(`资金售后在办 <b>${c.fin}</b> 宗`);
+    if (!hints.length) hints.push("还没有案卷，先拍一张票或粘一段账单");
     return {
       role: "assistant",
-      html: `<p>我可以做四件事：查到期、把售后说成案卷、判断权利窗口、列材料与下一步。换一句更具体的话，或点下面的例子。</p>`,
-      trace: [["说明", "本地规则 Agent，不调用外部模型"]],
-      chips: ["这周先办什么", "退款还没到", "自动续费又扣了", "空气炸锅坏了"]
+      html: `<p>这句我还没对上具体事项。可以换个说法，或直接点下面的例子。</p>
+        <ul class="agent-list">${hints.map((x) => `<li>${x}</li>`).join("")}</ul>
+        <p class="agent-note">想要自由问答，可以接入自己的模型；本地模式只回答有规则依据的事。</p>`,
+      trace: [["说明", "本地规则 Agent，未调用外部模型"]],
+      actions: [{ label: "接入模型", act: "aiConfig" }],
+      chips: c.nearest ? ["帮我排今天", "还缺什么证据", "你能做什么"] : ["这周先办什么", "退款还没到", "你能做什么"]
     };
   }
 
@@ -5481,6 +5587,136 @@ const POINT_KEY = "piaogen.v0.points";
     };
   }
 
+  function agentCounts() {
+    let urgent = 0;
+    let nearest = null;
+    caseTickets().forEach((ticket) => {
+      (ticket.windows || []).forEach((w) => {
+        if (w.applicability === "applicable" && w.status !== "closed" && typeof w.daysLeft === "number" && w.daysLeft >= 0) {
+          urgent += 1;
+          if (!nearest || w.daysLeft < nearest.days) nearest = { days: w.daysLeft, label: w.label, merchant: ticket.merchant || "商家待确认" };
+        }
+      });
+    });
+    const fin = (state.finance || []).filter((c) => c.status !== "resolved" && c.deadline).length;
+    const coupons = assetSummary().coupons.filter((c) => c.days !== null && c.days >= 0 && c.days <= 30).length;
+    return { urgent, nearest, fin, coupons, tickets: caseTickets().length };
+  }
+
+  function agentGreeting() {
+    const c = agentCounts();
+    const lines = [];
+    if (c.nearest) lines.push(`最急的是 <b>${escapeHtml(c.nearest.merchant)}</b> 的 ${escapeHtml(c.nearest.label)}，还剩 <em>${c.nearest.days} 天</em>`);
+    if (c.fin) lines.push(`资金售后有 <b>${c.fin}</b> 宗在办`);
+    if (c.coupons) lines.push(`<b>${c.coupons}</b> 张券 30 天内到期`);
+    if (!lines.length) lines.push("现在没有已确认的到期项。拍一张票、粘一段账单，或者直接问我怎么办。");
+    return {
+      role: "assistant",
+      html: `<p class="agent-hello">我在。${c.urgent ? `今天有 <b>${c.urgent}</b> 件已确认的到期项。` : ""}</p>
+        <ul class="agent-list">${lines.map((x) => `<li>${x}</li>`).join("")}</ul>
+        <p class="agent-note">想让我更会聊，可以接入你自己的模型；不接也能用全部规则。</p>`,
+      trace: [["工具", "本地案卷 + 到期 + 资产"]],
+      actions: c.urgent ? [{ label: "排今天", act: "today" }] : [{ label: "去导入", act: "import" }],
+      chips: ["帮我排今天", "你能做什么", "退款还没到", "接入模型"]
+    };
+  }
+
+  function agentCapabilities() {
+    return {
+      role: "assistant",
+      html: `<p class="agent-hello">我能把这四件事办成：</p>
+        <ul class="agent-list">
+          <li><b>排今天</b>：按公开依据的截止日，把最急的 3 件排出来</li>
+          <li><b>说成案卷</b>：退款没到、自动续费、预付卡、分期、保险犹豫期</li>
+          <li><b>查权利</b>：三包、七天无理由、价保、定金、解约路径，附依据</li>
+          <li><b>列材料</b>：证据缺口、下一步找谁、话术草稿</li>
+        </ul>
+        <p class="agent-note">本地模式按规则答；接入模型后可以随便问，模型会先查本地工具再回答，但数字仍以案卷为准。</p>`,
+      trace: [["说明", "本地规则 Agent"], ["模型", aiConfig().model || "未接入"]],
+      actions: [{ label: "接入模型", act: "aiConfig" }],
+      chips: ["帮我排今天", "退货还能不能办", "还缺什么证据", "接入模型"]
+    };
+  }
+
+  function agentModelHelp() {
+    const cfg = aiConfig();
+    return {
+      role: "assistant",
+      html: `<p>接入方式：点下面的「模型设置」，选一个服务商（DeepSeek / 通义 / Kimi / 智谱 / OpenAI / 本机 Ollama），填 Key，点「测试连接」，成功后打开「智能模式」。</p>
+        <ul class="agent-list">
+          <li>Key 只存在这台设备的 localStorage，不进备份、不上传</li>
+          <li>只发送你这句话、案卷摘要和工具结果；图片、卡号、手机号、验证码不发送</li>
+          <li>模型只能调只读工具，不能改金额、日期、状态</li>
+        </ul>
+        <p class="agent-note">${cfg.endpoint ? `当前：${escapeHtml(cfg.model || "未填模型")} · ${escapeHtml(cfg.endpoint)}` : "当前还没接入模型。"}</p>`,
+      trace: [["设置", "模型与隐私"]],
+      actions: [{ label: "模型设置", act: "aiConfig" }, { label: "先不接，用本地", act: "today" }],
+      chips: ["你能做什么", "帮我排今天"]
+    };
+  }
+
+  function agentRightsLookup(text) {
+    const lib = window.PGLibrary;
+    const raw = String(text || "");
+    const base = ["无理由", "七日无理由", "定金", "犹豫期", "价保", "三包", "保修", "预付卡", "自动续费", "续费", "会员", "退货", "换货", "运费险", "分期", "保险"];
+    const alias = [["七天无理由", "七日无理由"], ["7天无理由", "七日无理由"], ["保价", "价保"], ["订金", "定金"], ["储值卡", "预付卡"], ["取消订阅", "自动续费"]];
+    const terms = new Set();
+    base.forEach((term) => {
+      if (raw.includes(term) || raw.includes(term.replace("七日", "七天"))) terms.add(term);
+    });
+    alias.forEach(([from, to]) => { if (raw.includes(from)) terms.add(to); });
+    if (!terms.size || !lib) return null;
+    const termList = Array.from(terms);
+    const items = lib.items();
+    const scored = items.map((item) => {
+      let score = 0;
+      terms.forEach((term) => {
+        if (String(item.title || "").includes(term)) score += 3;
+        if (String(item.tags || "").includes(term)) score += 2;
+        if (String(item.summary || "").includes(term)) score += 1;
+      });
+      return { item, score };
+    }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 3);
+    if (!scored.length) return null;
+    AGENT_STATE.context = Object.assign({}, AGENT_STATE.context, { rightsQuery: termList[0] });
+    const rows = scored.map(({ item }) => `<li><b>${escapeHtml(item.title)}</b>${item.summary ? `<br><span>${escapeHtml(String(item.summary).slice(0, 90))}</span>` : ""}<small>${escapeHtml(item.groupLabel || "")}</small></li>`);
+    return {
+      role: "assistant",
+      html: `<p>权利库里和「${escapeHtml(termList.slice(0, 2).join("、"))}」相关的有这些：</p>
+        <ul class="agent-list">${rows.join("")}</ul>
+        <p class="agent-note">条目只给依据与路径，不下“一定能退”的结论；具体期限以合同和官方原文为准。</p>`,
+      trace: [["工具", "权利库检索"], ["命中", `${scored.length} 条`]],
+      actions: [{ label: "打开权利库", act: "rights" }],
+      chips: ["退货还能不能办", "续费怎么取消", "还缺什么证据"]
+    };
+  }
+
+  function agentDraftComplaint() {
+    const ticket = (AGENT_STATE.context && AGENT_STATE.context.ticket) || state.current || caseTickets()[0];
+    if (!ticket) {
+      return {
+        role: "assistant",
+        html: "<p>先有一张票，我才能按它的事实起草。拍一张订单页，或手动填商家、金额、日期。</p>",
+        actions: [{ label: "去导入", act: "import" }],
+        chips: ["退款还没到", "自动续费又扣了"]
+      };
+    }
+    AGENT_STATE.context = Object.assign({}, AGENT_STATE.context, { ticket });
+    const win = PG.priority(ticket);
+    const date = ticket.date || "下单日期待补";
+    const amount = ticket.amount ? money(ticket.amount) : "金额待补";
+    const product = ticket.product || "所购商品";
+    return {
+      role: "assistant",
+      html: `<p>按这张票的事实，先给一版草稿（可直接改）：</p>
+        <div class="agent-draft">您好，我在 ${escapeHtml(date)} 购买了${escapeHtml(product)}（订单金额 ${escapeHtml(amount)}）。现因商品/服务与约定不符，依据${escapeHtml(win && win.source ? String(win.source).slice(0, 40) : "相关规则")}，希望办理${escapeHtml(win ? win.label : "退货或换货")}。请告知处理时限与所需材料，我会配合提供订单截图与凭证。谢谢。</div>
+        <p class="agent-note">草稿只陈述事实与诉求，不承诺结果；发送前请核对金额、日期与商品名。</p>`,
+      trace: [["工具", "案卷 + 权利窗口"], ["边界", "不代提交"]],
+      actions: [{ label: "打开案卷", act: "case" }, { label: "完整诉求助手", act: "toolboxComplaint" }],
+      chips: ["还缺什么证据", "下一步找谁", "这周先办什么"]
+    };
+  }
+
   function agentAct(act) {
     const ctx = AGENT_STATE.context || {};
     if (act === "today") { closeSheet(); show("today"); return; }
@@ -5492,6 +5728,22 @@ const POINT_KEY = "piaogen.v0.points";
     if (act === "finance") {
       if (ctx.intent) { const intent = ctx.intent; const parsed = ctx.parsed; closeSheet(); financeIntentSheet(intent, parsed); }
       else { closeSheet(); show("finance"); }
+      return;
+    }
+    if (act === "rights") {
+      closeSheet();
+      show("rights");
+      if (ctx.rightsQuery) {
+        const input = $("#rightsSearch");
+        if (input) { input.value = ctx.rightsQuery; input.dispatchEvent(new Event("input", { bubbles: true })); }
+      }
+      return;
+    }
+    if (act === "aiConfig") { openAiConfigSheet(); return; }
+    if (act === "toolbox" || act === "toolboxComplaint") {
+      closeSheet();
+      show("toolbox");
+      if (window.PGToolbox) window.PGToolbox.open(act === "toolboxComplaint" ? "complaint" : (ctx.tool || "list"), "today");
       return;
     }
   }
@@ -5646,7 +5898,7 @@ const POINT_KEY = "piaogen.v0.points";
   }
 
   // ---------- 智能模式：外接 OpenAI 兼容模型，只调用本地只读工具 ----------
-  const AGENT_ACTS = ["today", "import", "bill", "assets", "case", "finance"];
+  const AGENT_ACTS = ["today", "import", "bill", "assets", "case", "finance", "health", "rights", "aiConfig", "toolbox", "toolboxComplaint"];
 
   const AGENT_TOOLS = {
     list_urgent: {
@@ -5832,7 +6084,7 @@ const POINT_KEY = "piaogen.v0.points";
     "你只能使用工具返回的事实：金额、日期、期限、条款、案卷状态都不得编造。",
     "每轮只输出一个 JSON 对象，不要 markdown 代码块，不要多余文字：",
     '{"tool":"工具名","args":{...}} 表示调用工具；',
-    '{"final":{"reply":"给用户的回答","actions":[{"label":"按钮文字","act":"today|import|bill|case|finance"}],"chips":["可选追问"]}} 表示结束。',
+    '{"final":{"reply":"给用户的回答","actions":[{"label":"按钮文字","act":"today|import|bill|assets|case|finance|health|rights|aiConfig|toolbox|toolboxComplaint"}],"chips":["可选追问"]}} 表示结束。',
     "规则：先查工具再回答；最多 3 步；reply 用简体中文，120 字以内，可换行；没有把握就直说缺什么信息；",
     "涉及条款、依据、施行日期，先调 search_rules；涉及天数、截止日，先调 deadline_calc；不要把记忆里的法条当事实。",
     "不做法律、金融、医疗结论；不承诺退款或拒付成功；不代提交、不代收款；不索取卡号、CVV、验证码。",
@@ -8550,51 +8802,108 @@ const POINT_KEY = "piaogen.v0.points";
   function openAiConfigSheet() {
     const cfg = aiConfig();
     const presets = [
-      { id: "deepseek", name: "DeepSeek", endpoint: "https://api.deepseek.com/v1/chat/completions", model: "deepseek-chat" },
-      { id: "qwen", name: "通义千问", endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", model: "qwen-plus" },
-      { id: "kimi", name: "Kimi", endpoint: "https://api.moonshot.cn/v1/chat/completions", model: "moonshot-v1-8k" },
-      { id: "ollama", name: "本机 Ollama", endpoint: "http://127.0.0.1:11434/v1/chat/completions", model: "qwen2.5:7b" }
+      { id: "deepseek", name: "DeepSeek", endpoint: "https://api.deepseek.com/v1/chat/completions", models: ["deepseek-chat", "deepseek-reasoner"], note: "便宜、中文稳" },
+      { id: "qwen", name: "通义千问", endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", models: ["qwen-plus", "qwen-max", "qwen-turbo"], note: "支付宝同生态" },
+      { id: "kimi", name: "Kimi", endpoint: "https://api.moonshot.cn/v1/chat/completions", models: ["moonshot-v1-8k", "moonshot-v1-32k"], note: "长文本" },
+      { id: "zhipu", name: "智谱 GLM", endpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions", models: ["glm-4-flash", "glm-4-plus"], note: "有免费档" },
+      { id: "openai", name: "OpenAI", endpoint: "https://api.openai.com/v1/chat/completions", models: ["gpt-4o-mini", "gpt-4o"], note: "需自备 Key" },
+      { id: "ollama", name: "本机 Ollama", endpoint: "http://127.0.0.1:11434/v1/chat/completions", models: ["qwen2.5:7b", "llama3.1:8b"], note: "不联网、免费" },
+      { id: "custom", name: "自定义", endpoint: "", models: [], note: "任意兼容端点" }
     ];
-    openSheet("模型与隐私", `
-      <p class="sheet-hint">任意 OpenAI 兼容的 /chat/completions 端点。Key 只存本机，不进入备份。</p>
-      <div class="ai-presets" role="group" aria-label="端点预设">
-        ${presets.map((preset) => `<button type="button" data-ai-preset="${preset.id}">${preset.name}</button>`).join("")}
+    const active = presets.find((preset) => preset.endpoint && preset.endpoint === cfg.endpoint);
+    const models = Array.from(new Set((active ? active.models : []).concat(
+      presets.reduce((list, preset) => list.concat(preset.models), [])
+    )));
+    openSheet("接入大模型", `
+      <p class="sheet-hint">选一个服务商，填 Key，点「测试连接」。只支持 OpenAI 兼容的 /chat/completions 端点；Key 只存这台设备，不进入备份。</p>
+      <div class="ai-presets" role="group" aria-label="服务商">
+        ${presets.map((preset) => `<button type="button" data-ai-preset="${preset.id}" class="${active && active.id === preset.id ? "on" : ""}">
+          <b>${preset.name}</b><small>${preset.note}</small>
+        </button>`).join("")}
       </div>
-      ${field("端点", "aiEndpoint", cfg.endpoint, "text", "http://127.0.0.1:11434/v1/chat/completions")}
-      ${field("模型", "aiModel", cfg.model, "text", "例如 qwen2.5:7b / gpt-4o-mini")}
-      ${field("Key（可留空）", "aiKey", cfg.key, "password", "只存本机，不进入备份")}
-      <p class="annual-note">本地 Ollama 需设置 OLLAMA_ORIGINS 允许浏览器访问；首次加载 12B/14B 模型可能 30–60 秒，本机端点已放宽到 90 秒。云端端点若不允许跨域，会显示失败，规则结论仍可用。</p>
-      <div class="sheet-actions">
-        <button class="btn primary" id="aiCfgSave" type="button">保存</button>
+      ${field("端点", "aiEndpoint", cfg.endpoint, "text", "https://api.deepseek.com/v1/chat/completions")}
+      ${field("模型", "aiModel", cfg.model, "text", "例如 deepseek-chat / qwen-plus / qwen2.5:7b")}
+      <datalist id="aiModelList">${models.map((m) => `<option value="${escapeHtml(m)}"></option>`).join("")}</datalist>
+      ${field("Key（Ollama 可留空）", "aiKey", cfg.key, "password", "只存本机，不进入备份")}
+      <p class="ai-cfg-status" id="aiCfgStatus" aria-live="polite">${cfg.endpoint ? `已保存：${escapeHtml(cfg.model || "未填模型")}` : "还没接入。先选服务商。"}</p>
+      <p class="annual-note">本地 Ollama 需设置 OLLAMA_ORIGINS 允许浏览器访问；首次加载 12B/14B 模型可能 30–60 秒。云端端点若不允许跨域，会显示失败，本地规则仍可用。</p>
+      <div class="sheet-actions ai-cfg-actions">
+        <button class="btn primary" id="aiCfgSaveOn" type="button">测试并启用</button>
         <button class="btn ghost" id="aiCfgTest" type="button">测试连接</button>
+        <button class="btn ghost" id="aiCfgSave" type="button">仅保存</button>
         <button class="btn ghost" id="aiCfgOllama" type="button">检测本机 Ollama</button>
         <button class="btn ghost" id="aiCfgClear" type="button">清除 Key</button>
-        <button class="btn ghost" id="aiCfgOff" type="button">关闭 AI 建议</button>
       </div>`, () => {
+      const modelInput = $("#f-aiModel");
+      if (modelInput) modelInput.setAttribute("list", "aiModelList");
+      const setStatus = (html, kind) => {
+        const el = $("#aiCfgStatus");
+        if (!el) return;
+        el.className = "ai-cfg-status" + (kind ? " " + kind : "");
+        el.innerHTML = html;
+      };
+      const readForm = () => ({
+        endpoint: $("#f-aiEndpoint").value.trim(),
+        model: $("#f-aiModel").value.trim(),
+        key: $("#f-aiKey").value
+      });
       $$("#sheetBody [data-ai-preset]").forEach((btn) => {
         btn.onclick = () => {
           const preset = presets.find((item) => item.id === btn.dataset.aiPreset);
           if (!preset) return;
-          $("#f-aiEndpoint").value = preset.endpoint;
-          $("#f-aiModel").value = preset.model;
+          if (preset.endpoint) $("#f-aiEndpoint").value = preset.endpoint;
+          if (preset.models.length) $("#f-aiModel").value = preset.models[0];
+          $$("#sheetBody [data-ai-preset]").forEach((b) => b.classList.toggle("on", b === btn));
+          setStatus(preset.endpoint ? `已选 ${preset.name} · ${preset.models[0] || "自填模型"}` : "自定义：填任意兼容端点", "");
         };
       });
-      $("#aiCfgTest").onclick = async () => {
-        const endpoint = $("#f-aiEndpoint").value.trim();
-        const model = $("#f-aiModel").value.trim();
-        const key = $("#f-aiKey").value;
-        if (!endpoint) return toast("先填端点");
+      const testConn = async () => {
+        const form = readForm();
+        if (!form.endpoint) { setStatus("先填端点。", "warn"); return false; }
+        if (!form.model) { setStatus("先填模型名。", "warn"); return false; }
+        setStatus("正在连接…", "busy");
         const started = Date.now();
+        const controller = new AbortController();
+        const local = /(?:127\.0\.0\.1|localhost)(?::\d+)?/i.test(form.endpoint);
+        const timer = setTimeout(() => controller.abort(), local ? 90000 : 20000);
         try {
-          const res = await fetch(endpoint, {
+          const res = await fetch(form.endpoint, {
             method: "POST",
-            headers: Object.assign({ "content-type": "application/json" }, key ? { authorization: `Bearer ${key}` } : {}),
-            body: JSON.stringify({ model, messages: [{ role: "user", content: "只回复 OK" }], max_tokens: 16 })
+            headers: Object.assign({ "content-type": "application/json" }, form.key ? { authorization: `Bearer ${form.key}` } : {}),
+            body: JSON.stringify({ model: form.model, temperature: 0, max_tokens: 24, messages: [{ role: "user", content: "只回复：连接成功" }] }),
+            signal: controller.signal
           });
-          toast(res.ok ? `连接成功 · ${Date.now() - started}ms` : `连接失败 · HTTP ${res.status}`);
+          if (!res.ok) {
+            const map = { 400: "请求格式或模型名不对", 401: "Key 不对或没填", 403: "Key 没有这个模型的权限", 404: "端点或模型名不对", 429: "请求太频繁，稍后再试" };
+            let detail = "";
+            try { detail = (await res.text()).slice(0, 90); } catch (error) { detail = ""; }
+            setStatus(`连接失败 · HTTP ${res.status}${map[res.status] ? " · " + map[res.status] : ""}${detail ? `<small>${escapeHtml(detail)}</small>` : ""}`, "warn");
+            return false;
+          }
+          const data = await res.json();
+          const msg = data && data.choices && data.choices[0] && data.choices[0].message;
+          const reply = msg && typeof msg.content === "string" ? msg.content.trim().slice(0, 40) : "";
+          setStatus(`连接成功 · ${Date.now() - started}ms · ${escapeHtml(form.model)}${reply ? `<small>模型回复：${escapeHtml(reply)}</small>` : ""}`, "ok");
+          return true;
         } catch (error) {
-          toast("连接失败：端点不通或被跨域拦截");
+          const aborted = error && error.name === "AbortError";
+          setStatus(aborted ? "连接超时：本机模型首次加载较慢，或端点没有响应。" : "连不上：端点不通，或被服务商的跨域策略拦截。", "warn");
+          return false;
+        } finally {
+          clearTimeout(timer);
         }
+      };
+      $("#aiCfgTest").onclick = testConn;
+      $("#aiCfgSaveOn").onclick = async () => {
+        const ok = await testConn();
+        if (!ok) { toast("连接没通，先检查端点、模型和 Key"); return; }
+        const form = readForm();
+        saveAiConfig({ endpoint: form.endpoint, model: form.model, key: form.key, enabled: true, agentSmart: true });
+        AGENT_STATE.mode = "smart";
+        closeSheet();
+        renderSettings();
+        renderAiMeta();
+        toast("模型已接入，智能模式已开启");
       };
       $("#aiCfgOllama").onclick = async () => {
         const controller = new AbortController();
@@ -8603,37 +8912,31 @@ const POINT_KEY = "piaogen.v0.points";
           const res = await fetch("http://127.0.0.1:11434/api/tags", { signal: controller.signal });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
-          const models = (Array.isArray(data.models) ? data.models : []).map((m) => m.name).filter(Boolean);
-          if (!models.length) { toast("Ollama 在跑，但还没有模型"); return; }
+          const list = (Array.isArray(data.models) ? data.models : []).map((m) => m.name).filter(Boolean);
+          if (!list.length) { setStatus("Ollama 在跑，但还没有模型：先 ollama pull qwen2.5:7b", "warn"); return; }
           $("#f-aiEndpoint").value = "http://127.0.0.1:11434/v1/chat/completions";
-          $("#f-aiModel").value = models[0];
-          toast(`已填入本机模型 ${models[0]}`);
-        } catch {
-          toast("没检测到本机 Ollama；先运行 ollama serve");
+          $("#f-aiModel").value = list[0];
+          const datalist = $("#aiModelList");
+          if (datalist) datalist.innerHTML = list.map((m) => `<option value="${escapeHtml(m)}"></option>`).join("");
+          setStatus(`检测到 ${list.length} 个本机模型，已选 ${escapeHtml(list[0])}`, "ok");
+        } catch (error) {
+          setStatus("没检测到本机 Ollama：先运行 ollama serve，并允许浏览器跨域访问。", "warn");
         } finally {
           clearTimeout(timer);
         }
       };
       $("#aiCfgSave").onclick = () => {
-        saveAiConfig({
-          endpoint: $("#f-aiEndpoint").value.trim(),
-          model: $("#f-aiModel").value.trim(),
-          key: $("#f-aiKey").value
-        });
+        const form = readForm();
+        saveAiConfig({ endpoint: form.endpoint, model: form.model, key: form.key });
         closeSheet();
         renderSettings();
+        renderAiMeta();
         toast("模型设置已保存");
       };
       $("#aiCfgClear").onclick = () => {
         saveAiConfig({ key: "" });
         $("#f-aiKey").value = "";
-        toast("Key 已清除");
-      };
-      $("#aiCfgOff").onclick = () => {
-        saveAiConfig({ enabled: false });
-        closeSheet();
-        renderSettings();
-        toast("AI 建议已关闭");
+        setStatus("Key 已清除。", "");
       };
     });
   }

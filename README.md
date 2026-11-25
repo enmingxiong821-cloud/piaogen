@@ -1,7 +1,7 @@
 # 票根 V0
 ### 付款之后的消费权利 OS · 可运行 Web 版
 
-> 2026-11-25 V10.9（本地构建，未部署）：助手移到导航正中间，做成凸起圆钮；
+> 2026-11-25 V10.9（已部署：GitHub Pages `a04d78f` / CloudBase 77 文件）：助手移到导航正中间，做成凸起圆钮；
 > 小票灵可拖拽并记住位置、眼神跟随、按真实到期数据主动冒泡；首屏收成一句话 + 一个主按钮 + 三个数字；
 > 新增 80 条可查的**权利库**（公开页 `rights.html`）与**健康账本**（支出 / 提醒 / 保障 / 怎么办）；
 > 资产页补「本月遗忘税」「接下来扣费」「已确认守住」；日期控件换成暗色日历。
@@ -286,16 +286,17 @@ docker run --rm -p 8765:80 piaogen-v0
 
 | 用途 | 地址 | 说明 |
 |---|---|---|
-| 投稿主链接 | https://enmingxiong821-cloud.github.io/piaogen/ | 点开即进首页，无中间页 |
+| 投稿主链接 | https://enmingxiong821-cloud.github.io/piaogen/ | 点开即进首页，无中间页；V10.9，sw `piaogen-v10-9` |
+| 真人测试直链 | https://enmingxiong821-cloud.github.io/piaogen/?test=1 | 直达测试台，手机可直接发给测试者 |
 | 国内备用 | https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.tcloudbaseapp.com/piaogen/ | 腾讯 CloudBase 上海，直连 439ms；默认域名会先弹“风险提醒”，点一次“确定访问”即可 |
 
 这是纯静态站点，也可直接部署到 Netlify / Vercel / Cloudflare Pages / 任意静态文件服务器。
 `netlify.toml` / `vercel.json` 已放好；Netlify 可直接拖 `v0/` 文件夹，Vercel 导入后不用 build command。
 
-CloudBase 更新命令（30 个文件，带 `--verify`）：
+CloudBase 更新命令（V10.9 共 77 个文件，带 `--verify`）：
 
 ```powershell
-tcb hosting deploy ./dist piaogen -e xiongxiongkaifa-d4flmaia4021b1d1 --safe --verify --concurrency 8 --retry-count 3 --json
+tcb hosting deploy ./dist_app/piaogen-app piaogen -e xiongxiongkaifa-d4flmaia4021b1d1 --safe --verify --concurrency 8 --retry-count 3 --json
 ```
 
 EdgeOne Makers 国内站仍是长期最优，但匿名部署的 `*.edgeone.cool` 带 `eo_token`，过期即 401，不能投稿；

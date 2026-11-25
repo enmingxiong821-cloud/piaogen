@@ -1,4 +1,4 @@
-const CACHE = "piaogen-v10-9";
+const CACHE = "piaogen-v11-0";
 const CORE = [
   "./",
   "./index.html",
@@ -15,6 +15,7 @@ const CORE = [
   "./toolbox.css",
   "./testkit.css",
   "./v109.css",
+  "./v110.css",
   "./rights.html",
   "./app.js",
   "./toolbox-data.js",
@@ -36,8 +37,17 @@ const CORE = [
   "./vendor/worker.min.js"
 ];
 
+/* 代码与样式一律「网络优先」，避免旧缓存把新 HTML 配旧 CSS（会出现白底白字的按钮）。
+   只有图片、字体、wasm 这类大体积静态资源才走缓存优先。 */
+const NETWORK_FIRST = /\.(?:html|js|css|webmanifest)$/i;
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(CORE)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(CACHE)
+      .then((cache) => cache.addAll(CORE))
+      .catch(() => {})
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (event) => {
@@ -48,6 +58,19 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE);
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
+    return response;
+  } catch (error) {
+    const hit = (await cache.match(request)) || (await cache.match(request, { ignoreSearch: true }));
+    if (hit) return hit;
+    throw error;
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
@@ -57,17 +80,13 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
-          return response;
-        })
-        .catch(async () => {
-          const hit = await caches.match(request);
-          return hit || caches.match("./index.html");
-        })
+      networkFirst(request).catch(async () => (await caches.match(request)) || caches.match("./index.html"))
     );
+    return;
+  }
+
+  if (NETWORK_FIRST.test(url.pathname)) {
+    event.respondWith(networkFirst(request).catch(() => new Response("", { status: 504 })));
     return;
   }
 
@@ -75,9 +94,9 @@ self.addEventListener("fetch", (event) => {
     caches.match(request).then((hit) => {
       if (hit) return hit;
       return fetch(request).then((response) => {
-        if (response.ok && /\.(?:js|css|png|jpg|jpeg|svg|webp|wasm|gz|woff2?)$/.test(url.pathname)) {
+        if (response.ok) {
           const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
         }
         return response;
       });

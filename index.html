@@ -26,6 +26,7 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="toolbox.css" />
   <link rel="stylesheet" href="testkit.css" />
+  <link rel="stylesheet" href="v109.css" />
   <script src="vendor/tesseract.min.js" defer></script>
   <script src="vendor/pdf.min.js" defer></script>
   <script src="vendor/jszip.min.js" defer></script>
@@ -35,6 +36,9 @@
   <script src="app.js" defer></script>
   <script src="toolbox-data.js" defer></script>
   <script src="toolbox.js" defer></script>
+  <script src="library.js" defer></script>
+  <script src="health.js" defer></script>
+  <script src="datepicker.js" defer></script>
   <script src="testkit.js" defer></script>
   <script>
     if ("serviceWorker" in navigator) {
@@ -74,37 +78,31 @@
             <div class="empty-icon" aria-hidden="true">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v17l-3-2-3 2-3-2-3 2V4Z"/><path d="M9 9h6M9 13h4"/></svg>
             </div>
-            <p class="eyebrow">今天 · 30 秒先办一件事</p>
-            <h1>拍一张票，<br />看它还能退、能保、能省多少。</h1>
-            <p class="lede">不用注册。先用示例走完一遍：拍票 → 权利雷达 → 证据 → 回执；办完留一张能直接给客服看的回执。</p>
+            <p class="eyebrow">付款之后，权利开始计时</p>
+            <h1>拍一张票，<br />看它还能退多少。</h1>
+            <p class="lede">30 秒走完一遍：拍票 → 权利雷达 → 证据 → 回执。不用注册，照片不出本机。</p>
             <button class="btn primary" id="emptyDemo" type="button">
               用示例走一遍（30 秒）
               <span class="btn-ico" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
             </button>
             <div class="quick-row">
               <button class="btn ghost" id="emptyCamera" type="button">拍一张票</button>
-              <button class="btn ghost" id="emptyBill" type="button">粘一段账单</button>
+              <button class="btn ghost" id="emptyBill" type="button">贴一段账单</button>
             </div>
-            <div class="link-row">
-              <button class="link-btn" id="emptyAudit" type="button">先算家里亏了多少</button>
-              <button class="link-btn" id="emptyIntake" type="button">说一句要办的事</button>
-              <button class="link-btn" id="emptyImport" type="button">导入订单 / 发票</button>
-              <button class="link-btn" id="emptyFinance" type="button">资金售后</button>
-              <button class="link-btn" type="button" data-open-toolbox="list" data-origin="today">办事台 · 账单/找谁/保修</button>
-              <button class="link-btn" type="button" data-open-toolbox="family" data-origin="today">帮爸妈办 · 家庭体检单</button>
+            <div class="hero-proof" aria-label="隐私与可查依据">
+              <div><b>0</b><span>上传</span></div>
+              <div><b>0</b><span>注册</span></div>
+              <div><b id="heroBasisCount">—</b><span>条可查</span></div>
             </div>
-            <div class="steps">
-              <div><b>1</b><span>粘账单 / 拍票</span></div>
-              <div><b>2</b><span>找扣费 / 算权利</span></div>
-              <div><b>3</b><span>去办并记结果</span></div>
+            <div class="hero-grid">
+              <button type="button" data-open-rights><b>权利库</b><small>还能不能退，查依据</small></button>
+              <button type="button" id="emptyAudit"><b>家里亏多少</b><small>3 分钟体检</small></button>
+              <button type="button" id="emptyFinance"><b>资金售后</b><small>退款 / 续费 / 拒付</small></button>
+              <button type="button" id="emptyIntake"><b>说一句</b><small>直接立案</small></button>
+              <button type="button" id="emptyImport"><b>导入</b><small>订单 / 发票 / 保单</small></button>
+              <button type="button" data-open-toolbox="list" data-origin="today"><b>办事台</b><small>账单 / 找谁 / 保修</small></button>
             </div>
-            <div class="chips">
-              <span>规则可溯源</span>
-              <span>官方入口</span>
-              <span>本机识别</span>
-              <span>资金售后</span>
-            </div>
-            <p class="fine">不是法律/医疗结论；金额与日期以票据为准。</p>
+            <p class="fine">不是法律 / 医疗结论；金额与日期以票据为准。</p>
             </div>
             <aside class="hero-preview" aria-hidden="true">
               <p class="hp-kicker">示例回执 · 一张空调票</p>
@@ -153,6 +151,7 @@
                 <button type="button" data-open-toolbox="deadline" data-origin="today"><b>还能退</b><small>权利、券、卡、续费按截止日排</small></button>
                 <button type="button" data-open-toolbox="find" data-origin="today"><b>找谁</b><small>30 类麻烦，先找谁、带什么</small></button>
                 <button type="button" data-open-toolbox="family" data-origin="today"><b>家庭体检</b><small>一张能打印、能转发的单子</small></button>
+                <button type="button" data-health-open data-origin="today"><b>健康账本</b><small>支出 / 保障 / 复诊提醒</small></button>
               </div>
             </section>
             <div class="section-head">
@@ -316,9 +315,14 @@
               <p class="eyebrow">案卷</p>
               <h1>所有案卷</h1>
             </div>
-            <button class="icon-btn small" id="casesReport" type="button" aria-label="打开权利报告">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
-            </button>
+            <div class="head-actions">
+              <button class="icon-btn small" id="casesRights" type="button" aria-label="打开权利库">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h6v16H5V4Z"/><path d="M13 4h6v16h-6V4Z"/><path d="M8 8h1M8 12h1M16 8h1M16 12h1"/></svg>
+              </button>
+              <button class="icon-btn small" id="casesReport" type="button" aria-label="打开权利报告">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
+              </button>
+            </div>
           </div>
           <div id="casesBody"></div>
         </section>
@@ -340,6 +344,7 @@
           <div class="pane-seg" id="assetsSeg" role="tablist" aria-label="资产与资金">
             <button class="seg-item on" type="button" role="tab" aria-selected="true" data-assets-tab="assets">资产</button>
             <button class="seg-item" type="button" role="tab" aria-selected="false" data-assets-tab="finance">资金售后 <span id="financeTabCount" class="seg-count" hidden>0</span></button>
+            <button class="seg-item" type="button" role="tab" aria-selected="false" data-assets-tab="health">健康 <span id="healthTabCount" class="seg-count" hidden>0</span></button>
           </div>
           <div id="assetsBody"></div>
           <div id="assetsFinance" hidden>
@@ -351,6 +356,16 @@
               </button>
             </div>
             <div id="financeBody"></div>
+          </div>
+          <div id="assetsHealth" hidden>
+            <div class="finance-pane-head">
+              <p class="lede">健康支出、保障与提醒只记在本机；不做诊断、不推荐药品与保险，就医与报销以当地医保局和合同为准。</p>
+              <button class="icon-btn small ai-inline" type="button" data-ask-ai="这个月健康花了多少？" aria-label="问小票灵健康支出"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z"/><path d="M18.5 15l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1Z"/></svg></button>
+              <button class="icon-btn small" id="healthAdd" type="button" aria-label="记一笔健康支出">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+            </div>
+            <div id="healthBody"></div>
           </div>
         </section>
 
@@ -478,6 +493,26 @@
           <div id="testkitBody"></div>
         </section>
 
+        <section class="screen" data-screen="rights" aria-label="权利库">
+          <div class="page-head compact">
+            <button class="icon-btn" data-back="cases" type="button" aria-label="返回案卷">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div>
+              <p class="eyebrow">可查依据</p>
+              <h1>权利库</h1>
+            </div>
+            <button class="icon-btn small ai-inline" type="button" data-ask-ai="这条规则还适用吗？" aria-label="问小票灵规则是否适用"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z"/><path d="M18.5 15l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1Z"/></svg></button>
+          </div>
+          <p class="lede">先查还能不能办，再决定要不要立案。每条都带依据、生效时间与官方链接；查不到就不下结论。<a class="rights-public" href="rights.html" target="_blank" rel="noopener">公开版 ↗</a></p>
+          <div class="rights-search">
+            <input id="rightsSearch" type="search" autocomplete="off" placeholder="搜：退货 / 续费 / 定金 / 保修 / 犹豫期" aria-label="搜索权利库" />
+            <span id="rightsCount" aria-live="polite"></span>
+          </div>
+          <div class="rights-chips" id="rightsChips" role="tablist" aria-label="权利库分类"></div>
+          <div id="rightsBody"></div>
+        </section>
+
         <section class="screen" data-screen="ai" aria-label="票根助手">
           <div class="page-head compact">
             <div>
@@ -489,12 +524,13 @@
             </button>
           </div>
           <div class="ai-intro">
-            <p><b>不联网也能用。</b>本地规则先查你的案卷、到期日与证据缺口，再把结果变成下一步；配置模型后可切到智能模式，模型只调只读工具。</p>
+            <p><b>不联网也能用。</b>本地规则先查你的案卷、到期日与证据缺口，再把结果变成下一步，也能查权利库与健康账本；配置模型后可切到智能模式，模型只调只读工具。</p>
             <div class="ai-quick" aria-label="常用问题">
               <button type="button" data-agent-chip="帮我排今天">排今天</button>
               <button type="button" data-agent-chip="这周先办什么">查到期</button>
               <button type="button" data-agent-chip="退款还没到">资金售后</button>
               <button type="button" data-agent-chip="这个月花了多少">本月支出</button>
+              <button type="button" data-agent-chip="健康花了多少">健康支出</button>
             </div>
           </div>
           <div class="ai-log" id="aiLog" aria-live="polite"></div>
@@ -507,7 +543,7 @@
             <button class="btn primary agent-send" type="submit">发送</button>
           </form>
           <div class="ai-meta">
-            <button class="text-btn" id="aiDemoBtn" type="button">看智能模式怎么工作</button>
+            <button class="text-btn" id="aiDemoBtn" type="button">不用 Key，看 AI 怎么调工具</button>
             <button class="text-btn" id="aiSmartBtn" type="button" aria-pressed="false"><span id="aiModeLabel">智能模式：关</span></button>
           </div>
           <p class="agent-foot" id="aiFoot">本地规则 Agent · 不联网也能用 · 结论来自规则库与公开依据，不构成法律意见；不代提交、不承诺结果。</p>
@@ -536,8 +572,15 @@
             <span>本机数据 · 不代提交</span>
           </div>
         </div>
+        <div class="buddy-nudge" id="buddyNudge" hidden>
+          <button class="buddy-nudge-x" id="buddyNudgeClose" type="button" aria-label="收起提示">×</button>
+          <p id="buddyNudgeText"></p>
+          <button class="buddy-nudge-go" id="buddyNudgeGo" type="button">带我去</button>
+        </div>
         <button class="buddy-fab" id="buddyBtn" type="button" aria-label="打开 AI 小助手" aria-expanded="false" aria-controls="buddyPanel">
-          <svg viewBox="0 0 40 40" width="30" height="30" aria-hidden="true"><path d="M11 6h18v26l-3-2-3 2-3-2-3 2-3-2-3 2V6Z" fill="#0F1517" stroke="#9DF0C2" stroke-width="2" stroke-linejoin="round"/><circle class="buddy-eye" cx="17" cy="15" r="1.8" fill="#9DF0C2"/><circle class="buddy-eye" cx="23" cy="15" r="1.8" fill="#9DF0C2"/><path d="M17 21c1.6 1.6 4.4 1.6 6 0" stroke="#9DF0C2" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M31 4l.9 2.1L34 7l-2.1.9L31 10l-.9-2.1L28 7l2.1-.9L31 4Z" fill="#9DF0C2"/></svg>
+          <span class="buddy-fab-body">
+            <svg viewBox="0 0 40 40" width="30" height="30" aria-hidden="true"><path d="M11 6h18v26l-3-2-3 2-3-2-3 2-3-2-3 2V6Z" fill="#0F1517" stroke="#9DF0C2" stroke-width="2" stroke-linejoin="round"/><circle cx="17" cy="15" r="2.2" fill="#9DF0C2"/><circle cx="23" cy="15" r="2.2" fill="#9DF0C2"/><circle class="buddy-pupil" cx="17" cy="15" r="0.8" fill="#0A0E0F"/><circle class="buddy-pupil" cx="23" cy="15" r="0.8" fill="#0A0E0F"/><path d="M17 21c1.6 1.6 4.4 1.6 6 0" stroke="#9DF0C2" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M31 4l.9 2.1L34 7l-2.1.9L31 10l-.9-2.1L28 7l2.1-.9L31 4Z" fill="#9DF0C2"/></svg>
+          </span>
         </button>
       </div>
 
@@ -550,13 +593,15 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6V3Z"/><path d="M14 3v5h5"/><path d="M9 12h6M9 16h4"/></svg>
           <span>案卷</span>
         </button>
+        <button class="tabbar-item tab-ai" data-nav="ai" type="button" aria-label="票根助手">
+          <span class="tab-orb" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z"/><path d="M18.5 15l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1Z"/></svg>
+          </span>
+          <span>助手</span>
+        </button>
         <button class="tabbar-item" data-nav="assets" type="button">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h16v12H4V8Z"/><path d="M8 8V5h8v3"/><path d="M4 12h16"/></svg>
           <span>资产</span>
-        </button>
-        <button class="tabbar-item" data-nav="ai" type="button">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z"/><path d="M18.5 15l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1Z"/></svg>
-          <span>助手</span>
         </button>
         <button class="tabbar-item" data-nav="settings" type="button">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>

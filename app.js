@@ -952,8 +952,10 @@ const POINT_KEY = "piaogen.v0.points";
   }
 
   function show(name) {
-    const screenName = name === "finance" ? "assets" : name;
-    const navName = name === "import" ? "today" : name === "finance" || name === "financeCase" || name === "toolbox" ? "assets" : name;
+    const screenName = name === "finance" || name === "health" ? "assets" : name;
+    const navName = name === "import" ? "today"
+      : name === "finance" || name === "financeCase" || name === "toolbox" || name === "health" ? "assets"
+        : name === "rights" ? "cases" : name;
     $$(".screen").forEach((screen) => screen.classList.toggle("on", screen.dataset.screen === screenName));
     $$(".tabbar-item").forEach((item) => {
       const on = item.dataset.nav === navName;
@@ -972,7 +974,8 @@ const POINT_KEY = "piaogen.v0.points";
     if (name === "settings") renderSettings();
     if (name === "case" && state.current) renderCase(state.current);
     if (name === "cases") renderCases();
-    if (name === "assets" || name === "finance") setAssetsTab(name === "finance" ? "finance" : "assets");
+    if (name === "assets" || name === "finance" || name === "health") setAssetsTab(name === "finance" ? "finance" : name === "health" ? "health" : "assets");
+    if (name === "rights" && window.PGLibrary) window.PGLibrary.render();
     if (name === "financeCase" && state.currentFinance) renderFinanceCase(state.currentFinance);
     if (name === "toolbox" && window.PGToolbox) window.PGToolbox.render();
     if (name === "testkit" && window.PGTestkit) window.PGTestkit.render();
@@ -984,6 +987,7 @@ const POINT_KEY = "piaogen.v0.points";
     }
     currentScreen = name;
     updateBuddy();
+    if (typeof scheduleNudge === "function") scheduleNudge();
   }
 
   window.PGApp = {
@@ -991,7 +995,8 @@ const POINT_KEY = "piaogen.v0.points";
     get state() { return state; },
     save, caseTickets, openCase, openResult, openFinanceBuilder,
     assetSummary, memberNameOf, couponDays,
-    decodeBillBuffer, parseCsvTable, openCouponSheet, openPointsSheet
+    decodeBillBuffer, parseCsvTable, openCouponSheet, openPointsSheet,
+    openIntake: intakeSheet, showRights: () => show("rights"), showHealth: () => show("health")
   };
 
   let sheetReturnFocus = null;
@@ -4821,12 +4826,14 @@ const POINT_KEY = "piaogen.v0.points";
     financeCase: { say: "钱的事，先看证据齐不齐。", chips: ["这宗还缺什么证据？", "下一步先找谁？"] },
     toolbox: { say: "办事台 11 件事，说一件我带你过去。", chips: ["账单里有哪些重复扣款？", "哪个券快过期？"] },
     audit: { say: "先算家里悄悄亏了多少。", chips: ["家里最可能亏在哪？", "哪些续费可以关？"] },
-    settings: { say: "数据只在本机。要我解释哪一项？", chips: ["长辈模式怎么用？", "数据存在哪里？"] }
+    settings: { say: "数据只在本机。要我解释哪一项？", chips: ["长辈模式怎么用？", "数据存在哪里？"] },
+    rights: { say: "先查依据，再决定办不办。", chips: ["退货还能不能办？", "续费要提前几天取消？"] },
+    health: { say: "健康支出和提醒都记在本机，不做诊断。", chips: ["这个月健康花了多少？", "有哪些复诊提醒？"] }
   };
   const BUDDY_LABEL = {
     today: "今天", cases: "案卷", case: "案卷", result: "这张票", action: "陪办", import: "导入",
     assets: "资产与资金", finance: "资金售后", financeCase: "资金案卷", toolbox: "办事台", audit: "家庭体检",
-    settings: "我的", annual: "权利报告", testkit: "测试台"
+    settings: "我的", annual: "权利报告", testkit: "测试台", rights: "权利库", health: "健康账本"
   };
 
   function buddyChipsHtml(chips) {
@@ -4866,6 +4873,12 @@ const POINT_KEY = "piaogen.v0.points";
     const btn = $("#buddyBtn");
     if (!panel) return;
     panel.hidden = false;
+    hideNudge();
+    const root = $("#buddy");
+    if (root) {
+      const rect = btn ? btn.getBoundingClientRect() : null;
+      if (rect) root.classList.toggle("below", rect.top < 300);
+    }
     if (btn) btn.setAttribute("aria-expanded", "true");
     AGENT_STATE.view = "buddy";
     renderBuddy();
@@ -4883,6 +4896,169 @@ const POINT_KEY = "piaogen.v0.points";
     const input = $("#buddyInput");
     if (input) input.value = "";
     if (text) agentTurn(text);
+  }
+
+  const BUDDY_POS_KEY = "piaogen.buddy.pos";
+  let buddyNudgeTimer = null;
+  let buddyNudgeHide = null;
+  let buddyNudgePrompt = "";
+  let buddyLookTimer = null;
+
+  function buddyFrame() {
+    const w = window.innerWidth;
+    const fw = w >= 1024 ? 980 : w >= 760 ? 520 : w;
+    const inset = Math.max(0, (w - fw) / 2);
+    return { w, inset, fw, right: w - inset - 66, left: inset + 10 };
+  }
+
+  function buddyClamp(x, y) {
+    const f = buddyFrame();
+    const h = window.innerHeight;
+    return { x: Math.max(f.left, Math.min(f.w - f.inset - 64, x)), y: Math.max(120, Math.min(h - 130, y)) };
+  }
+
+  function buddyPlace(x, y, persist) {
+    const root = $("#buddy");
+    if (!root) return;
+    const pos = buddyClamp(x, y);
+    root.style.setProperty("--bx", pos.x + "px");
+    root.style.setProperty("--by", pos.y + "px");
+    root.dataset.side = pos.x + 28 < window.innerWidth / 2 ? "left" : "right";
+    root.classList.toggle("below", pos.y < 300);
+    if (persist) {
+      try { localStorage.setItem(BUDDY_POS_KEY, JSON.stringify(pos)); } catch (e) {}
+    }
+  }
+
+  function restoreBuddy() {
+    let pos = null;
+    try { pos = JSON.parse(localStorage.getItem(BUDDY_POS_KEY) || "null"); } catch (e) {}
+    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) buddyPlace(pos.x, pos.y, false);
+    else {
+      const f = buddyFrame();
+      buddyPlace(f.right, window.innerHeight - 150, false);
+    }
+  }
+
+  function initBuddyDrag() {
+    const btn = $("#buddyBtn");
+    if (!btn || btn.dataset.dragReady) return;
+    btn.dataset.dragReady = "1";
+    let start = null;
+    let moved = false;
+    btn.addEventListener("pointerdown", (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
+      const rect = btn.getBoundingClientRect();
+      start = { x: event.clientX, y: event.clientY, bx: rect.left, by: rect.top };
+      moved = false;
+      try { btn.setPointerCapture(event.pointerId); } catch (e) {}
+      btn.classList.add("dragging");
+    });
+    btn.addEventListener("pointermove", (event) => {
+      if (!start) return;
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+      if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
+      if (moved) buddyPlace(start.bx + dx, start.by + dy, false);
+    });
+    const end = (event) => {
+      if (!start) return;
+      btn.classList.remove("dragging");
+      if (moved) {
+        const rect = btn.getBoundingClientRect();
+        const frame = buddyFrame();
+        const snapX = rect.left + rect.width / 2 < window.innerWidth / 2 ? frame.left : frame.right;
+        buddyPlace(snapX, rect.top, true);
+        if (event && event.cancelable) event.preventDefault();
+      }
+      start = null;
+    };
+    btn.addEventListener("pointerup", end);
+    btn.addEventListener("pointercancel", end);
+    btn.addEventListener("click", (event) => {
+      if (moved) { event.preventDefault(); event.stopPropagation(); moved = false; }
+    }, true);
+    window.addEventListener("resize", () => {
+      const rect = btn.getBoundingClientRect();
+      const root = $("#buddy");
+      const side = root ? root.dataset.side : "right";
+      const frame = buddyFrame();
+      const x = side === "left" ? frame.left : frame.right;
+      buddyPlace(x, rect.top, true);
+    });
+    document.addEventListener("pointermove", (event) => {
+      if (!btn || btn.hidden) return;
+      clearTimeout(buddyLookTimer);
+      buddyLookTimer = setTimeout(() => {
+        const rect = btn.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dx = event.clientX - cx;
+        const dy = event.clientY - cy;
+        const len = Math.max(1, Math.hypot(dx, dy));
+        btn.style.setProperty("--look-x", (dx / len * 1.4).toFixed(2) + "px");
+        btn.style.setProperty("--look-y", (dy / len * 1.2).toFixed(2) + "px");
+      }, 90);
+    }, { passive: true });
+    if ($("#buddyNudgeGo")) $("#buddyNudgeGo").addEventListener("click", () => { hideNudge(); askBuddy(buddyNudgePrompt); });
+    if ($("#buddyNudgeClose")) $("#buddyNudgeClose").addEventListener("click", hideNudge);
+    restoreBuddy();
+  }
+
+  function hideNudge() {
+    const el = $("#buddyNudge");
+    if (el) el.hidden = true;
+    clearTimeout(buddyNudgeHide);
+  }
+
+  function buddyNudgeMessage() {
+    if (!caseTickets().length && !(state.finance || []).length) {
+      return { text: "第一次来？我用 30 秒带你走一遍示例。", prompt: "票根怎么用？" };
+    }
+    let best = null;
+    caseTickets().forEach((ticket) => (ticket.windows || []).forEach((win) => {
+      if (win.status === "closed" || win.daysLeft === null || win.daysLeft < 0) return;
+      if (!best || win.daysLeft < best.days) best = { days: win.daysLeft, name: ticket.product || ticket.merchant || "一张票" };
+    }));
+    if (best && best.days <= 3) {
+      return {
+        text: best.days === 0 ? `${best.name}今天到期，要我带你去吗？` : `${best.name}还剩 ${best.days} 天，要我带你去吗？`,
+        prompt: "今天先办哪一件？"
+      };
+    }
+    const fin = financeSummaryData();
+    if (fin.nearest && fin.nearest.due.days <= 3) {
+      return { text: `有一笔钱还剩 ${Math.max(0, fin.nearest.due.days)} 天时限，要先处理吗？`, prompt: "这周哪笔钱最急？" };
+    }
+    const assets = assetSummary();
+    const soon = assets.coupons.filter((c) => c.days !== null && c.days >= 0 && c.days <= 7);
+    if (soon.length) return { text: `有 ${soon.length} 张券 7 天内到期，要我列出来吗？`, prompt: "哪些券快过期？" };
+    const conf = BUDDY[currentScreen] || BUDDY.today;
+    return { text: conf.say, prompt: (conf.chips && conf.chips[0]) || "今天先办哪一件？" };
+  }
+
+  function scheduleNudge() {
+    clearTimeout(buddyNudgeTimer);
+    hideNudge();
+    if (currentScreen === "ai" || currentScreen === "settings") return;
+    let seen = {};
+    try { seen = JSON.parse(sessionStorage.getItem("piaogen.buddy.seen") || "{}"); } catch (e) { seen = {}; }
+    const key = currentScreen + ":" + new Date().toISOString().slice(0, 10);
+    if (seen[key]) return;
+    buddyNudgeTimer = setTimeout(() => {
+      if (currentScreen === "ai" || document.hidden) return;
+      const panel = $("#buddyPanel");
+      if (panel && !panel.hidden) return;
+      const msg = buddyNudgeMessage();
+      buddyNudgePrompt = msg.prompt;
+      const text = $("#buddyNudgeText");
+      if (text) text.textContent = msg.text;
+      const nudge = $("#buddyNudge");
+      if (nudge) nudge.hidden = false;
+      seen[key] = 1;
+      try { sessionStorage.setItem("piaogen.buddy.seen", JSON.stringify(seen)); } catch (e) {}
+      buddyNudgeHide = setTimeout(hideNudge, 9000);
+    }, 2600);
   }
 
   function agentWelcome() {
@@ -5265,6 +5441,7 @@ const POINT_KEY = "piaogen.v0.points";
       if (fin) return agentFinance(fin, merged);
     }
     if (/帮我排|排今天|安排今天|今天先办|优先级/.test(t)) return agentDayPlan();
+    if (/健康|体检|复诊|拿药|看病|医药费|医保|报销/.test(t) && !/退款|续费|价保/.test(t)) return agentHealth(t);
     if (/花了多少|花了多少钱|支出|消费.*多少|这个月.*花|上月.*花|上个月.*花/.test(t)) return agentSpend(t);
     if (/有哪些会员|会员.*多少|订阅|自动扣款.*多少|续费.*多少/.test(t)) return agentSubs();
     if (/快过期|到期的券|我的券|积分|资产/.test(t)) return agentAssets();
@@ -5290,9 +5467,24 @@ const POINT_KEY = "piaogen.v0.points";
     };
   }
 
+  function agentHealth(text) {
+    const s = window.PGHealth ? window.PGHealth.summary() : { monthTotal: 0, count: 0, pendingClaim: 0, dueReminders: [] };
+    const due = (s.dueReminders || []).slice(0, 3).map((r) => `<li>${escapeHtml(r.title)} · ${r.days < 0 ? "已过 " + (-r.days) + " 天" : r.days === 0 ? "今天" : "还剩 " + r.days + " 天"}${r.who ? " · " + escapeHtml(r.who) : ""}</li>`).join("");
+    return {
+      role: "assistant",
+      html: `<p>本月健康支出 <b>${money(s.monthTotal)}</b>（${s.count} 笔），待报销 <b>${money(s.pendingClaim)}</b>。</p>
+        ${due ? `<p>最近提醒：</p><ul class="agent-list">${due}</ul>` : "<p>30 天内没有健康提醒。</p>"}
+        <p class="agent-note">只记录你填的支出、保障与日期；不做诊断、不推荐药品或保险，报销以医保政策和合同为准。</p>`,
+      trace: [["工具", "健康账本"], ["口径", "不诊断、不推荐"]],
+      actions: [{ label: "打开健康账本", act: "health" }],
+      chips: ["有哪些复诊提醒？", "这个月健康花了多少？"]
+    };
+  }
+
   function agentAct(act) {
     const ctx = AGENT_STATE.context || {};
     if (act === "today") { closeSheet(); show("today"); return; }
+    if (act === "health") { closeSheet(); show("health"); return; }
     if (act === "import") { closeSheet(); show("import"); return; }
     if (act === "assets") { closeSheet(); show("assets"); return; }
     if (act === "bill") { closeSheet(); openBill(); return; }
@@ -5910,7 +6102,7 @@ const POINT_KEY = "piaogen.v0.points";
   let assetsTab = "assets";
 
   function setAssetsTab(tab) {
-    assetsTab = tab === "finance" ? "finance" : "assets";
+    assetsTab = tab === "finance" ? "finance" : tab === "health" ? "health" : "assets";
     $$("#assetsSeg [data-assets-tab]").forEach((btn) => {
       const on = btn.dataset.assetsTab === assetsTab;
       btn.classList.toggle("on", on);
@@ -5918,8 +6110,10 @@ const POINT_KEY = "piaogen.v0.points";
     });
     const aBody = $("#assetsBody");
     const fPane = $("#assetsFinance");
+    const hPane = $("#assetsHealth");
     if (aBody) aBody.hidden = assetsTab !== "assets";
     if (fPane) fPane.hidden = assetsTab !== "finance";
+    if (hPane) hPane.hidden = assetsTab !== "health";
     const badge = $("#financeTabCount");
     if (badge) {
       const n = financeSummaryData().active.length;
@@ -5927,6 +6121,7 @@ const POINT_KEY = "piaogen.v0.points";
       badge.hidden = !n;
     }
     if (assetsTab === "assets") renderAssets();
+    else if (assetsTab === "health") { if (window.PGHealth) window.PGHealth.render(); }
     else renderFinance();
   }
 
@@ -6006,18 +6201,39 @@ const POINT_KEY = "piaogen.v0.points";
         meta: summary.residual.length ? "买入价与使用时长已记录；参考区间待接入" : "还没有耐用品"
       }
     ];
+    const recoveredTotal = financeSummaryData().recovered;
     const urgent = summary.rights.filter((item) => item.win.daysLeft <= 7).length
       + summary.coupons.filter((coupon) => coupon.days <= 7).length
       + summary.supplies.filter((supply) => supply.daysLeft <= 7).length;
+    const nowTs = Date.now();
+    const expiredCoupons = (state.coupons || []).filter((c) => {
+      if (!c.expiresAt) return false;
+      const t = new Date(c.expiresAt).getTime();
+      return Number.isFinite(t) && t < nowTs && nowTs - t <= 31 * 86400000;
+    });
+    const expiredPoints = (state.points || []).filter((p) => {
+      if (!p.expiresAt) return false;
+      const t = new Date(p.expiresAt).getTime();
+      return Number.isFinite(t) && t < nowTs && nowTs - t <= 31 * 86400000;
+    });
+    const forgottenTax = expiredCoupons.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+    const nextCharges = summary.subs.slice(0, 3);
     $("#assetsBody").innerHTML = `
       <p class="lede">七类会过期、会贬值、会被忘记的东西。不是每笔付款都要立案，但每笔都可以进资产。</p>
+      <button class="forgotten-card" id="forgottenCard" type="button">
+        <span>本月遗忘税 · 估算</span>
+        <b>${money(forgottenTax)}</b>
+        <small>过期券 ${expiredCoupons.length} 张${expiredPoints.length ? ` · 过期积分 ${expiredPoints.length} 条` : ""} · 只算你记过的</small>
+        <em aria-hidden="true">›</em>
+      </button>
+      ${nextCharges.length ? `<div class="sub-cal" aria-label="接下来的扣费"><span>接下来扣费</span>${nextCharges.map((sub) => `<button type="button" data-open-subs><b>${escapeHtml(String(sub.next || "").slice(5))}</b><small>${escapeHtml(sub.name || "订阅")} ${money(sub.monthly || 0)}/月</small></button>`).join("")}</div>` : ""}
       <button class="tb-entry" type="button" data-open-toolbox="list" data-origin="assets">
         <span>办事台</span><b>账单月报 · 找谁 · 诉求 · 保修 · 家庭体检</b><em aria-hidden="true">›</em>
       </button>
       <div class="asset-strip">
         <div><b>${urgent}</b><span>7 天内要处理</span></div>
         <div><b>${summary.rights.length}</b><span>未关闭权利</span></div>
-        <div><b>${summary.subs.length + summary.coupons.length + summary.supplies.length}</b><span>周期资产</span></div>
+        <div><b>${money(recoveredTotal)}</b><span>已确认守住</span></div>
       </div>
       <div class="asset-list">
         ${rows.map((row) => `
@@ -6030,6 +6246,8 @@ const POINT_KEY = "piaogen.v0.points";
       </div>
       <p class="note">金额只在本机计算；券、积分、耗材都不登录抓取，只用手动记录或账单复购估算。</p>`;
 
+    if ($("#forgottenCard")) $("#forgottenCard").addEventListener("click", () => openCouponSheet());
+    $$("[data-open-subs]").forEach((btn) => btn.addEventListener("click", () => openSubsSheet()));
     $$("[data-asset]").forEach((button) => {
       button.addEventListener("click", () => {
         const key = button.dataset.asset;
@@ -8638,7 +8856,8 @@ curl -s -X POST …/piaogen-mcp -H "Content-Type: application/json" \\
       finance: state.finance,
       coupons: state.coupons,
       points: state.points,
-      toolbox
+      toolbox,
+      health: window.PGHealth ? window.PGHealth.exportData() : null
     }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -8686,6 +8905,7 @@ curl -s -X POST …/piaogen-mcp -H "Content-Type: application/json" \\
           localStorage.setItem(key, JSON.stringify(current));
           if (window.PGToolbox && window.PGToolbox.reload) window.PGToolbox.reload();
         }
+        if (!Array.isArray(data) && data.health && window.PGHealth) window.PGHealth.importData(data.health);
         save();
         renderSettings();
         const skipped = tickets.length - fresh.length;
@@ -8703,6 +8923,8 @@ curl -s -X POST …/piaogen-mcp -H "Content-Type: application/json" \\
     $$("#assetsSeg [data-assets-tab]").forEach((button) => button.addEventListener("click", () => show(button.dataset.assetsTab)));
     if ($("#assetsImport")) $("#assetsImport").addEventListener("click", () => show("import"));
     if ($("#casesReport")) $("#casesReport").addEventListener("click", () => openReport("week"));
+    if ($("#casesRights")) $("#casesRights").addEventListener("click", () => show("rights"));
+    $$("[data-health-open]").forEach((btn) => btn.addEventListener("click", () => show("health")));
     if ($("#elderOff")) $("#elderOff").addEventListener("click", () => {
       state.settings.elder = false;
       saveSettings();
@@ -8754,6 +8976,7 @@ curl -s -X POST …/piaogen-mcp -H "Content-Type: application/json" \\
         const act = event.target.closest("[data-agent-act]");
         if (act) { closeBuddy(); agentAct(act.dataset.agentAct); }
       });
+      initBuddyDrag();
     }
     document.addEventListener("click", (event) => {
       const ask = event.target.closest("[data-ask-ai]");
@@ -9028,14 +9251,18 @@ curl -s -X POST …/piaogen-mcp -H "Content-Type: application/json" \\
     if (/[?&]demo=1/.test(location.search) && !state.tickets.length) {
       addDemo();
     }
-    const navParam = new URLSearchParams(location.search).get("nav");
-    if (navParam && navParam !== "today" && document.querySelector(`[data-nav="${navParam}"]`)) {
+    const bootParams = new URLSearchParams(location.search);
+    const navParam = bootParams.get("nav");
+    if (bootParams.get("test") === "1" || navParam === "testkit") {
+      show("testkit");
+    } else if (navParam && navParam !== "today" && document.querySelector(`[data-nav="${navParam}"]`)) {
       show(navParam);
     }
     handleEntryParams();
     renderToday();
     renderImport();
-    maybeOnboard();
+    if (window.PGHealth) window.PGHealth.render();
+    scheduleNudge();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

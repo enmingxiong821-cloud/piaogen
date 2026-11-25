@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0A0E0F" />
+  <title>权利库 · 票根</title>
+  <meta name="description" content="票根权利库：三包、退货、价保、定金、续费、预付卡、快递、保险犹豫期与证据清单，每条带依据、生效时间与官方链接。" />
+  <link rel="canonical" href="https://enmingxiong821-cloud.github.io/piaogen/rights.html" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="v109.css" />
+</head>
+<body>
+  <main class="rights-page">
+    <header class="rights-top">
+      <a class="brand" href="./index.html" aria-label="回到票根">
+        <span class="seal" aria-hidden="true">票</span>
+        <span class="brand-name">票根</span>
+      </a>
+      <a class="text-btn" href="./index.html">打开票根 ›</a>
+    </header>
+    <div class="page-head compact">
+      <div>
+        <p class="eyebrow">可查依据</p>
+        <h1>权利库</h1>
+      </div>
+    </div>
+    <p class="lede">先查还能不能办，再决定要不要立案。每条都带依据、生效时间与官方链接；查不到就不下结论，以合同与官方页面为准。</p>
+    <div class="rights-search">
+      <input id="rightsSearch" type="search" autocomplete="off" placeholder="搜：退货 / 续费 / 定金 / 保修 / 犹豫期" aria-label="搜索权利库" />
+      <span id="rightsCount" aria-live="polite"></span>
+    </div>
+    <div class="rights-chips" id="rightsChips" role="tablist" aria-label="权利库分类"></div>
+    <div id="rightsBody"></div>
+    <p class="fine">本页只做规则检索与出处展示，不构成法律意见；不代提交、不代收款、不承诺结果。</p>
+  </main>
+  <script src="realdata.js"></script>
+  <script src="rules.js"></script>
+  <script src="library.js"></script>
+</body>
+</html>

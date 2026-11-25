@@ -1,7 +1,7 @@
 {
   "name": "piaogen-rights-finance",
   "displayName": "票根 · 消费权利与资金售后",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "把一笔购买或一宗资金售后变成可核对的案卷：权利窗口、证据缺口、官方路径、材料与回执。",
   "transports": [
     {
@@ -61,10 +61,15 @@
     "noPiiInStore": true
   },
   "publicMirror": {
-    "status": "code_ready_not_deployed",
+    "status": "live_read_only",
+    "url": "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp",
+    "health": "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp/health",
+    "manifest": "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp/manifest.json",
     "path": "cloudfunctions/piaogen-mcp",
     "mode": "read-only",
     "protocol": "http-json-rpc",
-    "note": "与本地七工具同名同参；rights.record/finance.record 返回 public_read_only。端点未上线。"
+    "auth": "optional_bearer_MCP_READ_TOKEN",
+    "rateLimit": "60/min per IP",
+    "note": "与本地七工具同名同参；rights.record/finance.record 返回 public_read_only。示例数据，不托管用户数据。"
   }
 }

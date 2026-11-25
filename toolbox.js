@@ -46,6 +46,7 @@
   let lastImport = null;
   let noticeText = "";
   let noticeItems = [];
+  let buyResult = null;
 
   function saveDb() {
     try { localStorage.setItem(KEY, JSON.stringify(db)); }
@@ -836,6 +837,94 @@
       <p class="note">日历只写日期，不写金额；到期日以票据、券面、卡面与平台规则为准。${later.length ? `另有 ${later.length} 项在 30 天以后。` : ""}</p>`;
   }
 
+  function calcBuy() {
+    const item = ($("#tbBuyItem") || {}).value ? $("#tbBuyItem").value.trim() : "";
+    const aName = ($("#tbBuyA") || {}).value ? $("#tbBuyA").value.trim() : "平台 A";
+    const bName = ($("#tbBuyB") || {}).value ? $("#tbBuyB").value.trim() : "平台 B";
+    const a = Number(($("#tbBuyAPrice") || {}).value);
+    const b = Number(($("#tbBuyBPrice") || {}).value);
+    if (!item) { A.toast("先写买什么"); return; }
+    if (!(a > 0) || !(b > 0)) { A.toast("两个平台的价格都填一下"); return; }
+    const coupon = Math.max(0, Number(($("#tbBuyCoupon") || {}).value) || 0);
+    const protect = Math.max(0, Number(($("#tbBuyProtect") || {}).value) || 0);
+    const urgent = (($("#tbBuyUrgent") || {}).value || "no") === "yes";
+    const low = Math.min(a, b);
+    const high = Math.max(a, b);
+    const diff = high - low;
+    const eff = Math.max(0, low - coupon);
+    const cheaper = a <= b ? aName : bName;
+    const group = priceGroups().find((g) => normMerchant(g.item) === normMerchant(item));
+    const histLow = group && group.low !== null ? group.low : null;
+    let verdict = "";
+    let tone = "ok";
+    const reasons = [];
+    if (diff < 0.01) {
+      verdict = "两个平台同价，选有券或价保的那个。";
+      reasons.push("价差为 0；比的是券、运费、售后和价保，不是标价。");
+    } else {
+      reasons.push(`${cheaper} 比另一家便宜 ${money(diff)}（${Math.round(diff / high * 100)}%）。`);
+    }
+    if (histLow !== null) {
+      reasons.push(`你记过的历史低是 ${money(histLow)}；这次到手 ${money(eff)}。`);
+      if (eff < histLow) reasons.push("已经低于你记过的历史低。");
+      else if (eff >= histLow * 1.03) reasons.push("比历史低高出一截，不是非买不可。");
+    } else {
+      reasons.push("还没有历史价格；先记两次，下次就能判断是不是低点。");
+    }
+    if (urgent) {
+      verdict = `急用：选 ${cheaper}，到手 ${money(eff)}。`;
+    } else if (histLow !== null && eff < histLow) {
+      verdict = `可以买：到手 ${money(eff)}，低于你记过的历史低。`;
+    } else if (diff >= low * 0.05) {
+      verdict = `先换平台：去 ${cheaper}，到手 ${money(eff)}。`;
+    } else if (histLow !== null && eff >= histLow * 1.03) {
+      verdict = "先别买：不是历史低，加购物车等 3 天。";
+      tone = "warn";
+    } else {
+      verdict = "可以再等 3 天：价差不大，看看有没有券。";
+      tone = "warn";
+    }
+    if (protect > 0) reasons.push(`买后 ${protect} 天内降价，可看订单页价保；保留订单截图与当前价截图。`);
+    else reasons.push("订单页没有价保标识，就不按价保倒计时。");
+    buyResult = { item, aName, bName, a, b, coupon, protect, urgent, low, high, diff, eff, histLow, verdict, tone, reasons, cheaper };
+    const out = $("#tbBuyOut");
+    if (out) out.innerHTML = buyOutHtml(buyResult);
+    const save = $("#tbBuySave");
+    if (save) save.onclick = saveBuy;
+  }
+
+  function buyOutHtml(r) {
+    return `<div class="tb-buy-out ${r.tone === "warn" ? "warn" : ""}">
+      <div class="tb-buy-verdict"><b>${esc(r.verdict)}</b><span>到手 ${money(r.eff)}</span></div>
+      <div class="tb-buy-grid">
+        <div><span>${esc(r.aName)}</span><b>${money(r.a)}</b></div>
+        <div><span>${esc(r.bName)}</span><b>${money(r.b)}</b></div>
+        <div><span>价差</span><b>${money(r.diff)}</b></div>
+        <div><span>券 / 满减</span><b>${money(r.coupon)}</b></div>
+      </div>
+      <ul>${r.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+      <div class="tb-actions">
+        <button class="btn ghost" type="button" id="tbBuySave">把这两个价格记进比价卡</button>
+      </div>
+      <p class="tb-hint">价格是你手填的，不是实时抓取；价保以订单页规则为准，不承诺一定成功。</p>
+    </div>`;
+  }
+
+  function saveBuy() {
+    const r = buyResult;
+    if (!r) return;
+    const today = isoToday();
+    const add = (merchant, amount) => {
+      const dup = db.prices.some((p) => normMerchant(p.item) === normMerchant(r.item) && normMerchant(p.merchant) === normMerchant(merchant) && Number(p.amount) === amount && p.date === today);
+      if (!dup) db.prices.push({ id: uid(), item: r.item, merchant, amount, date: today, url: "", note: "买前 60 秒记录" });
+    };
+    add(r.aName, r.a);
+    add(r.bName, r.b);
+    saveDb();
+    A.toast("已记进比价卡");
+    render();
+  }
+
   function renderPrices() {
     const groups = priceGroups();
     const rows = db.prices.length;
@@ -845,6 +934,27 @@
         <div><b>${rows}</b><span>条价格</span></div>
         <div><b>${groups.filter((g) => g.delta > 0).length}</b><span>比上次贵</span></div>
       </div>
+      <section class="tb-buy">
+        <div class="tb-buy-head"><div><b>买前 60 秒</b><small>手填你在两个平台看到的价格，先算再买。</small></div><span>不抓接口</span></div>
+        <div class="tb-form">
+          <label class="field"><span>买什么</span><input id="tbBuyItem" placeholder="如：某款抽纸 3 层 100 抽" /></label>
+          <div class="tb-form-2">
+            <label class="field"><span>平台 A</span><input id="tbBuyA" placeholder="京东" /></label>
+            <label class="field"><span>价格 A（元）</span><input id="tbBuyAPrice" type="number" inputmode="decimal" placeholder="29.90" /></label>
+          </div>
+          <div class="tb-form-2">
+            <label class="field"><span>平台 B</span><input id="tbBuyB" placeholder="淘宝" /></label>
+            <label class="field"><span>价格 B（元）</span><input id="tbBuyBPrice" type="number" inputmode="decimal" placeholder="27.50" /></label>
+          </div>
+          <div class="tb-form-2">
+            <label class="field"><span>券 / 满减（元）</span><input id="tbBuyCoupon" type="number" inputmode="decimal" placeholder="0" /></label>
+            <label class="field"><span>价保天数（可空）</span><input id="tbBuyProtect" type="number" inputmode="numeric" placeholder="7" /></label>
+          </div>
+          <label class="field"><span>急用吗</span><select id="tbBuyUrgent"><option value="no">不着急，可以等</option><option value="yes">急用，今天就要</option></select></label>
+        </div>
+        <div class="tb-actions"><button class="btn primary" type="button" data-tb="buy-calc">算一下，值不值得现在买</button></div>
+        <div id="tbBuyOut">${buyResult ? buyOutHtml(buyResult) : ""}</div>
+      </section>
       <div class="tb-actions"><button class="btn primary" type="button" data-tb="price-add">+ 记一笔价格</button>
         <button class="btn ghost" type="button" data-tb="price-copy">复制比价清单</button></div>
       ${groups.length ? groups.map((g) => {
@@ -985,18 +1095,30 @@
     return "";
   }
 
+  function extractOrderNo(text) {
+    const m = text.match(/(?:订单号|订单编号|交易号|流水号|商户单号)[:：\s]*([A-Za-z0-9_-]{6,32})/);
+    return m ? m[1] : "";
+  }
+
   function parseNotice(raw) {
     const text = String(raw || "").replace(/\r/g, "").trim();
     if (!text) return [];
     const chunks = text.split(/\n{2,}|\n(?=\s*【)/).map((s) => s.trim()).filter(Boolean);
     const lines = chunks.length > 1 ? chunks : [text];
+    const seen = new Set();
     return lines.slice(0, 8).map((line) => ({
       type: classifyNotice(line),
       amount: extractAmount(line),
       date: extractDate(line),
       merchant: extractMerchant(line),
+      orderNo: extractOrderNo(line),
       text: line.replace(/\s+/g, " ").slice(0, 160)
-    }));
+    })).filter((item) => {
+      const key = `${item.type}|${item.amount}|${item.date}|${item.merchant}|${item.text}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   function renderInbox() {
@@ -1015,7 +1137,7 @@
         ${noticeItems.map((item, index) => `<div class="tb-notice">
           <div class="tb-notice-head"><b>${NOTICE_TYPES[item.type].label}</b>${item.amount ? `<strong>¥${item.amount}</strong>` : ""}</div>
           <p class="tb-notice-text">${esc(item.text)}</p>
-          <div class="tb-notice-meta">${item.merchant ? `对方：${esc(item.merchant)}` : "对方未识别"}${item.date ? ` · 日期：${esc(item.date)}` : ""}</div>
+          <div class="tb-notice-meta">${item.merchant ? `对方：${esc(item.merchant)}` : "对方未识别"}${item.date ? ` · 日期：${esc(item.date)}` : ""}${item.orderNo ? ` · 订单号：${esc(item.orderNo)}` : ""}</div>
           <div class="tb-notice-actions">
             ${item.type === "fraud"
               ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="fraud" data-idx="${index}">先看防诈自检</button>`
@@ -1919,6 +2041,7 @@ ${mats}
         if (!A.openFinanceBuilder) { A.toast("资金案卷暂不可用"); return; }
         A.openFinanceBuilder("payment", {
           merchant: item.merchant || "", amount: item.amount || "", date: item.date || isoToday(),
+          orderNo: item.orderNo || "",
           notes: `来自粘贴的通知：\n${item.text}`
         });
         return;
@@ -1975,6 +2098,7 @@ ${mats}
     }
     if (action === "deadline-ics") { exportDeadlineIcs(); return; }
     if (action === "deadline-copy") { copyText(deadlineText()); return; }
+    if (action === "buy-calc") { calcBuy(); return; }
     if (action === "price-add") { openPriceSheet(button.dataset.item || ""); return; }
     if (action === "price-copy") { copyText(priceText()); return; }
     if (action === "price-case") {

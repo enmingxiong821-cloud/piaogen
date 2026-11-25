@@ -23,11 +23,11 @@
     <span class="doc-mark">票根</span>
   </nav>
 
-  <p class="doc-kicker">票根 · MCP 0.4.2</p>
+  <p class="doc-kicker">票根 · MCP 0.4.3</p>
   <h1>可被调用</h1>
-  <p class="doc-meta">核对日期：2026-11-25　·　7 个工具　·　stdio + 本地 HTTP 桥 + 公网镜像代码</p>
+  <p class="doc-meta">核对日期：2026-11-25　·　7 个工具　·　stdio + 本地 HTTP 桥 + 公网只读端点（已上线）</p>
 
-  <p class="lede">票根不只是一个页面。它把“权利窗口、证据缺口、官方路径、材料与回执”做成 7 个 MCP 工具，别的 Agent 可以按标准协议调用。<strong>本地 stdio 与本地 HTTP 桥已跑通；公网只读镜像代码在 <code>cloudfunctions/piaogen-mcp</code>，端点尚未上线。</strong></p>
+  <p class="lede">票根不只是一个页面。它把“权利窗口、证据缺口、官方路径、材料与回执”做成 7 个 MCP 工具，别的 Agent 可以按标准协议调用。<strong>本地 stdio、本地 HTTP 桥与公网只读端点都已跑通；公网端点用示例数据、只读、限流，不托管用户数据。</strong></p>
 
   <h2>1. 工具清单</h2>
   <table>
@@ -51,8 +51,19 @@ node mcp/server.js
 node mcp/http-server.js
 # POST http://127.0.0.1:8787/mcp</code></pre>
 
-  <h2>2.5 公网只读镜像（代码已备，端点未上线）</h2>
-  <p><code>v0/cloudfunctions/piaogen-mcp</code> 是同一套 7 工具的公网镜像：HTTP + JSON-RPC 2.0，支持 <code>initialize</code>、<code>tools/list</code>、<code>tools/call</code>；<code>rights.record</code> / <code>finance.record</code> 直接返回 <code>public_read_only</code>。它内置示例案卷，不读文件、不接数据库、不发外部请求。部署需要平台发布权限；未上线前不写成“已有公网 MCP”。接入面总览见 <a href="alipay.html">支付宝接入面</a>。</p>
+  <h2>2.5 公网只读端点（已上线）</h2>
+  <p><code>v0/cloudfunctions/piaogen-mcp</code> 是同一套 7 工具的公网镜像：HTTP + JSON-RPC 2.0，支持 <code>initialize</code>、<code>tools/list</code>、<code>tools/call</code>；<code>rights.record</code> / <code>finance.record</code> 直接返回 <code>public_read_only</code>。它内置示例案卷，不读文件、不接数据库、不发外部请求；每 IP 每分钟 60 次，请求体上限 64KB，CORS 只放行票根的页面。</p>
+  <pre><code>GET  https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp/health
+
+POST https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp
+Content-Type: application/json
+
+{"jsonrpc":"2.0","id":1,"method":"tools/list"}</code></pre>
+  <p>返回示例（节选）：<code>{"result":{"tools":[{"name":"rights.lookup",…}]}}</code>。写操作会返回 <code>{"error":"public_read_only"}</code>。可选令牌：部署时设置 <code>MCP_READ_TOKEN</code> 后，请求需带 <code>Authorization: Bearer &lt;token&gt;</code>；默认不设，公开只读。接入面总览见 <a href="alipay.html">支付宝接入面</a>。</p>
+  <div class="try-mcp">
+    <button class="btn primary" id="mcpTry" type="button">当场调用 tools/list</button>
+    <pre id="mcpTryOut"><code>点一下，直接请求公网端点；不需要 Key。</code></pre>
+  </div>
 
   <h2>3. 调用示例</h2>
   <p>先列工具：</p>
@@ -69,7 +80,7 @@ node mcp/http-server.js
     <li>不暴露 shell、文件系统、浏览器、支付或任意 HTTP。</li>
     <li>不代登录、不代提交、不代收款、不托管资金。</li>
     <li>不返回证件号、手机号、卡号、CVV、验证码；保单/合同只保留机构、金额、期限。</li>
-    <li>HTTP 桥只绑 <code>127.0.0.1</code>，CORS 只放行 localhost；公网镜像只读，写操作一律拒绝，端点尚未上线。</li>
+    <li>HTTP 桥只绑 <code>127.0.0.1</code>，CORS 只放行 localhost；公网端点只读、限流、示例数据，写操作一律拒绝。</li>
   </ul>
 
   <h2>5. 机器可读清单</h2>
@@ -93,5 +104,27 @@ node mcp/http-server.js
 
   <p class="doc-foot"><a href="index.html">返回票根</a> · <a href="evidence.html">核验与边界</a> · <a href="afterpay.html">支付后入口</a></p>
 </main>
+<script>
+(() => {
+  const ENDPOINT = "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp";
+  const btn = document.getElementById("mcpTry");
+  const out = document.getElementById("mcpTryOut");
+  if (!btn || !out) return;
+  btn.addEventListener("click", async () => {
+    out.textContent = "请求中…";
+    try {
+      const health = await fetch(ENDPOINT + "/health").then((r) => r.json());
+      const list = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" })
+      }).then((r) => r.json());
+      out.textContent = JSON.stringify({ health, tools: (list.result && list.result.tools || []).map((t) => t.name) }, null, 2);
+    } catch (e) {
+      out.textContent = "请求失败：" + e.message + "\n（公网端点需要网络；本地预览也可能被浏览器拦截。）";
+    }
+  });
+})();
+</script>
 </body>
 </html>

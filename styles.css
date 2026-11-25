@@ -340,6 +340,16 @@ h2{font-size:15px;font-weight:650;margin:0}
 .done-wrap .btn{max-width:100%}
 
 .settings-list{margin-top:14px;border-top:1px solid var(--rule)}
+.setting-group-title{font-family:var(--num);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3);margin:22px 0 2px;padding-top:14px;border-top:1px solid var(--line-2)}
+.setting-group-title:first-of-type{margin-top:14px;border-top:0;padding-top:0}
+.today-tools{margin:18px 0 6px}
+.today-tools-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.today-tools-grid button{text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:12px 13px;min-height:76px;display:flex;flex-direction:column;gap:4px;justify-content:center}
+.today-tools-grid button:hover{border-color:rgba(157,240,194,.32);background:var(--panel-2)}
+.today-tools-grid button:active{transform:scale(.995)}
+.today-tools-grid b{font-size:12.5px;font-weight:650;line-height:1.3}
+.today-tools-grid small{font-size:10px;line-height:1.5;color:var(--text-3)}
+@media (min-width:760px){.today-tools-grid{grid-template-columns:repeat(4,1fr)}}
 .setting-row{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--rule);background:transparent;padding:15px 2px;min-height:64px}
 .setting-row b{display:block;font-size:13px;font-weight:650}
 .setting-row small{display:block;font-size:10.5px;color:var(--ink-3);margin-top:4px}

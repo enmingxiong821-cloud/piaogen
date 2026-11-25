@@ -17,11 +17,25 @@
     <span class="doc-mark">票根</span>
   </nav>
 
-  <p class="doc-kicker">票根 · V10.6</p>
+  <p class="doc-kicker">票根 · V10.7</p>
   <h1>支付宝接入面</h1>
   <p class="doc-meta">核对日期：2026-11-25　·　只写已经能验证的接入面，不把“设计”写成“已接入”</p>
 
   <p class="lede">票根不是一个孤立的网页。它把“付款之后”的五个入口都留成了可接入的接口：支付完成页跳转、小程序 web-view、支付宝账单 CSV、只读交易查询适配层、以及可被 Agent 调用的 MCP 工具。下面每一项都标明现在有什么、还缺什么、评委怎么验。</p>
+
+  <h2>0. 现在能不能接</h2>
+  <table>
+    <thead><tr><th>条件</th><th>现状</th><th>卡在哪</th></tr></thead>
+    <tbody>
+      <tr><td>公网只读 MCP</td><td><strong>已上线</strong></td><td>不需要支付宝资质；示例数据、只读、限流。</td></tr>
+      <tr><td>CloudBase 托管</td><td><strong>已具备</strong></td><td>静态站与云函数都已部署。</td></tr>
+      <tr><td>小程序主体</td><td>未满足</td><td>web-view 只对企业/个体工商户主体开放；个人主体功能受限。</td></tr>
+      <tr><td>备案 HTTPS 域名</td><td>未满足</td><td>小程序 web-view 要配置「H5 域名配置」，域名需备案且能放校验文件；GitHub Pages 域名不能配。</td></tr>
+      <tr><td>AppID / 商户凭据</td><td>未提供</td><td>交易查询需要 AppID、商家 PID、RSA2 密钥与接口权限；私钥只进环境变量。</td></tr>
+      <tr><td>支付宝 AI 开放平台</td><td>未申请</td><td>目前面向企业开发者/代开发服务商邀测。</td></tr>
+    </tbody>
+  </table>
+  <p>完整步骤、费用与“需要你提供什么”见 <a href="接入清单_支付宝.md">接入清单_支付宝.md</a>。在主体、域名与凭据就绪前，这一页不会把小程序或交易查询写成“已接入”。</p>
 
   <h2>1. 五个接入面</h2>
   <table>
@@ -53,9 +67,9 @@
       </tr>
       <tr>
         <td><strong>MCP 工具</strong></td>
-        <td>本地 stdio 七工具已跑通；公网只读镜像代码在 <code>cloudfunctions/piaogen-mcp</code>，实现 <code>initialize / tools/list / tools/call</code>。</td>
-        <td>公网 HTTP 端点尚未上线（需要平台发布权限）；写操作只在本地。</td>
-        <td><a href="agent-api.html">agent-api.html</a> 有 7 工具、JSON-RPC 示例与真实返回；<a href="mcp/manifest.json">manifest</a> 可机器读。</td>
+        <td>本地 stdio 七工具已跑通；<strong>公网只读端点已上线</strong>：<code>…/piaogen-mcp</code>，HTTP + JSON-RPC 2.0，7 个只读工具，示例数据，每 IP 每分钟 60 次。</td>
+        <td>公网端点只读，不托管用户数据；写操作只在本地。接入阿宝仍需企业开发者/代开发服务商资质与邀测。</td>
+        <td><code>GET …/piaogen-mcp/health</code> 可当场验；<a href="agent-api.html">agent-api.html</a> 有 7 工具与示例；<a href="mcp/manifest.json">manifest</a> 可机器读。</td>
       </tr>
     </tbody>
   </table>

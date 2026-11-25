@@ -8,7 +8,17 @@
  * 不读文件、不读环境变量、不访问数据库、不发外部请求。
  */
 
-const VERSION = "0.4.2";
+const VERSION = "0.4.3";
+const MAX_BODY = 64 * 1024;
+const RATE_LIMIT = 60;
+const RATE_WINDOW = 60 * 1000;
+const ALLOWED_ORIGINS = [
+  "https://enmingxiong821-cloud.github.io",
+  "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.tcloudbaseapp.com",
+  "http://127.0.0.1:8765",
+  "http://localhost:8765"
+];
+const hits = new Map();
 const SAMPLE_RIGHTS = {
   caseId: "PG-20261113-0001",
   sample: true,
@@ -156,47 +166,110 @@ function rpc(method, params, id) {
   return { jsonrpc: "2.0", id, error: { code: -32601, message: `method not found: ${method}` } };
 }
 
-function headers() {
-  return {
+function requestHeaders(event) {
+  const h = (event && (event.headers || event.header)) || {};
+  const out = {};
+  Object.keys(h).forEach((k) => { out[String(k).toLowerCase()] = h[k]; });
+  return out;
+}
+
+function headers(event) {
+  const origin = requestHeaders(event).origin || "";
+  const out = {
     "Content-Type": "application/json; charset=utf-8",
-    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Accept, MCP-Protocol-Version",
-    "Cache-Control": "no-store"
+    "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization, X-MCP-Token, MCP-Protocol-Version",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer"
   };
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    out["Access-Control-Allow-Origin"] = origin;
+    out["Vary"] = "Origin";
+  }
+  return out;
+}
+
+function clientIp(event) {
+  const h = requestHeaders(event);
+  return String(h["x-forwarded-for"] || h["x-real-ip"] || (event && event.requestContext && event.requestContext.sourceIp) || "unknown").split(",")[0].trim();
+}
+
+function limited(event) {
+  const ip = clientIp(event);
+  const now = Date.now();
+  const row = hits.get(ip) || { at: now, n: 0 };
+  if (now - row.at > RATE_WINDOW) { row.at = now; row.n = 0; }
+  row.n += 1;
+  hits.set(ip, row);
+  if (hits.size > 5000) hits.clear();
+  return row.n > RATE_LIMIT;
+}
+
+function authorized(event) {
+  const token = process.env.MCP_READ_TOKEN;
+  if (!token) return true;
+  const h = requestHeaders(event);
+  const given = String(h.authorization || "").replace(/^Bearer\s+/i, "") || String(h["x-mcp-token"] || "");
+  return !!(given && given === token);
+}
+
+function manifest() {
+  return {
+    name: "piaogen-rights",
+    version: VERSION,
+    description: "票根公网只读 MCP：消费权利窗口、资金售后路径、保单字段提取。示例数据，不构成法律/金融结论。",
+    transport: "http-json-rpc",
+    endpoint: "POST /piaogen-mcp",
+    mode: "read-only",
+    sample: true,
+    auth: process.env.MCP_READ_TOKEN ? "bearer" : "none",
+    tools: TOOLS.map((tool) => ({ name: tool.name, description: tool.description })),
+    boundaries: ["不代提交", "不代收款", "不托管资金", "不读用户数据", "写操作拒绝"]
+  };
+}
+
+function reply(event, statusCode, data) {
+  return { statusCode, headers: headers(event), body: JSON.stringify(data, null, 2) };
 }
 
 exports.main = async (event) => {
   const method = String((event && (event.httpMethod || event.method)) || "POST").toUpperCase();
-  if (method === "OPTIONS") return { statusCode: 204, headers: headers(), body: "" };
+  const path = String((event && (event.path || event.rawPath)) || "").toLowerCase();
+  if (method === "OPTIONS") return { statusCode: 204, headers: headers(event), body: "" };
+
+  if (limited(event)) {
+    return reply(event, 429, { error: "rate_limited", message: "每分钟最多 60 次；请稍后再试。" });
+  }
 
   if (method === "GET") {
-    return {
-      statusCode: 200, headers: headers(),
-      body: JSON.stringify({
-        name: "piaogen-rights",
-        version: VERSION,
-        transport: "http-json-rpc",
-        mode: "read-only",
-        sample: true,
-        tools: TOOLS.map((tool) => tool.name),
-        note: "POST JSON-RPC 2.0：initialize / tools/list / tools/call。写操作返回 public_read_only。"
-      }, null, 2)
-    };
+    if (path.endsWith("/health")) return reply(event, 200, { ok: true, name: "piaogen-rights", version: VERSION, mode: "read-only" });
+    if (path.endsWith("/manifest.json") || path.endsWith("/.well-known/mcp.json")) return reply(event, 200, manifest());
+    return reply(event, 200, manifest());
+  }
+
+  if (!authorized(event)) {
+    return reply(event, 401, { jsonrpc: "2.0", id: null, error: { code: -32001, message: "unauthorized" } });
+  }
+
+  const body = event && event.body;
+  if (typeof body === "string" && body.length > MAX_BODY) {
+    return reply(event, 413, { jsonrpc: "2.0", id: null, error: { code: -32002, message: "payload too large" } });
   }
 
   let payload;
   try {
-    const body = event && event.body;
     payload = typeof body === "string" ? JSON.parse(body) : body;
   } catch (error) {
-    return { statusCode: 400, headers: headers(), body: JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } }) };
+    return reply(event, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } });
   }
 
   if (!payload || typeof payload !== "object") {
-    return { statusCode: 400, headers: headers(), body: JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "invalid request" } }) };
+    return reply(event, 400, { jsonrpc: "2.0", id: null, error: { code: -32600, message: "invalid request" } });
   }
 
   const result = rpc(payload.method, payload.params, payload.id === undefined ? null : payload.id);
-  return { statusCode: 200, headers: headers(), body: JSON.stringify(result) };
+  return reply(event, 200, result);
 };
+
+exports._test = { requestHeaders, headers, limited, authorized, manifest, rpc, TOOLS, hits };

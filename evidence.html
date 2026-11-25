@@ -17,7 +17,7 @@
     <span class="doc-mark">票根</span>
   </nav>
 
-  <p class="doc-kicker">票根 · V10.6</p>
+  <p class="doc-kicker">票根 · V10.7</p>
   <h1>核验与边界</h1>
   <p class="doc-meta">核对日期：2026-11-25　·　这一页只写能当场复核的事实</p>
 
@@ -27,18 +27,19 @@
   <ul>
     <li>可安装的 Web 应用（PWA），纯静态、无后端、无账号；数据只存本机 localStorage。</li>
     <li>六栏：今天 / 案卷 / 资金 / 资产 / 导入 / 我的；消费权利与资金售后共用同一套案卷、证据、回执引擎。</li>
-    <li>可被调用：本地 MCP server 七个工具（含 <code>policy.parse</code>），协议 <code>initialize → tools/list → tools/call</code>；另附本地 JSON-RPC over HTTP 桥（只绑 127.0.0.1）。</li>
+    <li>可被调用：本地 MCP server 七个工具（含 <code>policy.parse</code>），协议 <code>initialize → tools/list → tools/call</code>；另附本地 JSON-RPC over HTTP 桥（只绑 127.0.0.1）与<strong>公网只读端点</strong>（CloudBase，已上线，示例数据、限流、CORS 白名单）。</li>
     <li>内置规则 Agent（顶栏 ✦）：七类意图——查到期、资金售后、权利窗口、材料准备、本月支出、会员年费、快过期券；“帮我排今天”会同时查到期、资金截止、证据缺口与周期扣款，排成 3 件事并给动作；逐轮补齐金额与日期，不联网、不需要 Key，支持语音输入。</li>
     <li>智能模式：可选外接任意 OpenAI 兼容模型（含本机 Ollama）。模型只调用七个本地只读工具（到期清单、搜案卷、读案卷、资金规则、材料清单、查规则、算截止日），每轮输出 JSON；金额与日期必须来自工具结果或你的原话，未核对数字会标黄；失败自动回落本地规则。</li>
     <li>没有 Key 也能看智能模式怎么工作：助手内有“协议示例”，展示模型如何先查案卷、再算截止日、最后给结论；示例标明不是实时模型输出。</li>
     <li>支付后入口已实现 URL 参数契约：<code>?from=afterpay&amp;merchant=…&amp;amount=…&amp;order=…</code>，同一交易号不重复建案；PWA 支持系统分享（<code>share_target</code>），分享文本会打开立案框。</li>
     <li>支付宝小程序壳是真实可编译源码（<code>alipay-mini/</code>，web-view 壳），但<strong>未发布、未审核、没有 AppID</strong>；不要把它当成已接入。</li>
-    <li>MCP 七工具另有机器可读清单 <a href="mcp/manifest.json">mcp/manifest.json</a> 与公开说明页 <a href="agent-api.html">agent-api.html</a>；公网只读镜像代码在 <code>cloudfunctions/piaogen-mcp</code>，端点尚未上线。支付宝四个接入面见 <a href="alipay.html">alipay.html</a>。</li>
+    <li>MCP 七工具另有机器可读清单 <a href="mcp/manifest.json">mcp/manifest.json</a> 与公开说明页 <a href="agent-api.html">agent-api.html</a>；<strong>公网只读端点已上线</strong>：<code>https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp</code>（<code>GET /health</code> 可当场验，写操作返回 <code>public_read_only</code>）。支付宝五个接入面见 <a href="alipay.html">alipay.html</a>。</li>
     <li>订单截图 / 录屏可多选，逐张识别后一起分拣；读不出的单单独标出，不猜字段。</li>
     <li>支付宝账单 CSV：从“交易流水证明”导出的 CSV 可在本机导入，自动识别 UTF-8 / GBK，提取时间、对方、商品、收支与金额；同一商户连续扣款会提示疑似续费。文件不上传。</li>
     <li>支付宝接入面：<a href="alipay.html">alipay.html</a> 列出支付后 URL、小程序 web-view、账单 CSV、MCP 四个面，逐项标明已实现与未接入。</li>
     <li>办事台（今天页与资产页可进）十件事：账单月报、还能退、续费决策、权益账本、储值卡、比价卡、找谁、诉求助手、保修日期卡、家庭体检单。账单支持支付宝/微信/银行 CSV 与 Excel（.xlsx 第一个工作表），跨渠道按同日同额同商户合并，并给出日均、退款笔数、分类占比与「可能白花的钱」（续费/券/卡三笔分开，不计入支出）；「还能退」把权利、券、积分、卡、续费、保修按截止日排成一张单，可筛选、导出 `.ics`；「比价卡」只记用户亲眼看到的价格，显示涨跌与历史低高，可一键建价保案卷；囤货按“数量 ÷ 每天用量”算可用天数与补货预算；30 类场景给出先找谁、步骤与材料；诉求只生成文字，带语气与约 200 字短版；保修按购买日与月数算到期；家庭体检单含 8 项防诈自检与「帮爸妈三步」，可打印或转发。全部在本机运行，不登录、不上传。</li>
-    <li>收件箱：把扣款、退款、到期、快递、催缴、验证码短信贴进来，本机规则识别对方、金额、日期与意图，给出建案 / 记流水 / 记续费 / 加提醒 / 找谁 / 写诉求六个动作；不点链接、不回拨、不上传原文。</li>
+    <li>收件箱：把扣款、退款、到期、快递、催缴、验证码短信贴进来，本机规则识别对方、金额、日期、订单号与意图，给出建案 / 记流水 / 记续费 / 加提醒 / 找谁 / 写诉求六个动作；同一条通知不重复，不点链接、不回拨、不上传原文。</li>
+    <li>真实用户测试台：内置 5 个任务（示例、账单、还能退、诉求、家庭单），自动判定完成、记录用时与提示次数，导出 JSON；只存编号，不收集姓名、手机号、地址，可随时清空。</li>
     <li>自定义到期提醒：自己加一条「宽带到期 / 车险续保 / 取快递」，进入「还能退」、家庭体检单与导出的日历；可编辑、可删除。</li>
     <li>续费周期：支持每周 / 每月 / 每季 / 每年，统一换算月均与一年合计；不是所有续费都按月。</li>
     <li>家庭年度总览：今年的账单支出、退款收入、已确认守住、续费可省、卡余额与到期券，一张单打印或转发；三种金额口径仍然分开。</li>
@@ -83,7 +84,8 @@
     <li><code>v103_smoke.py</code>：21 / 21（30 秒首屏、支付宝 CSV 的 UTF-8/GBK、资金体检 CSV、接入面、MCP 公网镜像代码）</li>
     <li><code>toolbox_smoke.py</code>：49 / 49（账单 CSV/Excel 合并与月报、跨渠道去重、权益账本、储值卡、续费决策、30 类找谁、诉求草稿、保修到期、防诈体检、390/1440/320 无溢出）</li>
     <li><code>v105_smoke.py</code>：36 / 36（今日速报、还能退筛选与 <code>.ics</code>、比价涨跌与价保建案、账单洞察、囤货用量与预算、诉求语气与短版、家庭三步、适配层自检、接入面声明、320 无溢出）</li>
-    <li><code>v106_smoke.py</code>：33 / 33（收件箱六类识别与动作、自定义提醒增改删与 <code>.ics</code>、年付周期换算、家庭年度、打印、备份恢复、320 无溢出）</li>
+    <li><code>v106_smoke.py</code>：35 / 35（收件箱六类识别、订单号、去重与动作、自定义提醒增改删与 <code>.ics</code>、年付周期换算、家庭年度、打印、备份恢复、320 无溢出）</li>
+    <li><code>testkit_smoke.py</code>：26 / 26（5 个任务自动判定、评分、导出、无 PII、390/1440 无溢出）</li>
     <li><code>cloudfunctions/piaogen-alipay/selftest.js</code>：10 / 10（密钥头、参数排序、签名验签、篡改拒绝、响应截取、字段裁剪、缺凭据、方法与订单号校验）</li>
     <li><code>parse_smoke.py</code>：11 / 11（金额行优先级、千分位、CSV 导出、重复备份去重）</li>
     <li><code>mcp_smoke.py</code>：13 / 13；<code>mcp_store_smoke.py</code>：9 / 9（落盘、重启回放、off 模式、损坏备份）；<code>mcp_http_smoke.py</code>：6 / 6；<code>policy_ocr_smoke.py</code>：18 / 18；<code>offline_smoke.py</code>：4 / 4；<code>a11y_smoke.py</code>：8 / 8；<code>batch_import_smoke.py</code>：5 / 5</li>
@@ -118,7 +120,7 @@
   <ul>
     <li>纯 localStorage，没有云同步与多设备；家庭是“帮谁办”的标记，不是共享账号。</li>
     <li>中文票据 OCR 仍会错字；金额与日期必须用户核对；复杂 OFD 不支持。</li>
-    <li>远程 MCP 未托管；官方 Streamable HTTP 未实现。</li>
+    <li>公网 MCP 只托管示例数据，不托管用户票据；官方 Streamable HTTP 未实现。</li>
     <li>支付宝只读交易查询适配层未部署，也没有用真实商户凭据跑通；订阅消息模板 ID 未申请。</li>
     <li>支付宝小程序壳（<a href="miniapp.html">miniapp.html</a>）与支付后入口（<a href="afterpay.html">afterpay.html</a>）只有设计与原型，未接入。</li>
   </ul>
@@ -131,7 +133,7 @@
     <li><strong>提醒得到</strong>：「还能退」把权利、券、积分、卡、续费、保修与自定义提醒排成一张单，可导出 <code>.ics</code>；家庭体检单给爸妈看。</li>
     <li><strong>留得下</strong>：回执、办理时间线与三种金额口径（争议 / 预计可追回 / 确认解决）分开记；只有你确认到账才计入已解决。</li>
     <li><strong>传得出去</strong>：家庭单可打印 / 转发；完整备份含票据与办事台，可换设备恢复（文件自己保管）。</li>
-    <li><strong>调得动</strong>：本地 MCP 七个只读工具与 <a href="agent-api.html">调用示例</a>；公网镜像代码已备，端点未上线。</li>
+    <li><strong>调得动</strong>：本地 MCP 七个只读工具、<a href="agent-api.html">调用示例</a>与公网只读端点（<code>…/piaogen-mcp/health</code>）。</li>
   </ol>
   <p>这七步对应产品里的固定入口：<a href="index.html">今天</a> → 办事台（今天页 / 资产页进入）→ 案卷 → 报告。闭环的意思不是功能多，而是每一步都能回到下一步，不用重新找入口。</p>
 
@@ -151,7 +153,7 @@ python toolbox_smoke.py
 python v105_smoke.py
 python v106_smoke.py
 python doc_check.py</code></pre>
-  <p>MCP 复核：<code>node mcp/server.js</code>（stdio）或 <code>node mcp/http-server.js</code>（本地 HTTP 桥），再按 <a href="mcp/README.md">mcp/README.md</a> 调 <code>tools/list</code>。</p>
+  <p>MCP 复核：<code>node mcp/server.js</code>（stdio）或 <code>node mcp/http-server.js</code>（本地 HTTP 桥），再按 <a href="mcp/README.md">mcp/README.md</a> 调 <code>tools/list</code>。公网端点：<code>curl …/piaogen-mcp/health</code>，或 POST <code>tools/list</code>。</p>
 
   <p class="doc-foot"><a href="index.html">返回票根</a> · <a href="privacy.html">隐私政策</a> · <a href="terms.html">用户协议</a> · <a href="licenses.html">开源许可</a></p>
 </main>

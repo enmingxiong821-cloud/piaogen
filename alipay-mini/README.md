@@ -27,15 +27,16 @@
 1. 安装支付宝小程序开发者工具。
 2. 新建项目，目录选这个 `alipay-mini/`。
 3. AppID 用你自己的测试 AppID；没有就选“无 AppID / 测试”。
-4. 在“详情 → 域名信息”里把 `enmingxiong821-cloud.github.io` 加入 **web-view 业务域名** 白名单。
+4. **开发预览**可在开发者工具里勾“不校验域名”；正式 web-view 业务域名必须是你自己的、已备案的 HTTPS 域名，并且你能把支付宝的校验文件放到域名根目录。`enmingxiong821-cloud.github.io` 不是你自己的域名，也不能放校验文件，**不能用于正式 web-view 白名单**。
 5. 编译预览。首屏会加载：
-   `https://enmingxiong821-cloud.github.io/piaogen/?from=alipay-mini`
+   `https://enmingxiong821-cloud.github.io/piaogen/?from=alipay-mini`（仅开发预览）
 
 ## 上线前必须补的
 
 - 用真实 AppID 替换测试 AppID。
 - 如需到期提醒：在开放平台申请订阅消息模板，把模板 ID 填进 `pages/index/index.js` 的 `REMINDER_TEMPLATE_ID`。
-- 在支付宝开放平台配置 web-view 业务域名，并确保域名已备案、HTTPS 有效。
+- 在支付宝开放平台配置 **H5 域名**（不是服务器域名白名单），并确保域名已备案、HTTPS 有效、根目录可放校验文件；把票根静态站部署到该域名。
+- 主体要求：web-view 只对企业/个体工商户主体开放；个人主体功能受限。完整清单见 `../接入清单_支付宝.md`。
 - 如果要做支付后入口，申请对应能力；没有审核通过前，不要把原型写成“已接入”。
 - 真机测试：iOS / Android 各一台，检查 web-view 返回键、键盘、文件选择、下载与 PWA 安装提示。
 

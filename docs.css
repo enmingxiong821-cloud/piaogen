@@ -46,3 +46,7 @@
 @media (prefers-reduced-motion:no-preference){
   .doc a,.doc-back{transition:color 140ms cubic-bezier(.23,1,.32,1)}
 }
+
+.try-mcp{margin:18px 0 8px;display:grid;gap:10px}
+.try-mcp .btn{width:auto;justify-self:start;min-height:42px;padding:0 18px}
+.try-mcp pre{max-height:320px;overflow:auto;margin:0}

@@ -973,6 +973,7 @@ const POINT_KEY = "piaogen.v0.points";
     if (name === "finance") renderFinance();
     if (name === "financeCase" && state.currentFinance) renderFinanceCase(state.currentFinance);
     if (name === "toolbox" && window.PGToolbox) window.PGToolbox.render();
+    if (name === "testkit" && window.PGTestkit) window.PGTestkit.render();
   }
 
   window.PGApp = {
@@ -4210,7 +4211,7 @@ const POINT_KEY = "piaogen.v0.points";
       ? (state.familyFilter === "all" ? "今天先办这一件。" : `${active.label}这 1 件，今天先办。`)
       : "这批票暂时没有快到期的。";
     $("#todaySub").textContent = first && first.win
-      ? `${first.win.label} · ${first.win.daysLeft} 天后关闭 · ${first.win.amount ? `可退 ${money(first.win.amount)}` : money(first.ticket.amount)}`
+      ? `${first.win.label} · ${first.win.daysLeft} 天后关闭 · ${first.win.amount ? `可退 ${money(first.win.amount)}` : money(first.ticket.amount)} · 办完留回执`
       : "可以先补充证据，或再加一张票。";
 
     if (first && first.win) {
@@ -8319,8 +8320,12 @@ const POINT_KEY = "piaogen.v0.points";
       ["finance.record", "写入示例资金案卷（仅进程内）"],
       ["policy.parse", "保单/合同只提取机构、金额、期限"]
     ];
-    openSheet("开发者调用", `<p class="sheet-hint">票根同时是一个可被外部 Agent 调用的 stdio MCP server。演示数据只读，不接触你本机的票据。</p>
+    openSheet("开发者调用", `<p class="sheet-hint">票根同时是一个可被外部 Agent 调用的 MCP server：本地 stdio、本地 HTTP 桥，以及已上线的公网只读端点。演示数据，不接触你本机的票据。</p>
       <pre class="finance-script">${escapeHtml(config)}</pre>
+      <p class="sheet-hint" style="margin-top:10px">公网只读端点：<code>https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp</code></p>
+      <pre class="finance-script">curl -s …/piaogen-mcp/health
+curl -s -X POST …/piaogen-mcp -H "Content-Type: application/json" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'</pre>
       <div class="settings-list" style="margin-top:10px">
         ${tools.map(([name, desc]) => `<div class="setting-row"><div><b>${escapeHtml(name)}</b><small>${escapeHtml(desc)}</small></div><span>›</span></div>`).join("")}
       </div>
@@ -8331,7 +8336,7 @@ const POINT_KEY = "piaogen.v0.points";
           ["帮我把退款案卷推进下一步", "finance.plan"]
         ].map(([intent, tool]) => `<div class="setting-row"><div><b>${escapeHtml(intent)}</b><small>${escapeHtml(tool)}</small></div><span>›</span></div>`).join("")}
       </div>
-      <p class="annual-note">验证：python mcp_smoke.py 应 13/13；MCP Inspector 选 STDIO，tools/list 应出现 7 个工具。机器可读清单见 mcp/manifest.json，公开说明页见 agent-api.html。远程 MCP 尚未部署，当前是本地 stdio 调用。演示数据不是线上实时用户数据；不代提交、不收款、不访问 shell / 文件系统 / 任意 HTTP。</p>
+      <p class="annual-note">验证：python mcp_smoke.py 应 13/13；node cloudfunctions/piaogen-mcp/selftest.js 应 14/14；公网 /health 应返回 ok。机器可读清单见 mcp/manifest.json，公开说明页见 agent-api.html。公网端点只读、限流、示例数据；不代提交、不收款、不访问 shell / 文件系统 / 任意 HTTP。</p>
       <div class="sheet-actions">
         <button class="btn primary" id="devCallCopy" type="button">复制配置</button>
         <button class="btn ghost" id="devCallApi" type="button">可调用页</button>
@@ -8358,6 +8363,8 @@ const POINT_KEY = "piaogen.v0.points";
     if (aiConfigBtn) aiConfigBtn.onclick = openAiConfigSheet;
     const evidence = $("#openEvidence");
     if (evidence) evidence.onclick = openEvidenceSheet;
+    const testkit = $("#openTestkit");
+    if (testkit) testkit.onclick = () => { if (window.PGTestkit) window.PGTestkit.open(); };
     const devCall = $("#openDevCall");
     if (devCall) devCall.onclick = openDevCallSheet;
     const subs = $("#openSubs");

@@ -48,11 +48,23 @@
   ],
   "safety": {
     "readOnlyByDefault": true,
-    "confirmedGate": ["refunded", "repaired", "promise", "resolved"],
+    "confirmedGate": [
+      "refunded",
+      "repaired",
+      "promise",
+      "resolved"
+    ],
     "noShell": true,
     "noFilesystem": true,
     "noPayment": true,
     "noSubmission": true,
     "noPiiInStore": true
+  },
+  "publicMirror": {
+    "status": "code_ready_not_deployed",
+    "path": "cloudfunctions/piaogen-mcp",
+    "mode": "read-only",
+    "protocol": "http-json-rpc",
+    "note": "与本地七工具同名同参；rights.record/finance.record 返回 public_read_only。端点未上线。"
   }
 }

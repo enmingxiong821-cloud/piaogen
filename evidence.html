@@ -17,7 +17,7 @@
     <span class="doc-mark">票根</span>
   </nav>
 
-  <p class="doc-kicker">票根 · V10.2</p>
+  <p class="doc-kicker">票根 · V10.5</p>
   <h1>核验与边界</h1>
   <p class="doc-meta">核对日期：2026-11-25　·　这一页只写能当场复核的事实</p>
 
@@ -33,11 +33,15 @@
     <li>没有 Key 也能看智能模式怎么工作：助手内有“协议示例”，展示模型如何先查案卷、再算截止日、最后给结论；示例标明不是实时模型输出。</li>
     <li>支付后入口已实现 URL 参数契约：<code>?from=afterpay&amp;merchant=…&amp;amount=…&amp;order=…</code>，同一交易号不重复建案；PWA 支持系统分享（<code>share_target</code>），分享文本会打开立案框。</li>
     <li>支付宝小程序壳是真实可编译源码（<code>alipay-mini/</code>，web-view 壳），但<strong>未发布、未审核、没有 AppID</strong>；不要把它当成已接入。</li>
-    <li>MCP 七工具另有机器可读清单 <a href="mcp/manifest.json">mcp/manifest.json</a> 与公开说明页 <a href="agent-api.html">agent-api.html</a>；公网未托管 MCP 服务。</li>
+    <li>MCP 七工具另有机器可读清单 <a href="mcp/manifest.json">mcp/manifest.json</a> 与公开说明页 <a href="agent-api.html">agent-api.html</a>；公网只读镜像代码在 <code>cloudfunctions/piaogen-mcp</code>，端点尚未上线。支付宝四个接入面见 <a href="alipay.html">alipay.html</a>。</li>
     <li>订单截图 / 录屏可多选，逐张识别后一起分拣；读不出的单单独标出，不猜字段。</li>
+    <li>支付宝账单 CSV：从“交易流水证明”导出的 CSV 可在本机导入，自动识别 UTF-8 / GBK，提取时间、对方、商品、收支与金额；同一商户连续扣款会提示疑似续费。文件不上传。</li>
+    <li>支付宝接入面：<a href="alipay.html">alipay.html</a> 列出支付后 URL、小程序 web-view、账单 CSV、MCP 四个面，逐项标明已实现与未接入。</li>
+    <li>办事台（今天页与资产页可进）十件事：账单月报、还能退、续费决策、权益账本、储值卡、比价卡、找谁、诉求助手、保修日期卡、家庭体检单。账单支持支付宝/微信/银行 CSV 与 Excel（.xlsx 第一个工作表），跨渠道按同日同额同商户合并，并给出日均、退款笔数、分类占比与「可能白花的钱」（续费/券/卡三笔分开，不计入支出）；「还能退」把权利、券、积分、卡、续费、保修按截止日排成一张单，可筛选、导出 `.ics`；「比价卡」只记用户亲眼看到的价格，显示涨跌与历史低高，可一键建价保案卷；囤货按“数量 ÷ 每天用量”算可用天数与补货预算；30 类场景给出先找谁、步骤与材料；诉求只生成文字，带语气与约 200 字短版；保修按购买日与月数算到期；家庭体检单含 8 项防诈自检与「帮爸妈三步」，可打印或转发。全部在本机运行，不登录、不上传。</li>
+    <li>支付宝只读交易查询适配层：<code>cloudfunctions/piaogen-alipay/</code> 用商户自己的凭据调 <code>alipay.trade.query</code>，RSA2 签名、响应验签、只回白名单字段、买家账号脱敏；<strong>未部署，需要凭据</strong>，缺凭据返回 <code>not_configured</code>。离线自检 10 项通过。</li>
     <li>保单 / 合同导入只提取机构、金额、期限三项，不保存证件原件、证件号与完整文字；结果由用户确认后才建立资金案卷。</li>
     <li>未接入：支付宝小程序发布、支付后 1403 真实回调、订阅消息、蚂蚁阿宝真实调用。已有可编译的 <a href="alipay-mini/README.md">web-view 小程序壳源码</a>（未发布）与 <a href="afterpay.html">支付后 URL 参数契约</a>（原型）；不写成“已接入”。</li>
-    <li>响应阿宝许愿池：525 票「帮我写投诉，在 12345 平台反应」、372 票「帮我揪出悄悄扣钱的自动续费」。票数取自 2026-11-24 官网首页，只作需求证据，不代表评审加分。</li>
+    <li>响应阿宝许愿池：372 票「帮我揪出悄悄扣钱的自动续费」；另有「帮我写投诉」同类愿望。票数取自公开许愿池，只作需求证据，不代表评审加分。</li>
     <li><strong>永久免费</strong>：无会员、无充值、无扣费、无广告、无隐形消费；不代提交、不代收款。</li>
   </ul>
 
@@ -71,6 +75,10 @@
     <li><code>ai_tools_smoke.py</code>：6 / 6（查规则、算截止日、数字校验、三步闭环）</li>
     <li><code>daily_plan_smoke.py</code>：7 / 7（帮我排今天、多源汇总、动作落点）</li>
     <li><code>ecosystem_smoke.py</code>：20 / 20（支付后 URL、系统分享、真实回放、PWA manifest、MCP 清单、小程序壳）</li>
+    <li><code>v103_smoke.py</code>：21 / 21（30 秒首屏、支付宝 CSV 的 UTF-8/GBK、资金体检 CSV、接入面、MCP 公网镜像代码）</li>
+    <li><code>toolbox_smoke.py</code>：49 / 49（账单 CSV/Excel 合并与月报、跨渠道去重、权益账本、储值卡、续费决策、30 类找谁、诉求草稿、保修到期、防诈体检、390/1440/320 无溢出）</li>
+    <li><code>v105_smoke.py</code>：36 / 36（今日速报、还能退筛选与 <code>.ics</code>、比价涨跌与价保建案、账单洞察、囤货用量与预算、诉求语气与短版、家庭三步、适配层自检、接入面声明、320 无溢出）</li>
+    <li><code>cloudfunctions/piaogen-alipay/selftest.js</code>：10 / 10（密钥头、参数排序、签名验签、篡改拒绝、响应截取、字段裁剪、缺凭据、方法与订单号校验）</li>
     <li><code>parse_smoke.py</code>：11 / 11（金额行优先级、千分位、CSV 导出、重复备份去重）</li>
     <li><code>mcp_smoke.py</code>：13 / 13；<code>mcp_store_smoke.py</code>：9 / 9（落盘、重启回放、off 模式、损坏备份）；<code>mcp_http_smoke.py</code>：6 / 6；<code>policy_ocr_smoke.py</code>：18 / 18；<code>offline_smoke.py</code>：4 / 4；<code>a11y_smoke.py</code>：8 / 8；<code>batch_import_smoke.py</code>：5 / 5</li>
     <li><code>live_check.py</code>：本地 35 / 35（线上版本在部署后复跑）</li>
@@ -105,6 +113,7 @@
     <li>纯 localStorage，没有云同步与多设备；家庭是“帮谁办”的标记，不是共享账号。</li>
     <li>中文票据 OCR 仍会错字；金额与日期必须用户核对；复杂 OFD 不支持。</li>
     <li>远程 MCP 未托管；官方 Streamable HTTP 未实现。</li>
+    <li>支付宝只读交易查询适配层未部署，也没有用真实商户凭据跑通；订阅消息模板 ID 未申请。</li>
     <li>支付宝小程序壳（<a href="miniapp.html">miniapp.html</a>）与支付后入口（<a href="afterpay.html">afterpay.html</a>）只有设计与原型，未接入。</li>
   </ul>
 
@@ -120,6 +129,8 @@ python mcp_http_smoke.py
 python policy_ocr_smoke.py
 python ai_tools_smoke.py
 python ecosystem_smoke.py
+python toolbox_smoke.py
+python v105_smoke.py
 python doc_check.py</code></pre>
   <p>MCP 复核：<code>node mcp/server.js</code>（stdio）或 <code>node mcp/http-server.js</code>（本地 HTTP 桥），再按 <a href="mcp/README.md">mcp/README.md</a> 调 <code>tools/list</code>。</p>
 

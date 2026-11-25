@@ -25,9 +25,9 @@
 
   <p class="doc-kicker">票根 · MCP 0.4.2</p>
   <h1>可被调用</h1>
-  <p class="doc-meta">核对日期：2026-11-25　·　7 个工具　·　stdio + 本地 HTTP 桥</p>
+  <p class="doc-meta">核对日期：2026-11-25　·　7 个工具　·　stdio + 本地 HTTP 桥 + 公网镜像代码</p>
 
-  <p class="lede">票根不只是一个页面。它把“权利窗口、证据缺口、官方路径、材料与回执”做成 7 个 MCP 工具，别的 Agent 可以按标准协议调用。<strong>当前只在本机运行，公网没有托管 MCP 服务。</strong></p>
+  <p class="lede">票根不只是一个页面。它把“权利窗口、证据缺口、官方路径、材料与回执”做成 7 个 MCP 工具，别的 Agent 可以按标准协议调用。<strong>本地 stdio 与本地 HTTP 桥已跑通；公网只读镜像代码在 <code>cloudfunctions/piaogen-mcp</code>，端点尚未上线。</strong></p>
 
   <h2>1. 工具清单</h2>
   <table>
@@ -51,6 +51,9 @@ node mcp/server.js
 node mcp/http-server.js
 # POST http://127.0.0.1:8787/mcp</code></pre>
 
+  <h2>2.5 公网只读镜像（代码已备，端点未上线）</h2>
+  <p><code>v0/cloudfunctions/piaogen-mcp</code> 是同一套 7 工具的公网镜像：HTTP + JSON-RPC 2.0，支持 <code>initialize</code>、<code>tools/list</code>、<code>tools/call</code>；<code>rights.record</code> / <code>finance.record</code> 直接返回 <code>public_read_only</code>。它内置示例案卷，不读文件、不接数据库、不发外部请求。部署需要平台发布权限；未上线前不写成“已有公网 MCP”。接入面总览见 <a href="alipay.html">支付宝接入面</a>。</p>
+
   <h2>3. 调用示例</h2>
   <p>先列工具：</p>
   <pre><code>{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}</code></pre>
@@ -66,7 +69,7 @@ node mcp/http-server.js
     <li>不暴露 shell、文件系统、浏览器、支付或任意 HTTP。</li>
     <li>不代登录、不代提交、不代收款、不托管资金。</li>
     <li>不返回证件号、手机号、卡号、CVV、验证码；保单/合同只保留机构、金额、期限。</li>
-    <li>HTTP 桥只绑 <code>127.0.0.1</code>，CORS 只放行 localhost；公网没有托管。</li>
+    <li>HTTP 桥只绑 <code>127.0.0.1</code>，CORS 只放行 localhost；公网镜像只读，写操作一律拒绝，端点尚未上线。</li>
   </ul>
 
   <h2>5. 机器可读清单</h2>

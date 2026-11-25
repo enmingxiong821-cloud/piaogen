@@ -24,6 +24,7 @@
   <meta name="twitter:description" content="付款之后，权利开始计时。消费售后、退款、拒付、续费、预付卡、分期与保险，都能办成一宗有证据、有路径、有回执的案卷。" />
   <meta name="twitter:image" content="https://enmingxiong821-cloud.github.io/piaogen/og.png" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="toolbox.css" />
   <script src="vendor/tesseract.min.js" defer></script>
   <script src="vendor/pdf.min.js" defer></script>
   <script src="vendor/jszip.min.js" defer></script>
@@ -31,6 +32,8 @@
   <script src="rules.js" defer></script>
   <script src="agents.js" defer></script>
   <script src="app.js" defer></script>
+  <script src="toolbox-data.js" defer></script>
+  <script src="toolbox.js" defer></script>
   <script>
     if ("serviceWorker" in navigator) {
       addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
@@ -60,24 +63,29 @@
       <main id="main" tabindex="-1">
         <section class="screen on" data-screen="today" aria-label="今天">
           <div id="todayEmpty" class="empty">
+            <div class="hero-copy">
             <div class="empty-icon" aria-hidden="true">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v17l-3-2-3 2-3-2-3 2V4Z"/><path d="M9 9h6M9 13h4"/></svg>
             </div>
-            <p class="eyebrow">今天 · 还没有票</p>
-            <h1>先看这个月，<br />被扣了什么。</h1>
-            <p class="lede">粘一段账单，先抓可能的自动续费；或拍一张小票，看它还能做什么。只在本机识别，不上传。</p>
-            <button class="btn primary" id="emptyAudit" type="button">
-              3 分钟家庭损失体检
+            <p class="eyebrow">今天 · 30 秒先办一件事</p>
+            <h1>拍一张票，<br />看它还能退、能保、能省多少。</h1>
+            <p class="lede">不用注册。先用示例走完一遍：拍票 → 权利雷达 → 证据 → 回执；办完留一张能直接给客服看的回执。</p>
+            <button class="btn primary" id="emptyDemo" type="button">
+              用示例走一遍（30 秒）
               <span class="btn-ico" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
             </button>
-            <button class="btn ghost" id="emptyBill" type="button">
-              粘一段账单
-            </button>
-            <button class="btn ghost" id="emptyCamera" type="button">拍一张小票</button>
-            <button class="btn ghost" id="emptyDemo" type="button">先看一遍示例（10 秒）</button>
-            <button class="link-btn" id="emptyIntake" type="button">或者，说一句要办的事</button>
-            <button class="link-btn" id="emptyImport" type="button">导入订单 / 发票</button>
-            <button class="link-btn" id="emptyFinance" type="button">退款 / 拒付 / 续费？走资金售后</button>
+            <div class="quick-row">
+              <button class="btn ghost" id="emptyCamera" type="button">拍一张票</button>
+              <button class="btn ghost" id="emptyBill" type="button">粘一段账单</button>
+            </div>
+            <div class="link-row">
+              <button class="link-btn" id="emptyAudit" type="button">先算家里亏了多少</button>
+              <button class="link-btn" id="emptyIntake" type="button">说一句要办的事</button>
+              <button class="link-btn" id="emptyImport" type="button">导入订单 / 发票</button>
+              <button class="link-btn" id="emptyFinance" type="button">资金售后</button>
+              <button class="link-btn" type="button" data-open-toolbox="list" data-origin="today">办事台 · 账单/找谁/保修</button>
+              <button class="link-btn" type="button" data-open-toolbox="family" data-origin="today">家庭体检单</button>
+            </div>
             <div class="steps">
               <div><b>1</b><span>粘账单 / 拍票</span></div>
               <div><b>2</b><span>找扣费 / 算权利</span></div>
@@ -90,6 +98,17 @@
               <span>资金售后</span>
             </div>
             <p class="fine">不是法律/医疗结论；金额与日期以票据为准。</p>
+            </div>
+            <aside class="hero-preview" aria-hidden="true">
+              <p class="hp-kicker">示例回执 · 一张空调票</p>
+              <div class="hp-title">某家电卖场 · 1.5 匹空调</div>
+              <div class="hp-amount">¥3,299.00</div>
+              <div class="hp-row"><span>三包退货</span><b class="hp-urgent">剩 1 天</b></div>
+              <div class="hp-row"><span>价保</span><b>待确认</b></div>
+              <div class="hp-row"><span>证据</span><b class="hp-urgent">2/3 · 缺当前价截图</b></div>
+              <div class="hp-row"><span>回执</span><b>可给客服看</b></div>
+              <p class="hp-note">示例数据；金额与天数以票据为准。</p>
+            </aside>
           </div>
 
           <div id="todayContent" class="hidden">
@@ -274,6 +293,10 @@
             </div>
           </div>
           <div id="casesBody"></div>
+        </section>
+
+        <section class="screen" data-screen="toolbox" aria-label="办事台">
+          <div id="toolboxBody"></div>
         </section>
 
         <section class="screen" data-screen="assets" aria-label="资产">

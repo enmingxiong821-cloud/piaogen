@@ -950,7 +950,7 @@ const POINT_KEY = "piaogen.v0.points";
   }
 
   function show(name) {
-    const navName = name === "financeCase" ? "finance" : name;
+    const navName = name === "financeCase" ? "finance" : name === "toolbox" ? "assets" : name;
     $$(".screen").forEach((screen) => screen.classList.toggle("on", screen.dataset.screen === name));
     $$(".tabbar-item").forEach((item) => {
       const on = item.dataset.nav === navName;
@@ -972,7 +972,16 @@ const POINT_KEY = "piaogen.v0.points";
     if (name === "assets") renderAssets();
     if (name === "finance") renderFinance();
     if (name === "financeCase" && state.currentFinance) renderFinanceCase(state.currentFinance);
+    if (name === "toolbox" && window.PGToolbox) window.PGToolbox.render();
   }
+
+  window.PGApp = {
+    money, escapeHtml, uid, show, openSheet, closeSheet, toast,
+    get state() { return state; },
+    save, caseTickets, openCase, openResult, openFinanceBuilder,
+    assetSummary, memberNameOf, couponDays,
+    decodeBillBuffer, parseCsvTable, openCouponSheet, openPointsSheet
+  };
 
   let sheetReturnFocus = null;
 
@@ -1943,6 +1952,80 @@ const POINT_KEY = "piaogen.v0.points";
       .filter(Boolean);
   }
 
+  // ---------- 支付宝 / 微信账单 CSV：只在本机读，不上传 ----------
+  function decodeBillBuffer(buffer) {
+    const utf8 = new TextDecoder("utf-8").decode(buffer);
+    const bad = (utf8.match(/\uFFFD/g) || []).length;
+    if (bad > 2) {
+      try { return new TextDecoder("gbk").decode(buffer); } catch (error) { /* 老浏览器不支持 gbk */ }
+    }
+    return utf8;
+  }
+
+  function parseCsvTable(text) {
+    const src = String(text || "").replace(/^\uFEFF/, "");
+    const rows = [];
+    let row = [];
+    let field = "";
+    let quoted = false;
+    for (let i = 0; i < src.length; i += 1) {
+      const ch = src[i];
+      if (quoted) {
+        if (ch === '"') {
+          if (src[i + 1] === '"') { field += '"'; i += 1; } else { quoted = false; }
+        } else { field += ch; }
+      } else if (ch === '"') {
+        quoted = true;
+      } else if (ch === ",") {
+        row.push(field); field = "";
+      } else if (ch === "\n") {
+        row.push(field); rows.push(row); row = []; field = "";
+      } else if (ch !== "\r") {
+        field += ch;
+      }
+    }
+    if (field || row.length) { row.push(field); rows.push(row); }
+    return rows.filter((cells) => cells.some((cell) => String(cell).trim()));
+  }
+
+  function billCsvToLines(text) {
+    const rows = parseCsvTable(text);
+    if (!rows.length) return [];
+    const headIndex = rows.findIndex((cells) => cells.some((c) => /交易时间|交易创建时间/.test(c)) && cells.some((c) => /金额/.test(c)));
+    if (headIndex < 0) {
+      return rows.map((cells) => cells.join("  ")).filter((line) => parseBillLine(line)).slice(0, 500);
+    }
+    const head = rows[headIndex].map((cell) => String(cell).trim());
+    const find = (...names) => {
+      for (const name of names) {
+        const index = head.findIndex((cell) => cell.includes(name));
+        if (index >= 0) return index;
+      }
+      return -1;
+    };
+    const iDate = find("交易时间", "交易创建时间");
+    const iMerchant = find("交易对方", "对方");
+    const iProduct = find("商品说明", "商品", "备注");
+    const iDirection = find("收/支", "收支");
+    const iAmount = find("金额");
+    const iStatus = find("交易状态", "当前状态");
+    const lines = [];
+    for (const cells of rows.slice(headIndex + 1)) {
+      const get = (index) => (index >= 0 ? String(cells[index] || "").trim() : "");
+      const date = get(iDate);
+      const amount = get(iAmount).replace(/[¥￥,\s]/g, "");
+      if (!/^[-+]?\d+(\.\d{1,2})?$/.test(amount)) continue;
+      const status = get(iStatus);
+      if (/关闭|失败|已撤销/.test(status)) continue;
+      const direction = get(iDirection);
+      const merchant = get(iMerchant) || "未知商家";
+      const product = get(iProduct);
+      lines.push(`${date}  ${merchant}  ${product}  ${direction}  ${amount}`.replace(/\s+/g, " ").trim());
+      if (lines.length >= 500) break;
+    }
+    return lines.filter((line) => parseBillLine(line));
+  }
+
   function openBillCheckSheet(subs, rows) {
     const monthly = subs.reduce((sum, item) => sum + (Number(item.avg) || 0), 0);
     const body = `
@@ -1983,15 +2066,38 @@ const POINT_KEY = "piaogen.v0.points";
     $("#sheetBody").innerHTML = `
       <p class="sheet-hint">从支付宝或微信账单里复制一段时间，直接粘贴进来。一行一单，能认出日期、商家和金额的才会导入。</p>
       ${field("账单来源", "billChannel", "alipay", "select", [["alipay", "支付宝"], ["wechat", "微信"], ["other", "其他 / 不确定"]])}
-      <textarea id="billText" class="sheet-textarea" rows="8" placeholder="2026-11-13 12:30:00  某家电卖场  -399.00
+      <textarea id="billText" class="sheet-textarea" rows="7" placeholder="2026-11-13 12:30:00  某家电卖场  -399.00
 2026-11-08 09:12:44  某家具城  -1280.00
 2026-11-01 18:03:10  某装修公司  -5000.00"></textarea>
+      <div class="bill-file">
+        <button class="btn ghost" id="billPickCsv" type="button">选支付宝 / 微信账单 CSV</button>
+        <input id="billCsv" type="file" accept=".csv,text/csv" hidden />
+        <p class="bill-file-hint" id="billCsvHint">支付宝：我的 → 账单 → 开具交易流水证明 → 导出 CSV。只在本机读，不上传。</p>
+      </div>
       <div class="sheet-actions">
         <button class="btn primary" id="billParse" type="button">解析并导入</button>
         <button class="btn ghost" id="billCancel" type="button">取消</button>
       </div>`;
     $("#sheetOverlay").hidden = false;
     $("#billCancel").addEventListener("click", closeSheet);
+    if ($("#billPickCsv")) {
+      $("#billPickCsv").addEventListener("click", () => $("#billCsv").click());
+      $("#billCsv").addEventListener("change", async (event) => {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        try {
+          const lines = billCsvToLines(decodeBillBuffer(await file.arrayBuffer()));
+          if (!lines.length) { toast("没认出 CSV 行，换一个文件或直接粘贴"); return; }
+          $("#billText").value = lines.join("\n");
+          const channel = $("#f-billChannel");
+          if (channel && /支付宝/.test(file.name)) channel.value = "alipay";
+          $("#billCsvHint").textContent = `已读 ${lines.length} 行；点“解析并导入”继续。只在本机读，不上传。`;
+          toast(`已读 ${lines.length} 行`);
+        } catch (error) {
+          toast("这个 CSV 读不出来，直接粘贴文字也可以");
+        }
+      });
+    }
     $("#billParse").addEventListener("click", () => {
       const rows = parseBillText($("#billText").value);
       if (!rows.length) { toast("没认出账单行，检查一下日期和金额"); return; }
@@ -3246,11 +3352,32 @@ const POINT_KEY = "piaogen.v0.points";
       <textarea id="financeBillText" class="sheet-textarea" rows="8" placeholder="2026-11-15 某视频会员 -25.00
 2026-11-13 某家电卖场 -399.00
 2026-11-08 某家具城 -1280.00"></textarea>
+      <div class="bill-file">
+        <button class="btn ghost" id="financeBillPickCsv" type="button">选支付宝 / 微信账单 CSV</button>
+        <input id="financeBillCsv" type="file" accept=".csv,text/csv" hidden />
+        <p class="bill-file-hint" id="financeBillCsvHint">支付宝：我的 → 账单 → 开具交易流水证明 → 导出 CSV。只在本机读，不上传。</p>
+      </div>
       <div class="sheet-actions">
         <button class="btn primary" id="financeBillParse" type="button">开始体检</button>
         <button class="btn ghost" id="financeBillCancel" type="button">取消</button>
       </div>`, () => {
       $("#financeBillCancel").addEventListener("click", closeSheet);
+      if ($("#financeBillPickCsv")) {
+        $("#financeBillPickCsv").addEventListener("click", () => $("#financeBillCsv").click());
+        $("#financeBillCsv").addEventListener("change", async (event) => {
+          const file = event.target.files && event.target.files[0];
+          if (!file) return;
+          try {
+            const lines = billCsvToLines(decodeBillBuffer(await file.arrayBuffer()));
+            if (!lines.length) { toast("没认出 CSV 行，换一个文件或直接粘贴"); return; }
+            $("#financeBillText").value = lines.join("\n");
+            $("#financeBillCsvHint").textContent = `已读 ${lines.length} 行；点“开始体检”继续。只在本机读，不上传。`;
+            toast(`已读 ${lines.length} 行`);
+          } catch (error) {
+            toast("这个 CSV 读不出来，直接粘贴文字也可以");
+          }
+        });
+      }
       $("#financeBillParse").addEventListener("click", () => {
         const source = $("#f-financeBillChannel").value;
         const rows = parseBillText($("#financeBillText").value);
@@ -5695,6 +5822,9 @@ const POINT_KEY = "piaogen.v0.points";
       + summary.supplies.filter((supply) => supply.daysLeft <= 7).length;
     $("#assetsBody").innerHTML = `
       <p class="lede">七类会过期、会贬值、会被忘记的东西。不是每笔付款都要立案，但每笔都可以进资产。</p>
+      <button class="tb-entry" type="button" data-open-toolbox="list" data-origin="assets">
+        <span>办事台</span><b>账单月报 · 找谁 · 诉求 · 保修 · 家庭体检</b><em aria-hidden="true">›</em>
+      </button>
       <div class="asset-strip">
         <div><b>${urgent}</b><span>7 天内要处理</span></div>
         <div><b>${summary.rights.length}</b><span>未关闭权利</span></div>
@@ -8514,10 +8644,11 @@ const POINT_KEY = "piaogen.v0.points";
         <li><b>看权利雷达</b><span>退货、价保、保修、定金、续费分开算；没有公开依据的固定天数，不倒计时。</span></li>
         <li><b>留一张回执</b><span>提交、受理、退款中、已到账分开记；只有你确认到账，才算已挽回。</span></li>
       </ol>
-      <p class="intro-note">数据只存本机；不代提交、不代收款、不承诺退款。响应阿宝许愿池 525 票「写投诉」与 372 票「揪出自动续费」。</p>
+      <p class="intro-note">数据只存本机；不代提交、不代收款、不承诺退款。响应阿宝许愿池「帮我揪出悄悄扣钱的自动续费」372 支持。</p>
       <div class="intro-actions">
-        <button class="btn primary" id="introStart" type="button">先做 3 分钟体检</button>
+        <button class="btn primary" id="introDemo" type="button">用示例走一遍（30 秒）</button>
         <button class="btn ghost" id="introImport" type="button">直接拍票</button>
+        <button class="link-btn" id="introStart" type="button">先算家里亏了多少</button>
       </div>`;
     screen.insertBefore(card, anchor);
     const dismiss = () => {
@@ -8525,6 +8656,7 @@ const POINT_KEY = "piaogen.v0.points";
       card.remove();
     };
     $("#introSkip").addEventListener("click", dismiss);
+    $("#introDemo").addEventListener("click", () => { dismiss(); addDemo(); });
     $("#introStart").addEventListener("click", () => { dismiss(); startAudit(); });
     $("#introImport").addEventListener("click", () => { dismiss(); show("import"); });
   }

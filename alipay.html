@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>支付宝接入面 · 票根</title>
+<meta name="description" content="票根与支付宝生态的五个接入面：支付后 URL、小程序 web-view 壳、账单 CSV、只读交易查询、MCP 工具；写清已实现与未接入。" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+<main class="doc doc-shell">
+  <nav class="doc-nav" aria-label="页面导航">
+    <a class="doc-back" href="index.html"><span aria-hidden="true">&larr;</span> 返回票根</a>
+    <span class="doc-mark">票根</span>
+  </nav>
+
+  <p class="doc-kicker">票根 · V10.5</p>
+  <h1>支付宝接入面</h1>
+  <p class="doc-meta">核对日期：2026-11-25　·　只写已经能验证的接入面，不把“设计”写成“已接入”</p>
+
+  <p class="lede">票根不是一个孤立的网页。它把“付款之后”的五个入口都留成了可接入的接口：支付完成页跳转、小程序 web-view、支付宝账单 CSV、只读交易查询适配层、以及可被 Agent 调用的 MCP 工具。下面每一项都标明现在有什么、还缺什么、评委怎么验。</p>
+
+  <h2>1. 五个接入面</h2>
+  <table>
+    <thead><tr><th>接入面</th><th>现在有什么</th><th>还缺什么</th><th>怎么验</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>支付后 URL</strong></td>
+        <td>已实现参数契约 <code>?from=afterpay&amp;merchant=…&amp;product=…&amp;amount=…&amp;date=…&amp;order=…</code>；同交易号去重；案卷标“来自支付完成页”。</td>
+        <td>商户号与真实 1403 回调；没有回调时只能由支付完成页拼链接。</td>
+        <td><a href="afterpay.html">afterpay.html</a> 点“看权利回执”，会带参数建案。</td>
+      </tr>
+      <tr>
+        <td><strong>小程序 web-view</strong></td>
+        <td>可编译源码 <code>alipay-mini/</code>：app.json、页面、<code>web-view</code>、只接受 https 的 URL 校验。</td>
+        <td>AppID、审核、域名白名单；没有这三项不能发布。</td>
+        <td><a href="alipay-mini/README.md">alipay-mini/README.md</a> 有开发者工具步骤与上线前清单。</td>
+      </tr>
+      <tr>
+        <td><strong>支付宝账单 CSV</strong></td>
+        <td>已实现本机导入：支付宝“交易流水证明”CSV，自动识别 UTF-8 / GBK，提取时间、对方、商品、收支、金额；同一商户连续扣款会提示疑似续费。</td>
+        <td>不调用支付宝账单 API；用户需自己导出 CSV。</td>
+        <td>导入页 → 粘账单 → “选支付宝 / 微信账单 CSV”。文件不上传。</td>
+      </tr>
+      <tr>
+        <td><strong>只读交易查询</strong></td>
+        <td>适配层源码 <code>cloudfunctions/piaogen-alipay/</code>：RSA2 签名调 <code>alipay.trade.query</code>，响应验签后只回白名单字段，买家账号脱敏；只接受订单号、只读、不落库。离线自检 10 项通过。</td>
+        <td>未部署；需要 AppID、应用私钥、支付宝公钥与一个函数域名；没有凭据时返回 <code>not_configured</code>。</td>
+        <td><code>node selftest.js</code> 可离线验证签名与裁剪；真实查询需自行部署并用自己的商户订单号。</td>
+      </tr>
+      <tr>
+        <td><strong>MCP 工具</strong></td>
+        <td>本地 stdio 七工具已跑通；公网只读镜像代码在 <code>cloudfunctions/piaogen-mcp</code>，实现 <code>initialize / tools/list / tools/call</code>。</td>
+        <td>公网 HTTP 端点尚未上线（需要平台发布权限）；写操作只在本地。</td>
+        <td><a href="agent-api.html">agent-api.html</a> 有 7 工具、JSON-RPC 示例与真实返回；<a href="mcp/manifest.json">manifest</a> 可机器读。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>2. 只读交易查询适配层</h2>
+  <p>不是“已接入支付宝”，而是<strong>把接入要写的服务端代码先写完</strong>：有商户凭据就能部署，没有就明确返回未配置。</p>
+  <table>
+    <thead><tr><th>项</th><th>实现</th></tr></thead>
+    <tbody>
+      <tr><td>接口</td><td><code>POST /</code>，body 只接受 <code>{"outTradeNo":"…"}</code> 或 <code>{"tradeNo":"…"}</code>；订单号限 <code>[A-Za-z0-9_-]{1,64}</code></td></tr>
+      <tr><td>调用的方法</td><td>只有 <code>alipay.trade.query</code>；没有退款、转账、关单、代扣</td></tr>
+      <tr><td>签名</td><td>RSA2（RSA-SHA256），参数按 key 排序后签名；<code>biz_content</code> 用原始 JSON</td></tr>
+      <tr><td>响应</td><td>先验签，再只保留 <code>trade_status / total_amount / receipt_amount / refund_fee / subject / send_pay_date</code> 等白名单字段；不返回 <code>buyer_user_id</code>、资金明细、券明细</td></tr>
+      <tr><td>隐私</td><td>买家账号只回脱敏值；不落库、不写请求/响应日志；不读也不存手机号、身份证、卡号</td></tr>
+      <tr><td>限流</td><td>单 IP 每分钟 30 次（可配置）；请求体解析失败直接 400</td></tr>
+      <tr><td>状态</td><td><strong>代码完成，未部署，未用真实凭据跑通</strong>；<code>selftest.js</code> 10 项离线通过</td></tr>
+    </tbody>
+  </table>
+  <pre><code>POST /piaogen-alipay
+{"outTradeNo":"PG202611250001"}
+
+→ {"ok":true,"verified":true,"source":"alipay.trade.query",
+   "trade":{"trade_status":"TRADE_SUCCESS","total_amount":"39.90",
+            "subject":"抽纸 3 层 100 抽","send_pay_date":"2026-11-25 10:12:03"}}</code></pre>
+  <p>部署说明与环境变量见 <a href="cloudfunctions/piaogen-alipay/README.md">cloudfunctions/piaogen-alipay/README.md</a>。查询结果只用于建案与核对金额，<strong>不改变“争议金额 / 预计可追回 / 确认解决”的三口径</strong>。</p>
+
+  <h2>3. 支付后 1403 需要什么</h2>
+  <table>
+    <thead><tr><th>字段</th><th>用途</th><th>现在</th></tr></thead>
+    <tbody>
+      <tr><td><code>out_trade_no</code></td><td>同一笔交易只建一次案卷</td><td>URL 用 <code>order</code> 参数模拟；无真实回调</td></tr>
+      <tr><td><code>total_amount</code></td><td>争议金额，不当作可追回金额</td><td>URL 用 <code>amount</code>，只接受正数</td></tr>
+      <tr><td><code>subject</code> / 商户名</td><td>案卷标题与后续材料</td><td>URL 用 <code>product</code> / <code>merchant</code>，长度受限</td></tr>
+      <tr><td><code>gmt_payment</code></td><td>权利窗口起算日</td><td>URL 用 <code>date</code>，格式 <code>YYYY-MM-DD</code></td></tr>
+      <tr><td>签名与验签</td><td>防止伪造回调</td><td><strong>异步 1403 回调验签未实现</strong>；<code>alipay.trade.query</code> 的响应验签已在适配层实现</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. 小程序发布前必须补的四项</h2>
+  <ol>
+    <li><strong>AppID</strong>：没有 AppID 无法在支付宝开发者工具里预览真机。</li>
+    <li><strong>业务域名白名单</strong>：<code>web-view</code> 只能打开已备案、已加入白名单的 https 域名。</li>
+    <li><strong>订阅消息模板</strong>：到期提醒需要模板 ID 与用户授权，不能默认推送。</li>
+    <li><strong>隐私协议与权限说明</strong>：读取订单/账单属于敏感能力，需要逐项说明用途。</li>
+  </ol>
+
+  <h2>5. 为什么现在不假装“已接入”</h2>
+  <ul>
+    <li>没有 AppID、商户号、私钥与回调域名，任何“已接入支付宝”的写法都无法被评委复现。</li>
+    <li>票根的做法是：<strong>把接入面做成可编译、可调用、可验证的代码与契约</strong>，并明确标注未发布、未审核、无真实回调。</li>
+    <li>这样评审核验时，能看到“接进去要改哪四个地方”，而不是看到一张无法运行的截图。</li>
+  </ul>
+
+  <h2>6. 相关页面</h2>
+  <ul>
+    <li><a href="afterpay.html">支付后入口</a>：URL 契约与“未接入”声明。</li>
+    <li><a href="miniapp.html">小程序壳原型</a>：胶囊、四栏、四个缺口。</li>
+    <li><a href="agent-api.html">可调用页</a>：七个 MCP 工具、JSON-RPC 示例、真实返回。</li>
+    <li><a href="cloudfunctions/piaogen-alipay/README.md">只读交易查询适配层</a>：RSA2 签名、响应验签、字段裁剪；未部署。</li>
+    <li><a href="evidence.html">核验与边界</a>：规则、测试、数据与 AI 的全量基线。</li>
+  </ul>
+
+  <p class="fine">票根不代登录、不代提交、不代收款；不保存完整卡号、CVV、验证码或密码。示例数据均标注“示例”。</p>
+</main>
+</body>
+</html>

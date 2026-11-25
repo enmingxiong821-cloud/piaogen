@@ -24,6 +24,8 @@
 .doc th{font-size:12.5px;letter-spacing:.04em;color:var(--doc-muted);font-weight:600}
 .doc td{color:var(--ink-2)}
 .doc code{font-size:13px;background:var(--surface-2);padding:2px 5px;border-radius:4px}
+.doc pre{margin:16px 0;padding:14px 16px;border:1px solid var(--rule);border-radius:10px;background:var(--surface-2);overflow-x:auto;max-width:100%}
+.doc pre code{display:block;padding:0;background:none;font-size:12.5px;line-height:1.75;white-space:pre}
 .doc-foot{margin-top:52px;padding-top:18px;border-top:1px solid var(--rule);font-size:13px;color:var(--doc-muted)}
 .doc a:focus-visible,.doc-back:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:3px}
 .doc .lede{font-size:17px;line-height:1.85;color:var(--ink)}

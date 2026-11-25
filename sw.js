@@ -1,16 +1,21 @@
-const CACHE = "piaogen-v10-2";
+const CACHE = "piaogen-v10-5";
 const CORE = [
   "./",
   "./index.html",
   "./miniapp.html",
   "./afterpay.html",
+  "./agent-api.html",
+  "./alipay.html",
   "./evidence.html",
   "./privacy.html",
   "./terms.html",
   "./licenses.html",
   "./docs.css",
   "./styles.css",
+  "./toolbox.css",
   "./app.js",
+  "./toolbox-data.js",
+  "./toolbox.js",
   "./rules.js",
   "./agents.js",
   "./realdata.js",

@@ -5098,6 +5098,14 @@ const POINT_KEY = "piaogen.v0.points";
     return `<div class="agent-msg"><div class="agent-bubble">${badge}${m.html}${trace}${actions ? `<div class="agent-actions">${actions}</div>` : ""}</div></div>`;
   }
 
+  function scrollAiToEnd() {
+    if (AGENT_STATE.view !== "page") return;
+    const form = document.getElementById("aiForm");
+    if (!form) return;
+    const rect = form.getBoundingClientRect();
+    if (rect.bottom > innerHeight - 90) form.scrollIntoView({ block: "end" });
+  }
+
   function clearAgentChat() {
     AGENT_STATE.messages = [];
     AGENT_STATE.context = null;
@@ -5113,6 +5121,8 @@ const POINT_KEY = "piaogen.v0.points";
       if (send) send.textContent = AGENT_STATE.busy ? "停止" : "发送";
     });
     const page = AGENT_STATE.view === "page";
+    const intro = document.querySelector(".ai-intro");
+    if (intro) intro.hidden = page && AGENT_STATE.messages.length > 0;
     const log = document.getElementById(page ? "aiLog" : "agentLog");
     if (!log) return;
     if (!AGENT_STATE.messages.length) {
@@ -5222,6 +5232,7 @@ const POINT_KEY = "piaogen.v0.points";
     AGENT_STATE.lastText = raw;
     if (AGENT_STATE.messages.length > 40) AGENT_STATE.messages = AGENT_STATE.messages.slice(-40);
     renderAgent();
+    scrollAiToEnd();
   }
 
   function agentMoney(text) {
@@ -6326,6 +6337,7 @@ const POINT_KEY = "piaogen.v0.points";
       AGENT_STATE.stopped = false;
       if (AGENT_STATE.messages.length > 40) AGENT_STATE.messages = AGENT_STATE.messages.slice(-40);
       renderAgent();
+      scrollAiToEnd();
       const agentInputNow = agentInputEl();
       if (agentInputNow) agentInputNow.disabled = false;
     }

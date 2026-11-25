@@ -17,7 +17,7 @@
     <span class="doc-mark">票根</span>
   </nav>
 
-  <p class="doc-kicker">票根 · V10.5</p>
+  <p class="doc-kicker">票根 · V10.6</p>
   <h1>核验与边界</h1>
   <p class="doc-meta">核对日期：2026-11-25　·　这一页只写能当场复核的事实</p>
 
@@ -38,6 +38,11 @@
     <li>支付宝账单 CSV：从“交易流水证明”导出的 CSV 可在本机导入，自动识别 UTF-8 / GBK，提取时间、对方、商品、收支与金额；同一商户连续扣款会提示疑似续费。文件不上传。</li>
     <li>支付宝接入面：<a href="alipay.html">alipay.html</a> 列出支付后 URL、小程序 web-view、账单 CSV、MCP 四个面，逐项标明已实现与未接入。</li>
     <li>办事台（今天页与资产页可进）十件事：账单月报、还能退、续费决策、权益账本、储值卡、比价卡、找谁、诉求助手、保修日期卡、家庭体检单。账单支持支付宝/微信/银行 CSV 与 Excel（.xlsx 第一个工作表），跨渠道按同日同额同商户合并，并给出日均、退款笔数、分类占比与「可能白花的钱」（续费/券/卡三笔分开，不计入支出）；「还能退」把权利、券、积分、卡、续费、保修按截止日排成一张单，可筛选、导出 `.ics`；「比价卡」只记用户亲眼看到的价格，显示涨跌与历史低高，可一键建价保案卷；囤货按“数量 ÷ 每天用量”算可用天数与补货预算；30 类场景给出先找谁、步骤与材料；诉求只生成文字，带语气与约 200 字短版；保修按购买日与月数算到期；家庭体检单含 8 项防诈自检与「帮爸妈三步」，可打印或转发。全部在本机运行，不登录、不上传。</li>
+    <li>收件箱：把扣款、退款、到期、快递、催缴、验证码短信贴进来，本机规则识别对方、金额、日期与意图，给出建案 / 记流水 / 记续费 / 加提醒 / 找谁 / 写诉求六个动作；不点链接、不回拨、不上传原文。</li>
+    <li>自定义到期提醒：自己加一条「宽带到期 / 车险续保 / 取快递」，进入「还能退」、家庭体检单与导出的日历；可编辑、可删除。</li>
+    <li>续费周期：支持每周 / 每月 / 每季 / 每年，统一换算月均与一年合计；不是所有续费都按月。</li>
+    <li>家庭年度总览：今年的账单支出、退款收入、已确认守住、续费可省、卡余额与到期券，一张单打印或转发；三种金额口径仍然分开。</li>
+    <li>完整备份：导出的 JSON 现在含票据、账单、提醒、卡券与决策，可换设备恢复；备份文件请自己保管。</li>
     <li>支付宝只读交易查询适配层：<code>cloudfunctions/piaogen-alipay/</code> 用商户自己的凭据调 <code>alipay.trade.query</code>，RSA2 签名、响应验签、只回白名单字段、买家账号脱敏；<strong>未部署，需要凭据</strong>，缺凭据返回 <code>not_configured</code>。离线自检 10 项通过。</li>
     <li>保单 / 合同导入只提取机构、金额、期限三项，不保存证件原件、证件号与完整文字；结果由用户确认后才建立资金案卷。</li>
     <li>未接入：支付宝小程序发布、支付后 1403 真实回调、订阅消息、蚂蚁阿宝真实调用。已有可编译的 <a href="alipay-mini/README.md">web-view 小程序壳源码</a>（未发布）与 <a href="afterpay.html">支付后 URL 参数契约</a>（原型）；不写成“已接入”。</li>
@@ -78,6 +83,7 @@
     <li><code>v103_smoke.py</code>：21 / 21（30 秒首屏、支付宝 CSV 的 UTF-8/GBK、资金体检 CSV、接入面、MCP 公网镜像代码）</li>
     <li><code>toolbox_smoke.py</code>：49 / 49（账单 CSV/Excel 合并与月报、跨渠道去重、权益账本、储值卡、续费决策、30 类找谁、诉求草稿、保修到期、防诈体检、390/1440/320 无溢出）</li>
     <li><code>v105_smoke.py</code>：36 / 36（今日速报、还能退筛选与 <code>.ics</code>、比价涨跌与价保建案、账单洞察、囤货用量与预算、诉求语气与短版、家庭三步、适配层自检、接入面声明、320 无溢出）</li>
+    <li><code>v106_smoke.py</code>：33 / 33（收件箱六类识别与动作、自定义提醒增改删与 <code>.ics</code>、年付周期换算、家庭年度、打印、备份恢复、320 无溢出）</li>
     <li><code>cloudfunctions/piaogen-alipay/selftest.js</code>：10 / 10（密钥头、参数排序、签名验签、篡改拒绝、响应截取、字段裁剪、缺凭据、方法与订单号校验）</li>
     <li><code>parse_smoke.py</code>：11 / 11（金额行优先级、千分位、CSV 导出、重复备份去重）</li>
     <li><code>mcp_smoke.py</code>：13 / 13；<code>mcp_store_smoke.py</code>：9 / 9（落盘、重启回放、off 模式、损坏备份）；<code>mcp_http_smoke.py</code>：6 / 6；<code>policy_ocr_smoke.py</code>：18 / 18；<code>offline_smoke.py</code>：4 / 4；<code>a11y_smoke.py</code>：8 / 8；<code>batch_import_smoke.py</code>：5 / 5</li>
@@ -117,7 +123,19 @@
     <li>支付宝小程序壳（<a href="miniapp.html">miniapp.html</a>）与支付后入口（<a href="afterpay.html">afterpay.html</a>）只有设计与原型，未接入。</li>
   </ul>
 
-  <h2>7. 怎么复核</h2>
+  <h2>7. 生态闭环：一条付款之后的路</h2>
+  <ol>
+    <li><strong>收得进来</strong>：拍票 / 截图 / PDF / OFD、支付宝与微信账单 CSV / Excel、粘贴一条扣款或催缴短信。文件与文字都只在本机解析。</li>
+    <li><strong>算得清</strong>：权利窗口、三包与价保、六类资金售后、账单分类、续费按周/月/季/年换算成月均与一年合计。</li>
+    <li><strong>办得成</strong>：30 类「找谁」给出先找谁、步骤与材料；诉求助手生成事实、诉求与材料清单；一键进入案卷，证据门不齐会否决提交。</li>
+    <li><strong>提醒得到</strong>：「还能退」把权利、券、积分、卡、续费、保修与自定义提醒排成一张单，可导出 <code>.ics</code>；家庭体检单给爸妈看。</li>
+    <li><strong>留得下</strong>：回执、办理时间线与三种金额口径（争议 / 预计可追回 / 确认解决）分开记；只有你确认到账才计入已解决。</li>
+    <li><strong>传得出去</strong>：家庭单可打印 / 转发；完整备份含票据与办事台，可换设备恢复（文件自己保管）。</li>
+    <li><strong>调得动</strong>：本地 MCP 七个只读工具与 <a href="agent-api.html">调用示例</a>；公网镜像代码已备，端点未上线。</li>
+  </ol>
+  <p>这七步对应产品里的固定入口：<a href="index.html">今天</a> → 办事台（今天页 / 资产页进入）→ 案卷 → 报告。闭环的意思不是功能多，而是每一步都能回到下一步，不用重新找入口。</p>
+
+  <h2>8. 怎么复核</h2>
   <p>在项目 <code>v0/</code> 目录运行：</p>
   <pre><code>python serve.py
 python test_users_smoke.py
@@ -131,6 +149,7 @@ python ai_tools_smoke.py
 python ecosystem_smoke.py
 python toolbox_smoke.py
 python v105_smoke.py
+python v106_smoke.py
 python doc_check.py</code></pre>
   <p>MCP 复核：<code>node mcp/server.js</code>（stdio）或 <code>node mcp/http-server.js</code>（本地 HTTP 桥），再按 <a href="mcp/README.md">mcp/README.md</a> 调 <code>tools/list</code>。</p>
 

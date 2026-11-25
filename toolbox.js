@@ -1,4 +1,4 @@
-/* 票根 V10.5 · 办事台
+/* 票根 V10.6 · 办事台
    账单月报 / 多账合并 / 权益账本 / 储值卡 / 续费决策 /
    找谁 / 诉求助手 / 保修日期卡 / 家庭体检单
    所有数据只在本机 localStorage；不上传、不代提交。 */
@@ -15,7 +15,7 @@
   const uid = A.uid;
 
   const DEFAULTS = {
-    cards: [], bills: [], imports: [], warranties: [], subs: [], stock: [], prices: [],
+    cards: [], bills: [], imports: [], warranties: [], subs: [], stock: [], prices: [], reminders: [],
     decisions: {}, complaints: [], materials: {}, fraud: {},
     familyChecks: [], complaint: {}, settings: { mergeSame: true }
   };
@@ -25,7 +25,7 @@
     try { data = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { data = {}; }
     const out = Object.assign({}, DEFAULTS, data);
     out.settings = Object.assign({}, DEFAULTS.settings, data.settings || {});
-    ["cards", "bills", "imports", "warranties", "subs", "stock", "prices", "complaints", "familyChecks"].forEach((k) => {
+    ["cards", "bills", "imports", "warranties", "subs", "stock", "prices", "reminders", "complaints", "familyChecks"].forEach((k) => {
       if (!Array.isArray(out[k])) out[k] = [];
     });
     ["decisions", "materials", "fraud", "complaint"].forEach((k) => {
@@ -44,6 +44,8 @@
   let warrantyFilter = "all";
   let deadlineFilter = "all";
   let lastImport = null;
+  let noticeText = "";
+  let noticeItems = [];
 
   function saveDb() {
     try { localStorage.setItem(KEY, JSON.stringify(db)); }
@@ -424,6 +426,11 @@
       if (d === null || d < 0) return;
       out.push({ kind: "warranty", title: c.name, meta: "保修到期", days: d, date: fmtDate(exp), action: "warranty", id: c.id });
     });
+    (db.reminders || []).forEach((r) => {
+      const d = r.date ? daysLeft(parseDate(r.date)) : null;
+      if (d === null || d < 0) return;
+      out.push({ kind: "reminder", title: r.title, meta: r.note || "我自己加的提醒", days: d, date: r.date, action: "reminder", id: r.id });
+    });
     return out.sort((a, b) => a.days - b.days);
   }
 
@@ -478,7 +485,8 @@
   function render() {
     const host = $("#toolboxBody");
     if (!host) return;
-    if (view === "bill") host.innerHTML = renderBill();
+    if (view === "inbox") host.innerHTML = renderInbox();
+    else if (view === "bill") host.innerHTML = renderBill();
     else if (view === "deadline") host.innerHTML = renderDeadline();
     else if (view === "prices") host.innerHTML = renderPrices();
     else if (view === "accounts") host.innerHTML = renderAccounts();
@@ -516,6 +524,11 @@
     ].sort((a, b) => a.days - b.days).slice(0, 3);
     const groups = [
       {
+        label: "收件", items: [
+          { id: "inbox", k: "收件", title: "收件箱", desc: "把扣款、退款、到期、催缴的短信贴进来，先认出它要你做什么。", meta: noticeItems.length ? `${noticeItems.length} 条已识别` : "粘贴一条通知试试" }
+        ]
+      },
+      {
         label: "管钱", items: [
           { id: "bill", k: "账单", title: "账单月报", desc: "CSV / Excel 合并去重，月度分类、按人归集、可疑续费。", meta: bills ? `${bills} 笔流水` : "还没有导入" },
           { id: "deadline", k: "到期", title: "还能退", desc: "权利、券、积分、卡、续费、保修，按截止日排成一张单。", meta: brief.all.length ? `${brief.all.length} 项有日期` : "还没有到期项" },
@@ -538,7 +551,7 @@
         ]
       }
     ];
-    return `${head("办事台", "十件事，办完都留回执。", "账单看明白只是第一步；找谁、带什么、办到哪一步，才是票根要留下的事。", "exit")}
+    return `${head("办事台", "十一件事，办完都留回执。", "账单看明白只是第一步；找谁、带什么、办到哪一步，才是票根要留下的事。", "exit")}
       <div class="tb-stats">
         <div><b>${bills}</b><span>笔流水</span></div>
         <div><b>${money(cardBalance)}</b><span>储值余额</span></div>
@@ -798,11 +811,11 @@
     const all = deadlineItems();
     const today = all.filter((item) => item.days === 0);
     const week = all.filter((item) => item.days > 0 && item.days <= 7);
-    const month = all.filter((item) => item.days > 7 && item.days <= 30);
+    const month = all.filter((item) => item.days >= 0 && item.days <= 30);
     const later = all.filter((item) => item.days > 30);
     const shown = deadlineFilter === "7" ? all.filter((item) => item.days <= 7)
       : deadlineFilter === "30" ? all.filter((item) => item.days <= 30) : all;
-    const kindLabel = { right: "权利", coupon: "券", point: "积分", card: "储值卡", sub: "续费", warranty: "保修" };
+    const kindLabel = { right: "权利", coupon: "券", point: "积分", card: "储值卡", sub: "续费", warranty: "保修", reminder: "提醒" };
     return `${head("还能退", "按截止日排成一张单。", "权利、券、积分、卡、续费、保修，只列有明确日期的；没有依据的项目不倒计时。", "back")}
       <div class="tb-stats">
         <div><b>${today.length}</b><span>今天截止</span></div>
@@ -816,7 +829,8 @@
         <em>›</em>
       </button>`).join("")}</div>` : `<div class="tb-empty"><p>没有符合条件的到期项。</p><button class="btn ghost" type="button" data-tb="billImport">导入账单</button></div>`}
       <div class="tb-actions">
-        <button class="btn primary" type="button" data-tb="deadline-ics">导出日历 .ics</button>
+        <button class="btn primary" type="button" data-tb="reminder-add">+ 加一条提醒</button>
+        <button class="btn ghost" type="button" data-tb="deadline-ics">导出日历 .ics</button>
         <button class="btn ghost" type="button" data-tb="deadline-copy">复制清单</button>
       </div>
       <p class="note">日历只写日期，不写金额；到期日以票据、券面、卡面与平台规则为准。${later.length ? `另有 ${later.length} 项在 30 天以后。` : ""}</p>`;
@@ -882,6 +896,35 @@
     });
   }
 
+  function openReminderSheet(item) {
+    const r = item || {};
+    A.openSheet(item ? "编辑提醒" : "加一条提醒", `<div class="tb-form">
+      <label class="field"><span>提醒什么</span><input id="tbRemTitle" value="${esc(r.title || "")}" placeholder="如：宽带到期 / 车险续保 / 取快递" /></label>
+      <label class="field"><span>日期</span><input id="tbRemDate" type="date" value="${esc(r.date || fmtDate(addDays(new Date(), 7)))}" /></label>
+      <label class="field"><span>备注（可选）</span><input id="tbRemNote" value="${esc(r.note || "")}" placeholder="带什么、找谁、号码" /></label>
+      <p class="tb-hint">只存本机；会出现在「还能退」、家庭体检单和导出的日历里。到期日以你填的为准。</p>
+    </div><div class="sheet-actions">
+      ${item ? `<button class="btn ghost" id="tbRemDel" type="button">删除</button>` : ""}
+      <button class="btn primary" id="tbRemSave" type="button">保存</button>
+      <button class="btn ghost" id="tbRemCancel" type="button">取消</button>
+    </div>`, () => {
+      $("#tbRemCancel").onclick = A.closeSheet;
+      if ($("#tbRemDel")) $("#tbRemDel").onclick = () => {
+        db.reminders = db.reminders.filter((x) => x.id !== r.id);
+        saveDb(); A.closeSheet(); A.toast("已删除"); render();
+      };
+      $("#tbRemSave").onclick = () => {
+        const title = $("#tbRemTitle").value.trim();
+        const date = $("#tbRemDate").value;
+        if (!title || !date) { A.toast("提醒内容和日期填一下"); return; }
+        const next = { id: r.id || uid(), title, date, note: $("#tbRemNote").value.trim() };
+        if (r.id) db.reminders = db.reminders.map((x) => x.id === r.id ? next : x);
+        else db.reminders.push(next);
+        saveDb(); A.closeSheet(); A.toast("已保存"); render();
+      };
+    });
+  }
+
   function priceText() {
     const groups = priceGroups();
     const lines = [`票根 · 比价清单（${isoToday()}）`];
@@ -891,6 +934,102 @@
     if (!groups.length) lines.push("还没有价格记录。");
     lines.push("", "只记录看到的价格；价保以订单页规则为准。");
     return lines.join("\n");
+  }
+
+  /* ---------- 收件箱：把一条通知变成下一步 ---------- */
+  const NOTICE_TYPES = {
+    charge: { label: "扣款 / 消费" },
+    refund: { label: "退款 / 到账" },
+    expiry: { label: "到期 / 有效期" },
+    delivery: { label: "快递 / 取件" },
+    appointment: { label: "预约 / 就诊" },
+    overdue: { label: "催缴 / 欠费" },
+    fraud: { label: "风险 / 验证码" },
+    other: { label: "其他" }
+  };
+
+  function classifyNotice(text) {
+    if (/验证码|安全账户|共享屏幕|屏幕共享|涉案|公检法|刷单|返利|陌生链接|点击链接|解冻|验资/.test(text)) return "fraud";
+    if (/退款|退回|已到账|原路返回|赔付/.test(text)) return "refund";
+    if (/逾期|欠费|催缴|滞纳金|影响征信|将上报/.test(text)) return "overdue";
+    if (/到期|过期|有效期至|即将失效|截止/.test(text)) return "expiry";
+    if (/快递|取件|派送|驿站|物流|签收|柜/.test(text)) return "delivery";
+    if (/预约|挂号|就诊|体检|取号|候诊/.test(text)) return "appointment";
+    if (/扣款|扣费|消费|支付成功|已支付|自动续费|代扣|支出/.test(text)) return "charge";
+    return "other";
+  }
+
+  function extractAmount(text) {
+    const m = text.match(/(?:¥|￥|RMB|人民币)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i)
+      || text.match(/([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*元/);
+    if (!m) return "";
+    const n = Number(String(m[1]).replace(/,/g, ""));
+    return Number.isFinite(n) && n > 0 ? n.toFixed(2) : "";
+  }
+
+  function extractDate(text) {
+    const full = text.match(/(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})/);
+    if (full) return `${full[1]}-${String(full[2]).padStart(2, "0")}-${String(full[3]).padStart(2, "0")}`;
+    const md = text.match(/(\d{1,2})月(\d{1,2})日/);
+    if (md) return `${new Date().getFullYear()}-${String(md[1]).padStart(2, "0")}-${String(md[2]).padStart(2, "0")}`;
+    return "";
+  }
+
+  function extractMerchant(text) {
+    const bracket = text.match(/【([^】]{2,24})】/);
+    if (bracket) return bracket[1].trim();
+    const named = text.match(/(?:商户|商家|收款方|对方|来自)[:：\s]*([^\s，。；,;]{2,24})/);
+    if (named) return named[1].trim();
+    const leading = text.match(/^([一-龥A-Za-z0-9·（）()]{2,24}?)(?:提醒|通知|扣款|消费|退款|支付)/);
+    if (leading) return leading[1].trim();
+    return "";
+  }
+
+  function parseNotice(raw) {
+    const text = String(raw || "").replace(/\r/g, "").trim();
+    if (!text) return [];
+    const chunks = text.split(/\n{2,}|\n(?=\s*【)/).map((s) => s.trim()).filter(Boolean);
+    const lines = chunks.length > 1 ? chunks : [text];
+    return lines.slice(0, 8).map((line) => ({
+      type: classifyNotice(line),
+      amount: extractAmount(line),
+      date: extractDate(line),
+      merchant: extractMerchant(line),
+      text: line.replace(/\s+/g, " ").slice(0, 160)
+    }));
+  }
+
+  function renderInbox() {
+    return `${head("收件箱", "把收到的那条消息贴进来。", "扣款、退款、到期、快递、催缴、验证码——先认出它想让你做什么，再给下一步。只在本机识别，不上传。", "back")}
+      <div class="tb-form">
+        <label class="field"><span>短信 / App 通知 / 催缴单原文</span>
+          <textarea id="tbNoticeText" rows="6" placeholder="直接粘贴，例如：&#10;【某视频】您已开通连续包月，将于 12 月 3 日自动扣款 25 元。">${esc(noticeText)}</textarea>
+        </label>
+      </div>
+      <div class="tb-actions">
+        <button class="btn primary" type="button" data-tb="notice-parse">识别这条消息</button>
+        <button class="btn ghost" type="button" data-tb="notice-paste">从剪贴板粘贴</button>
+        <button class="btn ghost" type="button" data-tb="notice-clear">清空</button>
+      </div>
+      ${noticeItems.length ? `<section class="tb-section"><div class="tb-section-head"><h2>这条消息想让你做什么</h2><span>${noticeItems.length} 条</span></div>
+        ${noticeItems.map((item, index) => `<div class="tb-notice">
+          <div class="tb-notice-head"><b>${NOTICE_TYPES[item.type].label}</b>${item.amount ? `<strong>¥${item.amount}</strong>` : ""}</div>
+          <p class="tb-notice-text">${esc(item.text)}</p>
+          <div class="tb-notice-meta">${item.merchant ? `对方：${esc(item.merchant)}` : "对方未识别"}${item.date ? ` · 日期：${esc(item.date)}` : ""}</div>
+          <div class="tb-notice-actions">
+            ${item.type === "fraud"
+              ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="fraud" data-idx="${index}">先看防诈自检</button>`
+              : `<button class="link-btn" type="button" data-tb="notice-act" data-act="case" data-idx="${index}">建资金案卷</button>
+                 ${item.type === "charge" ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="sub" data-idx="${index}">记为续费</button>` : ""}
+                 ${(item.type === "charge" || item.type === "refund") ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="bill" data-idx="${index}">记一笔流水</button>` : ""}
+                 ${(item.type === "expiry" || item.type === "delivery" || item.type === "appointment") ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="reminder" data-idx="${index}">加到期提醒</button>` : ""}
+                 ${item.type === "overdue" ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="find" data-idx="${index}">找谁问清楚</button>` : ""}
+                 <button class="link-btn" type="button" data-tb="notice-act" data-act="complaint" data-idx="${index}">写成诉求</button>`}
+          </div>
+        </div>`).join("")}
+        <p class="tb-hint">识别结果来自规则匹配，可能看错对方或金额；建案前请核对原文。票根不点链接、不回拨、不代提交。</p>
+      </section>` : `<div class="tb-empty"><p>还没有识别结果。粘贴一条真实的扣款、到期或催缴消息试试。</p></div>`}
+      <p class="note">不要粘贴完整卡号、验证码、身份证号；票根只处理你主动贴进来的文字，不上传、不读取短信。</p>`;
   }
 
   /* ---------- 权益账本 / 储值卡 ---------- */
@@ -1134,12 +1273,20 @@
   }
 
   /* ---------- 续费决策 ---------- */
+  const CYCLES = {
+    week: { label: "每周", perYear: 52 },
+    month: { label: "每月", perYear: 12 },
+    quarter: { label: "每季", perYear: 4 },
+    year: { label: "每年", perYear: 1 }
+  };
+  function cycleInfo(cycle) { return CYCLES[cycle] || CYCLES.month; }
+
   function allSubs() {
     const map = new Map();
     try {
       PG.detectSubscriptions(A.state.tickets || []).forEach((s) => {
         map.set(normMerchant(s.merchant), {
-          key: normMerchant(s.merchant), merchant: s.merchant, monthly: s.avg,
+          key: normMerchant(s.merchant), merchant: s.merchant, monthly: s.avg, amount: s.avg, cycle: "month",
           lastDate: s.lastDate instanceof Date ? fmtDate(s.lastDate) : String(s.lastDate || ""),
           count: s.count, manual: false
         });
@@ -1148,12 +1295,15 @@
     (db.subs || []).forEach((s) => {
       const key = normMerchant(s.merchant);
       if (!key) return;
+      const cycle = s.cycle && CYCLES[s.cycle] ? s.cycle : "month";
+      const amount = s.amount != null ? Number(s.amount) : Number(s.monthly) || 0;
+      const monthly = amount * cycleInfo(cycle).perYear / 12;
       if (map.has(key)) {
         const old = map.get(key);
-        map.set(key, Object.assign(old, { monthly: Number(s.monthly) || old.monthly, lastDate: s.next || old.lastDate, manual: true }));
+        map.set(key, Object.assign(old, { monthly, amount, cycle, lastDate: s.next || old.lastDate, manual: true }));
       } else {
         map.set(key, {
-          key, merchant: s.merchant, monthly: Number(s.monthly) || 0,
+          key, merchant: s.merchant, monthly, amount, cycle,
           lastDate: s.next || "", count: 0, manual: true
         });
       }
@@ -1162,7 +1312,11 @@
       let next = "";
       if (s.lastDate) {
         const d = parseDate(s.lastDate);
-        if (d) { const n = addMonths(d, 1); next = fmtDate(n); }
+        if (d) {
+          const step = s.cycle === "week" ? 7 : s.cycle === "quarter" ? 3 : s.cycle === "year" ? 12 : 1;
+          const n = s.cycle === "week" ? addDays(d, 7) : addMonths(d, step);
+          next = fmtDate(n);
+        }
       }
       return Object.assign({}, s, { yearly: (Number(s.monthly) || 0) * 12, next, decision: decisionOf(s.key) });
     }).sort((a, b) => b.yearly - a.yearly);
@@ -1183,7 +1337,7 @@
         const d = s.decision;
         return `<div class="tb-sub-row ${d ? "decided" : ""}">
           <div><b>${esc(s.merchant)}</b>
-            <small>月均 ${money(s.monthly)} · 年 ${money(s.yearly)}${s.next ? ` · 下次约 ${esc(s.next)}` : ""}${s.manual ? " · 手动" : ` · 已扣 ${s.count} 次`}</small>
+            <small>${s.cycle ? `${cycleInfo(s.cycle).label} ${money(s.amount)} · ` : ""}月均 ${money(s.monthly)} · 年 ${money(s.yearly)}${s.next ? ` · 下次约 ${esc(s.next)}` : ""}${s.manual ? " · 手动" : ` · 已扣 ${s.count} 次`}</small>
             ${d ? `<em class="tb-decision">${d.decision === "cancel" ? "决定关闭" : d.decision === "down" ? `降到 ${money(d.newAmount)}/月` : "决定保留"}${savingsOf(s.key, s.monthly) ? ` · 年省 ${money(savingsOf(s.key, s.monthly))}` : ""}</em>` : ""}
           </div>
           <div class="tb-sub-actions">
@@ -1545,9 +1699,28 @@ ${mats}
     return { rights, subs, cards, cardBalance, coupons, points, persons, fraudFlags, urgent };
   }
 
+  function yearSummary() {
+    const year = String(new Date().getFullYear());
+    const rows = (db.bills || []).filter((b) => String(b.date || "").startsWith(year));
+    const expense = rows.filter((b) => b.direction === "expense").reduce((s, b) => s + (Number(b.amount) || 0), 0);
+    const refund = rows.filter((b) => b.direction !== "expense").reduce((s, b) => s + (Number(b.amount) || 0), 0);
+    const recovered = (A.state.tickets || []).reduce((sum, t) => sum + (t.actions || [])
+      .filter((a) => a.confirmed !== false && ["refunded", "promise"].includes(a.status))
+      .reduce((s, a) => s + (Number(a.amount) || 0), 0), 0);
+    const subs = allSubs();
+    const saved = subs.reduce((s, x) => s + savingsOf(x.key, x.monthly), 0);
+    const cardBalance = allCards().reduce((s, c) => s + (Number(c.balance) || 0), 0);
+    const coupons = (A.state.coupons || []).filter((c) => {
+      const d = A.couponDays ? A.couponDays(c) : null;
+      return d !== null && d >= 0 && d <= 30;
+    }).length;
+    return { year, expense, refund, recovered, saved, cardBalance, coupons, bills: rows.length, subs: subs.length };
+  }
+
   function renderFamily() {
     const o = familyOverview();
     const soon = o.urgent;
+    const y = yearSummary();
     const annualSubs = o.subs.reduce((s, x) => s + x.yearly, 0);
     const unknownFraud = FRAUD_ITEMS.filter((f) => !db.fraud[f.id] || db.fraud[f.id] === "unsure").length;
     return `${head("家庭体检单", "一张单子，给爸妈看。", "把账单、订阅、卡、权利和防诈合成一页；只汇总本机已有记录，不登录任何账号。", "back")}
@@ -1556,6 +1729,15 @@ ${mats}
         <div><b>${money(annualSubs)}</b><span>一年续费</span></div>
         <div><b>${money(o.cardBalance)}</b><span>卡里余额</span></div>
       </div>
+      <section class="tb-section"><div class="tb-section-head"><h2>今年家里</h2><span>${y.year} · 只算本机记录</span></div>
+        <div class="tb-line"><span><b>账单支出</b><small>${y.bills} 笔已导入流水</small></span><b>${money(y.expense)}</b></div>
+        <div class="tb-line"><span><b>退款 / 收入</b><small>以原渠道到账为准</small></span><b>${money(y.refund)}</b></div>
+        <div class="tb-line"><span><b>已确认守住</b><small>只算你确认过的到账 / 兑现</small></span><b class="good">${money(y.recovered)}</b></div>
+        <div class="tb-line"><span><b>续费决策一年可省</b><small>${y.subs} 项续费</small></span><b>${money(y.saved)}</b></div>
+        <div class="tb-line"><span><b>卡里余额</b><small>储值卡 / 次卡</small></span><b>${money(y.cardBalance)}</b></div>
+        <div class="tb-line"><span><b>30 天内到期券</b><small>不用就作废</small></span><b>${y.coupons} 张</b></div>
+        <p class="tb-hint">账单只统计你导入的部分，不代表全部消费；预计、确认、已到账三种金额始终分开。</p>
+      </section>
       ${o.fraudFlags.length ? `<div class="tb-alert"><b>有 ${o.fraudFlags.length} 项正在发生的高危信号</b>
         <p>先挂断、不转账、不给验证码。拨 96110 反诈专线咨询；涉及转账或威胁，拨 110。</p></div>` : ""}
       <section class="tb-section tb-family-steps"><h2>帮爸妈，三步</h2>
@@ -1595,6 +1777,7 @@ ${mats}
   function familyText() {
     const o = familyOverview();
     const soon = o.urgent;
+    const y = yearSummary();
     const lines = [
       `票根 · 家庭体检单（${isoToday()}）`,
       "",
@@ -1605,15 +1788,20 @@ ${mats}
       `储值卡：${o.cards.length} 张，余额约 ${money(o.cardBalance)}`,
       `30 天内到期券：${o.coupons.length} 张；积分：${o.points.length} 项`,
       "",
-      "二、7 天内先办"
+      `二、${y.year} 年总览`,
+      `账单支出：${money(y.expense)}（${y.bills} 笔已导入）`,
+      `退款 / 收入：${money(y.refund)}；已确认守住：${money(y.recovered)}`,
+      `续费决策一年可省：${money(y.saved)}；卡里余额：${money(y.cardBalance)}`,
+      "",
+      "三、7 天内先办"
     ];
     if (soon.length) soon.slice(0, 8).forEach((r) => lines.push(`- ${r.title}：${r.meta}，${r.days === 0 ? "今天截止" : `剩 ${r.days} 天`}`));
     else lines.push("- 暂时没有 7 天内到期的权利。");
-    lines.push("", "三、防诈自检");
+    lines.push("", "四、防诈自检");
     const flags = FRAUD_ITEMS.filter((f) => db.fraud[f.id] === "yes");
     if (flags.length) flags.forEach((f) => lines.push(`- 有：${f.text}`));
     else lines.push("- 没有勾选高危项；不确定的项建议当面再问一次。");
-    lines.push("", "四、怎么办");
+    lines.push("", "五、怎么办");
     lines.push("- 先挂断、不转账、不给验证码；拨 96110 咨询，涉及转账或威胁拨 110。");
     lines.push("- 权利与退款以票据和平台记录为准，不承诺结果。");
     lines.push("", "本单由本机账单、案卷与手工台账生成，未上传。");
@@ -1705,6 +1893,70 @@ ${mats}
       else open(button.dataset.view);
       return;
     }
+    if (action === "notice-parse") {
+      noticeText = ($("#tbNoticeText") || {}).value || "";
+      noticeItems = parseNotice(noticeText);
+      if (!noticeItems.length) A.toast("先贴一条消息进来");
+      render();
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      return;
+    }
+    if (action === "notice-paste") {
+      if (!navigator.clipboard || !navigator.clipboard.readText) { A.toast("浏览器不支持读剪贴板，请手动粘贴"); return; }
+      navigator.clipboard.readText().then((text) => {
+        noticeText = String(text || "").slice(0, 4000);
+        noticeItems = parseNotice(noticeText);
+        render();
+      }).catch(() => A.toast("没有剪贴板权限，请手动粘贴"));
+      return;
+    }
+    if (action === "notice-clear") { noticeText = ""; noticeItems = []; render(); return; }
+    if (action === "notice-act") {
+      const item = noticeItems[Number(button.dataset.idx)];
+      if (!item) return;
+      const act = button.dataset.act;
+      if (act === "case") {
+        if (!A.openFinanceBuilder) { A.toast("资金案卷暂不可用"); return; }
+        A.openFinanceBuilder("payment", {
+          merchant: item.merchant || "", amount: item.amount || "", date: item.date || isoToday(),
+          notes: `来自粘贴的通知：\n${item.text}`
+        });
+        return;
+      }
+      if (act === "bill") {
+        db.bills.push({
+          id: uid(), date: item.date || isoToday(), time: "", merchant: item.merchant || "未识别",
+          desc: item.text.slice(0, 80), category: "其他", source: "粘贴", person: "本人",
+          direction: item.type === "refund" ? "income" : "expense",
+          amount: Number(item.amount) || 0
+        });
+        saveDb(); A.toast("已记一笔流水"); render();
+        return;
+      }
+      if (act === "sub") {
+        if (!item.merchant || !item.amount) { A.toast("对方或金额没识别出来，先补一下"); return; }
+        db.subs.push({ id: uid(), merchant: item.merchant, amount: Number(item.amount), cycle: "month", next: item.date || "" });
+        saveDb(); A.toast("已记为续费，可去续费决策改周期"); render();
+        return;
+      }
+      if (act === "reminder") {
+        openReminderSheet({ title: item.merchant || NOTICE_TYPES[item.type].label, date: item.date || fmtDate(addDays(new Date(), 7)), note: item.text.slice(0, 80) });
+        return;
+      }
+      if (act === "find") {
+        findQuery = /欠费|催缴|逾期/.test(item.text) ? "欠费" : "快递";
+        open("find");
+        return;
+      }
+      if (act === "fraud") { open("family"); A.toast("先不要转账、不要给验证码"); return; }
+      if (act === "complaint") {
+        db.complaint = Object.assign(complaintDraft(), { story: item.text });
+        saveDb(); open("complaint");
+        return;
+      }
+      return;
+    }
+    if (action === "reminder-add") { openReminderSheet(null); return; }
     if (action === "deadline-filter") { deadlineFilter = button.dataset.filter; render(); return; }
     if (action === "deadline-open") {
       const kind = button.dataset.kind;
@@ -1718,6 +1970,7 @@ ${mats}
       if (kind === "card") { accountTab = "card"; open("accounts"); return; }
       if (kind === "sub") { open("subs"); return; }
       if (kind === "warranty") { open("warranty"); return; }
+      if (kind === "reminder") { openReminderSheet(db.reminders.find((r) => r.id === button.dataset.id)); return; }
       return;
     }
     if (action === "deadline-ics") { exportDeadlineIcs(); return; }
@@ -1824,15 +2077,25 @@ ${mats}
     if (action === "sub-add") {
       A.openSheet("手动加一项续费", `<div class="tb-form">
         <label class="field"><span>商家/服务</span><input id="tbSubMerchant" placeholder="如：某云存储" /></label>
-        <label class="field"><span>每月（元）</span><input id="tbSubMonthly" type="number" inputmode="decimal" placeholder="25" /></label>
+        <div class="tb-form-2">
+          <label class="field"><span>每次扣多少（元）</span><input id="tbSubAmount" type="number" inputmode="decimal" placeholder="25" /></label>
+          <label class="field"><span>多久扣一次</span><select id="tbSubCycle">
+            ${Object.keys(CYCLES).map((k) => `<option value="${k}" ${k === "month" ? "selected" : ""}>${CYCLES[k].label}</option>`).join("")}
+          </select></label>
+        </div>
         <label class="field"><span>下次扣款日</span><input id="tbSubNext" type="date" /></label>
+        <p class="tb-hint">按周、季、年扣的会员也能记；票根会换算成月均和一年合计。</p>
       </div><div class="sheet-actions"><button class="btn primary" id="tbSubSave" type="button">加入</button><button class="btn ghost" id="tbSubCancel" type="button">取消</button></div>`, () => {
         $("#tbSubCancel").onclick = A.closeSheet;
         $("#tbSubSave").onclick = () => {
           const merchant = $("#tbSubMerchant").value.trim();
-          const monthly = Number($("#tbSubMonthly").value);
-          if (!merchant || !Number.isFinite(monthly)) { A.toast("商家和月费填一下"); return; }
-          db.subs.push({ id: uid(), merchant, monthly, next: $("#tbSubNext").value || "" });
+          const amount = Number($("#tbSubAmount").value);
+          const cycle = $("#tbSubCycle").value;
+          if (!merchant || !Number.isFinite(amount) || amount <= 0) { A.toast("商家和金额填一下"); return; }
+          db.subs.push({
+            id: uid(), merchant, amount, cycle, next: $("#tbSubNext").value || "",
+            monthly: amount * cycleInfo(cycle).perYear / 12
+          });
           saveDb(); A.closeSheet(); render(); A.toast("已加入");
         };
       });
@@ -1951,6 +2214,8 @@ ${mats}
   window.PGToolbox = {
     render,
     open,
+    reload: () => { db = loadDb(); render(); },
+    parseNotice: (text) => parseNotice(text),
     views: () => ({ view, accountTab, reportMonth }),
     _db: () => db
   };

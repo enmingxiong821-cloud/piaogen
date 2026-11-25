@@ -1,4 +1,4 @@
-const CACHE = "piaogen-v10-5";
+const CACHE = "piaogen-v10-6";
 const CORE = [
   "./",
   "./index.html",

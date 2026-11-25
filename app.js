@@ -8433,13 +8433,16 @@ const POINT_KEY = "piaogen.v0.points";
   }
 
   function exportAll() {
+    let toolbox = null;
+    try { toolbox = JSON.parse(localStorage.getItem("piaogen.v0.toolbox") || "null"); } catch { toolbox = null; }
     const blob = new Blob([JSON.stringify({
-      version: 2,
+      version: 3,
       exportedAt: new Date().toISOString(),
       tickets: state.tickets,
       finance: state.finance,
       coupons: state.coupons,
-      points: state.points
+      points: state.points,
+      toolbox
     }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -8447,7 +8450,7 @@ const POINT_KEY = "piaogen.v0.points";
     a.download = "piaogen-backup.json";
     a.click();
     URL.revokeObjectURL(url);
-    toast("已导出备份");
+    toast("已导出备份；含个人信息，请自己保管");
   }
 
   function importAll(file) {
@@ -8473,6 +8476,20 @@ const POINT_KEY = "piaogen.v0.points";
         }
         if (!Array.isArray(data) && Array.isArray(data.coupons)) state.coupons = mergeById(state.coupons, data.coupons);
         if (!Array.isArray(data) && Array.isArray(data.points)) state.points = mergeById(state.points, data.points);
+        if (!Array.isArray(data) && data.toolbox && typeof data.toolbox === "object") {
+          const key = "piaogen.v0.toolbox";
+          let current = {};
+          try { current = JSON.parse(localStorage.getItem(key) || "{}") || {}; } catch { current = {}; }
+          ["bills", "imports", "cards", "stock", "prices", "reminders", "warranties", "subs", "complaints", "familyChecks"].forEach((name) => {
+            current[name] = mergeById(current[name], data.toolbox[name]);
+          });
+          ["decisions", "materials", "fraud", "complaint"].forEach((name) => {
+            current[name] = Object.assign({}, data.toolbox[name] || {}, current[name] || {});
+          });
+          if (data.toolbox.settings) current.settings = Object.assign({}, data.toolbox.settings, current.settings || {});
+          localStorage.setItem(key, JSON.stringify(current));
+          if (window.PGToolbox && window.PGToolbox.reload) window.PGToolbox.reload();
+        }
         save();
         renderSettings();
         const skipped = tickets.length - fresh.length;

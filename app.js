@@ -2490,7 +2490,7 @@ const POINT_KEY = "piaogen.v0.points";
         const now = new Date().toISOString();
         const fields = {};
         if (type === "insurance" && $("#f-deadline") && $("#f-deadline").dataset.guessed) fields.deadlineGuessed = "1";
-        for (const key of ["issue", "orderNo", "bank", "cardLast4", "authorized", "policeNo", "firstCharge", "notice", "noticeParts", "canceled", "unusedMonths", "prevAmount", "currAmount", "cardType", "totalTimes", "usedTimes", "expireDate", "principal", "periods", "monthly", "upfrontFee", "disclosedApr", "insurer", "policyType", "premium", "signedDate", "coolingDays", "reason"]) {
+        for (const key of ["issue", "orderNo", "bank", "cardLast4", "authorized", "policeNo", "firstCharge", "notice", "noticeParts", "canceled", "unusedMonths", "prevAmount", "currAmount", "cardType", "paid", "balance", "totalTimes", "usedTimes", "expireDate", "principal", "periods", "monthly", "upfrontFee", "disclosedApr", "insurer", "policyType", "premium", "signedDate", "coolingDays", "reason"]) {
           const value = get(key);
           if (value) fields[key] = value;
         }
@@ -2630,6 +2630,10 @@ const POINT_KEY = "piaogen.v0.points";
     const p = prepaidPlanOf(c);
     if (!p.paid && !p.remaining && !p.total) return "";
     const dueText = p.daysLeft === null ? "未填到期日" : p.daysLeft < 0 ? `已过 ${-p.daysLeft} 天` : `${p.daysLeft} 天`;
+    const paidDay = c.date ? parseReportDate(c.date) : null;
+    const sincePaid = paidDay ? Math.round((calendarDay(new Date()) - paidDay) / 86400000) : null;
+    const inSeven = sincePaid !== null && sincePaid >= 0 && sincePaid < 7;
+    const seventhDay = paidDay ? addCalendarDays(paidDay, 6) : null;
     return `<section class="finance-block decision-block">
       <div class="finance-block-head"><h2>这三条路，选一条</h2><span>规则算，不猜</span></div>
       <div class="decision-metrics">
@@ -2639,12 +2643,20 @@ const POINT_KEY = "piaogen.v0.points";
         <div><span>要用完，每周至少</span><b>${p.perWeek ? `${p.perWeek} 次` : "—"}</b></div>
       </div>
       ${p.burnPerDay ? `<p class="decision-note">按今天算，不办的话每天约损失 <b>${money(p.burnPerDay)}</b>；这是算术，不是预测商家跑路。</p>` : ""}
+      ${sincePaid !== null ? `<div class="decision-window ${inSeven ? "" : "done"}">
+        <div><b>${inSeven ? `七日窗口：第 ${sincePaid + 1} 天 / 7` : `已超过七日窗口（第 ${sincePaid + 1} 天）`}</b>
+          <span>${inSeven
+            ? `自付款日起 7 个自然日内，可主张返还预付款本金；第 7 天约 ${shortDate(seventhDay)} 结束。已获得相同商品或服务的除外。`
+            : "七日退款窗口已过；仍可按迁店明显不便、擅自转店、无法正常提供服务等情形主张解除，以合同与证据为准。"}</span></div>
+        ${inSeven && p.remaining ? `<em>可主张本金（估算）<b>${money(p.remaining)}</b></em>` : ""}
+      </div>` : ""}
       <div class="decision-paths">
         <button class="decision-path" type="button" data-decision="use"><b>用完</b><span>${p.perWeek ? `按每周 ${p.perWeek} 次排计划` : "排一个到店计划"}</span><em>保留全部价值</em></button>
         <button class="decision-path" type="button" data-decision="transfer"><b>转让</b><span>生成《权益转让协议》</span><em>先确认合同允许</em></button>
         <button class="decision-path" type="button" data-decision="refund"><b>退款 / 维权</b><span>看材料缺口与路径</span><em>七日 / 迁店等情形</em></button>
       </div>
       <p class="decision-note">三条路互斥，先选一条办。票根不替你判断一定赢；转让前先看合同是否允许。</p>
+      <p class="decision-note">商家写“一经售出不退 / 丢卡不补 / 限制转卡”，按法释〔2025〕4号第九条可主张无效；退款金额与例外以合同、付款日、已消费证据为准，不承诺全额退回。</p>
     </section>`;
   }
 

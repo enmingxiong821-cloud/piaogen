@@ -1128,6 +1128,95 @@
     });
   }
 
+  function openDeliverySheet(item) {
+    const r = item || {};
+    A.openSheet("签收异议", `<p class="sheet-hint">只填运单后四位，不填地址和电话；票根不代投诉，只把 72 小时内该做的事排好。</p>
+      <div class="tb-form">
+        <label class="field"><span>快递公司</span><input id="tbDlCompany" value="${esc(r.merchant || "")}" placeholder="如：某快递" /></label>
+        <div class="tb-form-2">
+          <label class="field"><span>运单号后 4 位</span><input id="tbDlNo" maxlength="4" inputmode="numeric" placeholder="1234" /></label>
+          <label class="field"><span>签收时间</span><input id="tbDlDate" type="date" value="${esc(r.date || isoToday())}" /></label>
+        </div>
+        <label class="field"><span>订单金额（可选，元）</span><input id="tbDlAmount" type="number" inputmode="decimal" value="${r.amount ? Number(r.amount) : ""}" /></label>
+        <label class="field"><span>情况</span><select id="tbDlIssue">
+          <option>显示已签收，但我没收到</option>
+          <option>未经同意放驿站 / 快递柜</option>
+          <option>送错地址 / 被别人拿走</option>
+          <option>外包装破损 / 少件</option>
+        </select></label>
+      </div>
+      <div class="sheet-actions"><button class="btn primary" id="tbDlMake" type="button">生成 72 小时行动卡</button><button class="btn ghost" id="tbDlCancel" type="button">取消</button></div>`, () => {
+      $("#tbDlCancel").onclick = A.closeSheet;
+      $("#tbDlMake").onclick = () => {
+        const company = $("#tbDlCompany").value.trim() || "快递公司";
+        const no = $("#tbDlNo").value.trim().replace(/\D/g, "").slice(-4);
+        const date = $("#tbDlDate").value || isoToday();
+        const amount = Number($("#tbDlAmount").value) || 0;
+        const issue = $("#tbDlIssue").value;
+        A.closeSheet();
+        openDeliveryPlan({ company, no, date, amount, issue });
+      };
+    });
+  }
+
+  function deliveryPlanText(d) {
+    const lines = [
+      `【签收异议 · 72 小时】`,
+      `快递：${d.company}${d.no ? `（运单后四位 ${d.no}）` : ""}`,
+      `签收时间：${d.date}`,
+      `情况：${d.issue}`,
+      d.amount ? `订单金额：¥${Number(d.amount).toFixed(2)}` : "",
+      "",
+      "第 1 步（0–2 小时）：联系快递员或派件网点，要求核实签收人、投递位置与时间；记录工号、通话时间。",
+      "第 2 步（24 小时内）：联系快递企业客服，报运单号，要求 24 小时内答复；未经同意不得代签收或投驿站/快递柜。",
+      "第 3 步（48–72 小时）：仍未解决，向 12305（邮政业申诉）或当地邮政管理局提交订单、物流截图与沟通记录。",
+      "",
+      "依据：《快递市场管理办法》第二十八条、第五十四条（2024-03-01 施行）。",
+      "证据：订单页、物流轨迹截图、签收人/驿站照片、通话记录、物品价值凭证。",
+      "边界：只整理事实与路径，不代投诉、不承诺赔偿；如已收到请撤销。"
+    ];
+    return lines.filter((x) => x !== "").join("\n");
+  }
+
+  function openDeliveryPlan(d) {
+    A.openSheet("签收异议 · 72 小时", `<div class="tb-delivery">
+      <p class="tb-hint">先做第 1 步，再往上走；每一步都留时间、工号、截图。${d.no ? `运单后四位：${esc(d.no)}。` : ""}</p>
+      <ol class="tb-list">
+        <li><b>0–2 小时</b>：联系快递员或派件网点，核实签收人、投递位置与时间；记下工号与通话时间。</li>
+        <li><b>24 小时内</b>：联系快递企业客服，报运单号，要求 24 小时内答复；未经同意不得代签收或投驿站 / 快递柜。</li>
+        <li><b>48–72 小时</b>：仍未解决，向 <b>12305</b> 或当地邮政管理局提交订单、物流截图与沟通记录。</li>
+      </ol>
+      <p class="tb-hint">依据：<a href="https://www.gov.cn/zhengce/202401/content_6924448.htm" target="_blank" rel="noopener noreferrer">《快递市场管理办法》</a>第二十八条、第五十四条（2024-03-01 施行）。</p>
+      <div class="tb-chips"><span>订单页</span><span>物流轨迹</span><span>签收人 / 驿站照片</span><span>通话记录</span><span>价值凭证</span></div>
+      <div class="tb-actions">
+        <button class="btn primary" type="button" id="tbDlRemind">加 72 小时跟进提醒</button>
+        <button class="btn ghost" type="button" id="tbDlCopy">复制行动卡</button>
+        <button class="btn ghost" type="button" id="tbDlCase">建支付争议案卷</button>
+      </div>
+      <p class="tb-hint">只整理事实与路径，不代投诉、不承诺赔偿；如已收到请撤销。</p>
+    </div>`, () => {
+      $("#tbDlRemind").onclick = () => {
+        const title = `签收异议跟进：${d.company}`;
+        const date = fmtDate(addDays(new Date(), 3));
+        if (!db.reminders.some((r) => r.title === title && r.date === date)) {
+          db.reminders.push({ id: uid(), title, date, note: `运单后四位 ${d.no || "—"}；确认是否收到、是否已答复。` });
+          saveDb();
+        }
+        A.toast("已加 72 小时跟进提醒");
+      };
+      $("#tbDlCopy").onclick = () => copyText(deliveryPlanText(d));
+      $("#tbDlCase").onclick = () => {
+        A.closeSheet();
+        if (!A.openFinanceBuilder) { A.toast("资金案卷暂不可用"); return; }
+        A.openFinanceBuilder("payment", {
+          merchant: d.company, amount: d.amount ? String(d.amount) : "", date: d.date || isoToday(),
+          issue: "未收到商品/服务",
+          notes: `来自签收异议：${d.issue}；运单后四位 ${d.no || "—"}。\n${deliveryPlanText(d)}`
+        });
+      };
+    });
+  }
+
   function renderInbox() {
     return `${head("收件箱", "把收到的那条消息贴进来。", "扣款、退款、到期、快递、催缴、验证码——先认出它想让你做什么，再给下一步。只在本机识别，不上传。", "back")}
       <div class="tb-form">
@@ -1153,6 +1242,7 @@
                    ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="sub" data-idx="${index}">记为续费</button>`
                    : `<button class="link-btn" type="button" data-tb="notice-act" data-act="cardcase" data-idx="${index}">银行卡争议</button>`) : ""}
                  ${(item.type === "charge" || item.type === "refund") ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="bill" data-idx="${index}">记一笔流水</button>` : ""}
+                 ${item.type === "delivery" ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="delivery" data-idx="${index}">没收到 / 被代签收</button>` : ""}
                  ${(item.type === "expiry" || item.type === "delivery" || item.type === "appointment") ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="reminder" data-idx="${index}">加到期提醒</button>` : ""}
                  ${item.type === "overdue" ? `<button class="link-btn" type="button" data-tb="notice-act" data-act="find" data-idx="${index}">找谁问清楚</button>` : ""}
                  <button class="link-btn" type="button" data-tb="notice-act" data-act="complaint" data-idx="${index}">写成诉求</button>`}
@@ -1412,12 +1502,32 @@
   };
   function cycleInfo(cycle) { return CYCLES[cycle] || CYCLES.month; }
 
+  function addSubFollowUp(sub, decision) {
+    const step = sub.cycle === "week" ? 7 : sub.cycle === "quarter" ? 90 : sub.cycle === "year" ? 365 : 30;
+    let base = sub.next ? parseDate(sub.next) : null;
+    if (!base || base.getTime() < new Date().setHours(0, 0, 0, 0)) base = addDays(new Date(), step);
+    const date = fmtDate(addDays(base, decision === "cancel" ? 1 : 0));
+    const title = `${sub.merchant} · ${decision === "cancel" ? "确认已关闭" : "确认降档生效"}`;
+    if (db.reminders.some((r) => r.title === title && r.date === date)) return null;
+    db.reminders.push({
+      id: uid(),
+      title,
+      date,
+      note: decision === "cancel"
+        ? "到 App / 银行流水确认没有按原价再次扣款；如仍扣款，回票根建资金案卷。"
+        : "到 App / 账单确认新价格已生效；没有变化就回去再处理。"
+    });
+    return date;
+  }
+
   function allSubs() {
     const map = new Map();
     try {
       PG.detectSubscriptions(A.state.tickets || []).forEach((s) => {
+        const cycle = s.cycle && CYCLES[s.cycle] ? s.cycle : "month";
         map.set(normMerchant(s.merchant), {
-          key: normMerchant(s.merchant), merchant: s.merchant, monthly: s.avg, amount: s.avg, cycle: "month",
+          key: normMerchant(s.merchant), merchant: s.merchant,
+          monthly: s.avg * cycleInfo(cycle).perYear / 12, amount: s.avg, cycle,
           lastDate: s.lastDate instanceof Date ? fmtDate(s.lastDate) : String(s.lastDate || ""),
           count: s.count, manual: false
         });
@@ -1431,17 +1541,19 @@
       const monthly = amount * cycleInfo(cycle).perYear / 12;
       if (map.has(key)) {
         const old = map.get(key);
-        map.set(key, Object.assign(old, { monthly, amount, cycle, lastDate: s.next || old.lastDate, manual: true }));
+        map.set(key, Object.assign(old, { monthly, amount, cycle, nextDate: s.next || "", manual: true }));
       } else {
         map.set(key, {
           key, merchant: s.merchant, monthly, amount, cycle,
-          lastDate: s.next || "", count: 0, manual: true
+          lastDate: "", nextDate: s.next || "", count: 0, manual: true
         });
       }
     });
     return Array.from(map.values()).map((s) => {
       let next = "";
-      if (s.lastDate) {
+      if (s.nextDate) {
+        next = s.nextDate;
+      } else if (s.lastDate) {
         const d = parseDate(s.lastDate);
         if (d) {
           const step = s.cycle === "week" ? 7 : s.cycle === "quarter" ? 3 : s.cycle === "year" ? 12 : 1;
@@ -2065,6 +2177,7 @@ ${mats}
         });
         return;
       }
+      if (act === "delivery") { openDeliverySheet(item); return; }
       if (act === "bill") {
         db.bills.push({
           id: uid(), date: item.date || isoToday(), time: "", merchant: item.merchant || "未识别",
@@ -2213,8 +2326,11 @@ ${mats}
         return;
       }
       db.decisions[key] = { decision, at: new Date().toISOString() };
+      const sub = allSubs().find((x) => x.key === key);
+      const follow = sub ? addSubFollowUp(sub, decision) : null;
       saveDb(); render();
-      if (decision === "cancel") A.toast("已记为关闭；记得去商家取消授权");
+      if (decision === "cancel") A.toast(follow ? "已记为关闭，并加了下次扣款复核提醒" : "已记为关闭；记得去商家取消授权");
+      else if (decision === "down") A.toast(follow ? "已记为降档，并加了生效复核提醒" : "已记为降档");
       return;
     }
     if (action === "sub-add") {

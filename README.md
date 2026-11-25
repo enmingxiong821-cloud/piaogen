@@ -5,7 +5,11 @@
 > **公网只读 MCP 已上线**（CloudBase，7 个只读工具、示例数据、限流、CORS 白名单、写操作拒绝），
 > `selftest.js` 14/14；`agent-api.html` 可当场点“调用 tools/list”。新增**真实用户测试台**：
 > 5 个任务自动判定完成、记录用时与提示次数、导出 JSON，只存编号、不收集姓名/手机号/地址；
-> `testkit_smoke.py` 26/26。比价卡新增**买前 60 秒**：手填两个平台价与券，算到手价、价差、
+> `testkit_smoke.py` 26/26；`v107_smoke.py` 15/15。新增**预付卡七日窗口**：付款日起 7 个自然日内显示第几天、第 7 天日期、
+> 可主张本金估算与「一经售出不退」等条款无效提示；窗口外只列迁店/转店/无法服务情形，不倒计时。
+> 收件箱新增**签收异议 · 72 小时**：快递员 → 企业客服 → 12305，带证据清单，可加跟进提醒或转支付争议案卷。
+> 续费选“关/降”后自动加下次扣款复核提醒。修复预付卡本金、余额与续费提醒三要素未落盘的字段遗漏。
+> 比价卡新增**买前 60 秒**：手填两个平台价与券，算到手价、价差、
 > 历史低与价保，给“现在买 / 换平台 / 等 3 天”的结论；`v105_smoke.py` 40/40。
 > 收件箱新增订单号与同一条通知去重，并把“续费扣款”与普通银行卡消费分流（后者给银行卡争议、
 > 预填卡尾号）；`v106_smoke.py` 39/39。布局：今天页加办事台快捷入口、
@@ -165,7 +169,7 @@
 - **核验与边界**：设置里一页展示规则条数、测试基线、数据与 AI 状况、已知局限；数字来自当天实跑。
 - **可选 AI 建议**：默认关闭；用户自填 OpenAI 兼容端点与 Key；发送前预览，金额/日期默认不发；输出只建议、只进备注，不改事实；支持过期、失败、数字校验与长辈模式隐藏。
 - **双时钟一致**：今天页三行时钟改为取同组窗口里最急的一条（三包退货优先于 7 天无理由），页头与卡片天数不再出现 1 天 / 3 天的错位；次要窗口以小字并列显示。
-- **验收**：`test_users_smoke.py` 118/118；`smoke.py` OK；`real_smoke.py` 40/40；`order_samples_smoke.py` 19/19；`mcp_smoke.py` 13/13；`toolbox_smoke.py` 50/50；`v105_smoke.py` 40/40；`v106_smoke.py` 39/39；`testkit_smoke.py` 26/26；`v103_smoke.py` 21/21；适配层 `selftest.js` 10/10；公网 MCP `selftest.js` 14/14；本地 `live_check.py` 35/35；`doc_check.py` 通过。
+- **验收**：`test_users_smoke.py` 118/118；`smoke.py` OK；`real_smoke.py` 40/40；`order_samples_smoke.py` 19/19；`mcp_smoke.py` 13/13；`toolbox_smoke.py` 53/53；`v105_smoke.py` 40/40；`v106_smoke.py` 39/39；`testkit_smoke.py` 26/26；`v107_smoke.py` 15/15；`v103_smoke.py` 21/21；适配层 `selftest.js` 10/10；公网 MCP `selftest.js` 14/14；本地 `live_check.py` 35/35；`doc_check.py` 通过。
 - **交付状态**：V10.7 已部署（sw `piaogen-v10-7`）：GitHub Pages commit `95194b5`、CloudBase 72 文件 `--verify` 通过；公网 GitHub `live_check` 35/35、`policy_ocr` 18/18、`offline` 4/4、`batch_import` 5/5，CloudBase `live_check` 35/35；公网只读 MCP `…/piaogen-mcp/health` 返回 `ok:true`。GitHub Pages 主链接 https://enmingxiong821-cloud.github.io/piaogen/ ，CloudBase 国内备用。
 
 ## 2026-11-21 P0 真实性修正（已落地）

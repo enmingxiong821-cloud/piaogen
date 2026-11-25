@@ -58,6 +58,8 @@
     xiaobao10: { law: "《消费者权益保护法实施条例》", article: "第十条", short: "自动展期、自动续费应在接受服务前和续费日期前以显著方式提醒", url: "https://www.gov.cn/gongbao/2024/issue_11266/202404/content_6944108.html" },
     platformPrice2026: { law: "《互联网平台价格行为规则》", article: "自动续期 / 自动扣款", short: "2026-04-10 起，每次扣款前应显著提醒扣款时间、金额、取消途径，允许随时取消；收费标准变化应一并通知", url: "https://www.ndrc.gov.cn/xxgk/zcfb/ghxwj/202512/t20251217_1402474_ext.html" },
     xiaobao22: { law: "《消费者权益保护法实施条例》", article: "第二十二条", short: "收取预付款应订立书面合同；未按约定提供商品或服务，应按要求履行或退还预付款", url: "https://www.gov.cn/gongbao/2024/issue_11266/202404/content_6944108.html" },
+    kuaidi28: { law: "《快递市场管理办法》", article: "第二十八条", short: "未经用户同意，不得代为确认收到快件，不得擅自将快件投递到智能快件箱、快递服务站等末端服务设施", url: "https://www.gov.cn/zhengce/202401/content_6924448.htm" },
+    kuaidi54: { law: "《快递市场管理办法》", article: "第五十四条", short: "违反快递服务规定，由邮政管理部门责令改正并处罚款；具体处罚以原文与监管部门认定为准", url: "https://www.gov.cn/zhengce/202401/content_6924448.htm" },
     prepaid2025: { law: "《最高人民法院关于审理预付式消费民事纠纷案件适用法律若干问题的解释》", article: "法释〔2025〕4号", short: "付款七日内原则上可请求返还预付款本金；迁店明显不便、擅自转店、服务无法正常提供等可主张解除合同；以具体证据和合同为准", url: "https://bxx.lncourt.gov.cn/article/detail/2025/03/id/8751313.shtml" },
     loanCost2026: { law: "《个人贷款业务明示综合融资成本规定》", article: "金规〔2026〕2号", short: "2026-08-01 起，个人贷款应明示正常履约和违约情形下的综合融资成本，利息、分期费、增信费等都应纳入", url: "https://sousuo.www.gov.cn/sousuo/search.shtml?code=17da70961a7&searchWord=%E4%B8%AA%E4%BA%BA%E8%B4%B7%E6%AC%BE%E4%B8%9A%E5%8A%A1%E6%98%8E%E7%A4%BA%E7%BB%BC%E5%90%88%E8%9E%8D%E8%B5%84%E6%88%90%E6%9C%AC%E8%A7%84%E5%AE%9A" },
     loanApr2021: { law: "《中国人民银行公告〔2021〕第3号》", article: "贷款年化利率", short: "贷款年化利率应以全部贷款成本与实际占用本金的比例折算；营销和合同应显著展示年化利率", url: "https://sousuo.www.gov.cn/sousuo/search.shtml?code=17da70961a7&searchWord=%E4%B8%AD%E5%9B%BD%E4%BA%BA%E6%B0%91%E9%93%B6%E8%A1%8C%E5%85%AC%E5%91%8A%E3%80%942021%E3%80%95%E7%AC%AC3%E5%8F%B7" },
@@ -855,31 +857,38 @@ ${ev}` };
       byMerchant.get(key).push({ d: new Date(t.date), amt: Number(t.amount) || 0, channel: t.channel || "other" });
     }
     const out = [];
+    const ranges = { week: [6, 8], month: [25, 35], quarter: [85, 95], year: [360, 370] };
+    const perYear = { week: 52, month: 12, quarter: 4, year: 1 };
     for (const [merchant, rows] of byMerchant) {
       rows.sort((a, b) => a.d - b.d);
       if (rows.length < 2) continue;
-      let streak = 1;
-      let amounts = [rows[0].amt];
-      let lastGap = 0;
+      const runs = [];
+      let run = null;
       for (let i = 1; i < rows.length; i++) {
         const days = Math.round((rows[i].d - rows[i - 1].d) / 86400000);
-        if (days >= 25 && days <= 35) {
-          streak += 1;
-          amounts.push(rows[i].amt);
-          lastGap = days;
+        const cycle = Object.keys(ranges).find((k) => days >= ranges[k][0] && days <= ranges[k][1]);
+        if (cycle && run && run.cycle === cycle) {
+          run.count += 1;
+          run.amounts.push(rows[i].amt);
+          run.last = rows[i].d;
+          run.lastGap = days;
+          run.channel = rows[i].channel;
+        } else if (cycle) {
+          run = { cycle, count: 2, amounts: [rows[i - 1].amt, rows[i].amt], last: rows[i].d, lastGap: days, channel: rows[i].channel };
+          runs.push(run);
         } else {
-          streak = 1;
-          amounts = [rows[i].amt];
-          lastGap = 0;
+          run = null;
         }
       }
-      if (streak < 2) continue;
-      const avg = amounts.reduce((s, x) => s + x, 0) / amounts.length;
+      if (!runs.length) continue;
+      runs.sort((a, b) => b.count - a.count || b.last - a.last);
+      const best = runs[0];
+      if (best.count < 2 || (best.cycle === "week" && best.count < 3)) continue;
+      const avg = best.amounts.reduce((s, x) => s + x, 0) / best.amounts.length;
       if (!avg) continue;
-      const drift = Math.max.apply(null, amounts.map((a) => Math.abs(a - avg) / avg));
+      const drift = Math.max.apply(null, best.amounts.map((a) => Math.abs(a - avg) / avg));
       if (drift > 0.05) continue;
-      const channel = rows[rows.length - 1].channel;
-      out.push({ merchant, count: streak, avg, lastGap, lastDate: rows[rows.length - 1].d, yearly: avg * 12, channel });
+      out.push({ merchant, count: best.count, avg, lastGap: best.lastGap, lastDate: best.last, yearly: avg * perYear[best.cycle], channel: best.channel, cycle: best.cycle });
     }
     return out.sort((a, b) => b.yearly - a.yearly);
   }

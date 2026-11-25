@@ -156,7 +156,7 @@
 - **可选 AI 建议**：默认关闭；用户自填 OpenAI 兼容端点与 Key；发送前预览，金额/日期默认不发；输出只建议、只进备注，不改事实；支持过期、失败、数字校验与长辈模式隐藏。
 - **双时钟一致**：今天页三行时钟改为取同组窗口里最急的一条（三包退货优先于 7 天无理由），页头与卡片天数不再出现 1 天 / 3 天的错位；次要窗口以小字并列显示。
 - **验收**：`test_users_smoke.py` 118/118；`smoke.py` OK；`real_smoke.py` 40/40；`order_samples_smoke.py` 19/19；`mcp_smoke.py` 13/13；`toolbox_smoke.py` 49/49；`v105_smoke.py` 36/36；适配层 `selftest.js` 10/10；本地 `live_check.py` 35/35；`doc_check.py` 通过。
-- **交付状态**：V10.5 已部署（sw `piaogen-v10-5`）：GitHub Pages commit `8d2eae9`、CloudBase 68 文件 `--verify` 通过；公网 GitHub `live_check` 35/35、`policy_ocr` 18/18、`offline` 4/4、`batch_import` 5/5，CloudBase `live_check` 35/35。GitHub Pages 主链接 https://enmingxiong821-cloud.github.io/piaogen/ ，CloudBase 国内备用。
+- **交付状态**：V10.6 已部署（sw `piaogen-v10-6`）：GitHub Pages commit `00d0222`、CloudBase 68 文件 `--verify` 通过；公网 GitHub `live_check` 35/35、`policy_ocr` 18/18、`offline` 4/4、`batch_import` 5/5，CloudBase `live_check` 35/35。GitHub Pages 主链接 https://enmingxiong821-cloud.github.io/piaogen/ ，CloudBase 国内备用。
 
 ## 2026-11-21 P0 真实性修正（已落地）
 

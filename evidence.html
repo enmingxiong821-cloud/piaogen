@@ -17,9 +17,9 @@
     <span class="doc-mark">票根</span>
   </nav>
 
-  <p class="doc-kicker">票根 · V9.9</p>
+  <p class="doc-kicker">票根 · V10.1</p>
   <h1>核验与边界</h1>
-  <p class="doc-meta">核对日期：2026-11-23　·　这一页只写能当场复核的事实</p>
+  <p class="doc-meta">核对日期：2026-11-25　·　这一页只写能当场复核的事实</p>
 
   <p class="lede">评委不需要翻文档：这一页列出规则条数、测试基线、数据处理方式、AI 的位置，以及我们明确不做的事。数字来自当天实跑；与页面不一致时，以实际运行结果为准。</p>
 
@@ -28,6 +28,8 @@
     <li>可安装的 Web 应用（PWA），纯静态、无后端、无账号；数据只存本机 localStorage。</li>
     <li>六栏：今天 / 案卷 / 资金 / 资产 / 导入 / 我的；消费权利与资金售后共用同一套案卷、证据、回执引擎。</li>
     <li>可被调用：本地 MCP server 七个工具（含 <code>policy.parse</code>），协议 <code>initialize → tools/list → tools/call</code>；另附本地 JSON-RPC over HTTP 桥（只绑 127.0.0.1）。</li>
+    <li>内置规则 Agent（顶栏 ✦）：七类意图——查到期、资金售后、权利窗口、材料准备、本月支出、会员年费、快过期券；逐轮补齐金额与日期，给出可点下一步；不联网、不需要 Key，支持语音输入。</li>
+    <li>智能模式：可选外接任意 OpenAI 兼容模型（含本机 Ollama）。模型只调用五个本地只读工具（到期清单、搜案卷、读案卷、资金规则、材料清单），每轮输出 JSON；金额与日期必须来自工具结果或你的原话，未核对数字会标黄；失败自动回落本地规则。</li>
     <li>订单截图 / 录屏可多选，逐张识别后一起分拣；读不出的单单独标出，不猜字段。</li>
     <li>保单 / 合同导入只提取机构、金额、期限三项，不保存证件原件、证件号与完整文字；结果由用户确认后才建立资金案卷。</li>
     <li>未接入：支付宝小程序、支付后 1403、订阅消息、蚂蚁阿宝真实调用。壳与入口只有原型：<a href="miniapp.html">小程序壳</a>、<a href="afterpay.html">支付后入口</a>。</li>
@@ -54,14 +56,17 @@
     <li>批量导入里读不出的单标“识别失败 · 手动填”，不猜金额与日期。</li>
   </ul>
 
-  <h2>3. 测试基线（2026-11-24 实跑）</h2>
+  <h2>3. 测试基线（2026-11-25 实跑）</h2>
   <ul>
     <li><code>test_users_smoke.py</code>：118 / 118</li>
     <li><code>smoke.py</code>：通过，无控制台报错</li>
     <li><code>real_smoke.py</code>：40 / 40</li>
     <li><code>order_samples_smoke.py</code>：19 / 19</li>
-    <li><code>mcp_smoke.py</code>：11 / 11；<code>mcp_http_smoke.py</code>：6 / 6；<code>policy_ocr_smoke.py</code>：18 / 18；<code>offline_smoke.py</code>：4 / 4；<code>a11y_smoke.py</code>：8 / 8；<code>batch_import_smoke.py</code>：5 / 5</li>
-    <li><code>live_check.py</code>：本地 35 / 35，线上 35 / 35</li>
+    <li><code>agent_smoke.py</code>：18 / 18（助手入口、到期、支出、会员、资产、资金槽位补齐、日期解析、建案与开案跳转、语音按钮）</li>
+    <li><code>smart_agent_smoke.py</code>：8 / 8（模型工具调用闭环、智能徽标、动作跳转、非 JSON 降级）</li>
+    <li><code>parse_smoke.py</code>：11 / 11（金额行优先级、千分位、CSV 导出、重复备份去重）</li>
+    <li><code>mcp_smoke.py</code>：13 / 13；<code>mcp_store_smoke.py</code>：9 / 9（落盘、重启回放、off 模式、损坏备份）；<code>mcp_http_smoke.py</code>：6 / 6；<code>policy_ocr_smoke.py</code>：18 / 18；<code>offline_smoke.py</code>：4 / 4；<code>a11y_smoke.py</code>：8 / 8；<code>batch_import_smoke.py</code>：5 / 5</li>
+    <li><code>live_check.py</code>：本地 35 / 35（线上版本在部署后复跑）</li>
     <li><code>doc_check.py</code>：通过（隐私 / 协议 / 许可三页，320 与 1440 无横向溢出）</li>
   </ul>
   <p>这些是自动化测试，不等于真人使用验证。5 个测试用户是合成夹具；真人可用性测试包已准备好，但尚未执行，页面上不写成“已完成”。</p>
@@ -71,7 +76,9 @@
     <li>票据图片、PDF、OFD 在本机识别；不上传原图，不写入远端数据库。</li>
     <li>AI 建议层<strong>默认关闭</strong>。打开后由用户自填 OpenAI 兼容端点、模型与 Key；发送前展示将发送的字段，金额与日期默认不发送。</li>
     <li>AI 只产出建议文本，只进“事实与诉求”备注；不改金额、日期、状态、证据，不参与结论。</li>
-    <li>关掉 AI，权利窗口、证据门、路径、回执全部照常工作。</li>
+    <li>内置规则 Agent 不调用外部模型：意图、槽位、金额与日期都由本地规则库解析，界面会显示“理解 / 工具 / 下一步”，便于核对。</li>
+    <li>智能模式是可选开关：Key 只存本机；只发送当前这句话、本地概况与工具结果；不发图片、卡号、订单号、手机号、地址、验证码。</li>
+    <li>关掉 AI、断开网络，权利窗口、证据门、路径、回执与内置 Agent 全部照常工作。</li>
     <li>资金案卷只填卡尾号；不索取完整卡号、CVV、验证码、网银密码。</li>
   </ul>
 

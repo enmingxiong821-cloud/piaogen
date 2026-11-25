@@ -572,6 +572,12 @@ h1{font-family:var(--serif);font-size:34px;letter-spacing:-.012em;font-weight:60
 .sub-row span{grid-column:1;font-size:12px;color:var(--ink-2)}
 .sub-row em{grid-row:1 / span 2;grid-column:2;align-self:center;font-style:normal;font-size:15px;color:var(--teal);font-variant-numeric:tabular-nums}
 .sub-row small{grid-column:1 / -1;font-size:10.5px;line-height:1.6;color:var(--ink-3)}
+.sub-forecast{margin:12px 0 4px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02)}
+.sub-forecast-head{margin:0 0 8px;font-size:12px;color:var(--text-2)}
+.sub-forecast-head em{font-style:normal;color:var(--text-3);font-size:10.5px;margin-left:6px}
+.sub-forecast-row{display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:8px;min-height:26px;font-size:11px;color:var(--text-3)}
+.sub-forecast-row i{display:block;height:6px;border-radius:3px;background:rgba(157,240,194,.45)}
+.sub-forecast-row b{font-weight:500;color:var(--text-2);font-variant-numeric:tabular-nums;font-size:10.5px}
 
 .window.not-applicable::before{background:transparent;border:1px solid var(--rule);box-shadow:none}
 .window.not-applicable .window-top span b{color:var(--ink-3);font-size:12px}
@@ -2239,4 +2245,63 @@ body{
 }
 @media (prefers-reduced-motion:reduce){
   .decision-path{transition:none}
+}
+
+/* ---------- 规则助手 Agent ---------- */
+.agent-open{color:var(--mint)}
+.agent-modes{display:flex;gap:6px;margin:0 0 8px;padding:3px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02)}
+.agent-modes button{flex:1;min-height:44px;border:0;border-radius:9px;background:transparent;color:var(--text-3);font-size:12px;line-height:1.2}
+.agent-modes button.on{background:rgba(157,240,194,.1);color:var(--mint)}
+.agent-modes button:focus-visible{outline:2px solid var(--mint);outline-offset:1px}
+.agent-badge{display:inline-block;margin:0 0 6px;padding:2px 7px;border-radius:999px;background:rgba(139,211,255,.12);color:#8BD3FF;font-size:10px;line-height:1.5;letter-spacing:.02em}
+.agent-thinking{color:var(--text-2)}
+.agent-warn{margin:8px 0 0;padding:6px 9px;border-left:2px solid #F4B860;background:rgba(244,184,96,.08);color:#F4B860;font-size:11.5px;line-height:1.6}
+.agent-note{margin:8px 0 0;font-size:11px;line-height:1.6;color:var(--text-3)}
+.agent-log{max-height:46dvh;overflow-y:auto;display:grid;gap:10px;padding:4px 2px 8px;overscroll-behavior:contain}
+.agent-msg{display:flex;animation:agentIn .22s ease-out both}
+@keyframes agentIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.agent-msg.user{justify-content:flex-end}
+.agent-bubble{max-width:92%;padding:11px 13px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.03);font-size:13px;line-height:1.7;color:var(--text)}
+.agent-msg.user .agent-bubble{background:rgba(157,240,194,.1);border-color:rgba(157,240,194,.32);color:var(--text)}
+.agent-bubble p{margin:0 0 6px}
+.agent-bubble p:last-child{margin-bottom:0}
+.agent-hello{margin:0;color:var(--text)}
+.agent-can{margin:7px 0 0;padding-left:18px;color:var(--text-2);font-size:12.5px;line-height:1.8}
+.agent-list{margin:6px 0 0;padding-left:18px;color:var(--text-2);font-size:12.5px;line-height:1.9}
+.agent-list b{color:var(--text);font-weight:600}
+.agent-list em{font-style:normal;color:#FF715B;font-family:var(--num);font-size:11.5px}
+.agent-trace{display:grid;gap:4px;margin:9px 0 0;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.03);border:1px dashed var(--line)}
+.agent-trace div{display:flex;gap:8px;font-size:11px;line-height:1.55}
+.agent-trace dt{color:var(--text-3);min-width:34px}
+.agent-trace dd{margin:0;color:var(--text-2)}
+.agent-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.agent-action{display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;border:1px solid rgba(157,240,194,.4);border-radius:9px;background:rgba(157,240,194,.08);color:var(--mint);font-size:12px;line-height:1.2}
+.agent-action:focus-visible{outline:2px solid var(--teal);outline-offset:1px}
+.agent-chips{display:flex;gap:8px;overflow-x:auto;padding:8px 0 2px;scrollbar-width:none}
+.agent-chips::-webkit-scrollbar{display:none}
+.agent-chip{display:inline-flex;align-items:center;min-height:44px;white-space:nowrap;padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--text-2);font-size:12px}
+.agent-chip:hover{border-color:rgba(157,240,194,.4);color:var(--mint)}
+.agent-form{display:flex;gap:8px;align-items:center;margin-top:10px}
+.agent-form input{flex:1;min-width:0;min-height:44px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel);color:var(--text);font-size:13px}
+.agent-form input:focus{border-color:rgba(157,240,194,.5);outline:none}
+.agent-mic{width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;border:1px solid var(--line);border-radius:11px;background:transparent;color:var(--text-2)}
+.agent-mic:hover{color:var(--mint);border-color:rgba(157,240,194,.4)}
+.agent-send{flex:0 0 auto;width:auto;padding:11px 16px;white-space:nowrap}
+.agent-foot{margin:8px 0 0;font-size:10.5px;line-height:1.6;color:var(--text-3)}
+
+/* ---------- 案卷时间线与完整度 ---------- */
+.ev-meter{font-size:11px;font-weight:400;color:var(--text-3);margin-left:6px;font-family:var(--num)}
+.case-timeline{list-style:none;margin:0;padding:0 0 0 12px;border-left:1px solid var(--line);display:grid;gap:10px}
+.case-timeline li{position:relative;padding-left:14px}
+.case-timeline li::before{content:"";position:absolute;left:-4px;top:4px;width:7px;height:7px;border-radius:50%;background:var(--panel);border:1.5px solid var(--text-3)}
+.case-timeline time{display:block;font-family:var(--num);font-size:10.5px;color:var(--text-3)}
+.case-timeline b{font-size:12.5px;color:var(--text)}
+.case-timeline span{display:block;font-size:11.5px;color:var(--text-2);line-height:1.6}
+
+@media (max-width:520px){
+  .agent-bubble{max-width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  .agent-msg{animation:none}
+  .agent-chip,.agent-action{transition:none}
 }

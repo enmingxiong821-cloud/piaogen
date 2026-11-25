@@ -15,12 +15,20 @@ const financeCases = FINANCE_DATA.cases.map((item) => ({ ...item, actions: Array
 // PG_MCP_STORE=off 用于测试，不落盘；也可指定自定义路径。
 const STORE_MODE = process.env.PG_MCP_STORE || "";
 const STORE_PATH = STORE_MODE === "off" ? null : (STORE_MODE || path.join(__dirname, "records.local.json"));
+const STORE_LIMIT = 5000;
+let storeWarning = "";
 let storedRecords = [];
 if (STORE_PATH) {
   try {
-    const parsed = JSON.parse(fs.readFileSync(STORE_PATH, "utf8"));
-    if (Array.isArray(parsed)) storedRecords = parsed;
+    const raw = fs.readFileSync(STORE_PATH, "utf8");
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) throw new Error("records file is not an array");
+    storedRecords = parsed;
   } catch (error) {
+    if (error && error.code !== "ENOENT") {
+      try { fs.renameSync(STORE_PATH, `${STORE_PATH}.corrupt-${Date.now()}`); } catch (e) { /* ignore */ }
+      storeWarning = "本地记录文件损坏，已备份为 .corrupt-* 并从空记录开始";
+    }
     storedRecords = [];
   }
 }
@@ -32,19 +40,29 @@ function applyStoredRecord(row) {
   if (!target) return;
   target.actions = (target.actions || []).concat(row.action);
   if (row.caseStatus) target.status = row.caseStatus;
+  if (row.kind === "finance") {
+    if (typeof row.recoveredAmount === "number") target.recoveredAmount = row.recoveredAmount;
+    if (row.updatedAt) target.updatedAt = row.updatedAt;
+  }
 }
 
 storedRecords.forEach(applyStoredRecord);
 
 function persistRecord(row) {
   storedRecords.push(row);
-  if (storedRecords.length > 500) storedRecords = storedRecords.slice(-500);
-  if (!STORE_PATH) return false;
+  let truncated = false;
+  if (storedRecords.length > STORE_LIMIT) {
+    storedRecords = storedRecords.slice(-STORE_LIMIT);
+    truncated = true;
+  }
+  if (!STORE_PATH) return { persisted: false, truncated, warning: storeWarning };
   try {
-    fs.writeFileSync(STORE_PATH, JSON.stringify(storedRecords, null, 2));
-    return true;
+    const tmp = `${STORE_PATH}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(storedRecords, null, 2));
+    fs.renameSync(tmp, STORE_PATH);
+    return { persisted: true, truncated, warning: storeWarning };
   } catch (error) {
-    return false;
+    return { persisted: false, truncated, warning: storeWarning };
   }
 }
 
@@ -86,6 +104,7 @@ const TOOLS = [
           enum: ["submitted", "refunded", "repaired", "promise", "rejected", "abandoned"],
           description: "结果状态"
         },
+        confirmed: { type: "boolean", description: "用户是否确认到账/完成；refunded / repaired / promise 必须为 true" },
         amount: { type: "number", description: "已确认金额，没有就省略" },
         note: { type: "string", description: "备注，例如“平台客服说 3 天到账”" }
       },
@@ -231,35 +250,43 @@ function record(args) {
   const status = String(args.status || "");
   const allowed = ["submitted", "refunded", "repaired", "promise", "rejected", "abandoned"];
   if (!allowed.includes(status)) return { error: `不支持的结果状态：${status}` };
+  const needConfirm = ["refunded", "repaired", "promise"].includes(status);
+  if (needConfirm && args.confirmed !== true) {
+    return { error: "refunded / repaired / promise 必须由用户确认后传 confirmed=true；不能把受理或口头承诺写成已办结" };
+  }
   const action = {
     id: `A-${Date.now().toString(36)}`,
     status,
     amount: typeof args.amount === "number" ? args.amount : null,
     note: String(args.note || ""),
+    confirmed: args.confirmed === true,
     at: new Date().toISOString()
   };
   item.actions.push(action);
-  if (["refunded", "repaired", "promise"].includes(status)) item.status = "已办结";
+  if (needConfirm) item.status = "已办结";
   else if (status === "rejected") item.status = "被拒";
   else if (status !== "abandoned") item.status = "进行中";
   const win = nearest(item);
   const predicted = win ? Number(win.amount) || 0 : 0;
   const confirmed = item.actions
-    .filter((row) => ["refunded", "repaired", "promise"].includes(row.status))
+    .filter((row) => row.confirmed !== false && ["refunded", "promise"].includes(row.status))
     .reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
-  const persisted = persistRecord({ kind: "rights", caseId: item.caseId, caseStatus: item.status, action });
+  const stored = persistRecord({ kind: "rights", caseId: item.caseId, caseStatus: item.status, action });
   return {
     caseId: item.caseId,
     status: item.status,
     action,
-    outcome: { predicted, confirmed },
-    persisted,
+    outcome: { predicted: Math.max(predicted, confirmed), confirmed },
+    persisted: stored.persisted,
+    store: { count: storedRecords.length, truncated: stored.truncated, warning: stored.warning },
     audit: [
       `记录 ${status}`,
       "不代提交；结果由调用方或用户确认后写入",
-      persisted ? "已写入本地 records.local.json" : "本次未落盘，仅保留在本次进程内",
+      stored.persisted ? "已写入本地 records.local.json" : "本次未落盘，仅保留在本次进程内",
+      stored.truncated ? `记录超过 ${STORE_LIMIT} 条，已丢弃最旧记录` : "",
+      stored.warning || "",
       `累计 ${item.actions.length} 条动作`
-    ]
+    ].filter(Boolean)
   };
 }
 
@@ -287,6 +314,8 @@ function financeSummary(item) {
     amount: item.amount,
     date: item.date,
     status: item.status,
+    recoveredAmount: Number(item.recoveredAmount) || 0,
+    updatedAt: item.updatedAt || null,
     deadline: due,
     evidenceReady: (item.evidence || []).filter((row) => row.status === "ready").length,
     evidenceTotal: (item.evidence || []).length,
@@ -373,7 +402,14 @@ function financeRecord(args) {
   item.status = status;
   item.updatedAt = new Date().toISOString();
   if (status === "resolved") item.recoveredAmount = amount;
-  const persisted = persistRecord({ kind: "finance", caseId: item.caseId, caseStatus: status, action });
+  const stored = persistRecord({
+    kind: "finance",
+    caseId: item.caseId,
+    caseStatus: status,
+    recoveredAmount: item.recoveredAmount,
+    updatedAt: item.updatedAt,
+    action
+  });
   return {
     caseId: item.caseId,
     status,
@@ -382,13 +418,16 @@ function financeRecord(args) {
       disputed: Number(item.amount) || 0,
       confirmed: amount
     },
-    persisted,
+    persisted: stored.persisted,
+    store: { count: storedRecords.length, truncated: stored.truncated, warning: stored.warning },
     audit: [
       `记录 ${status}`,
       "只记录调用方声明的进度；未确认到账不写已解决",
-      persisted ? "已写入本地 records.local.json" : "本次未落盘，仅保留在本次进程内",
+      stored.persisted ? "已写入本地 records.local.json" : "本次未落盘，仅保留在本次进程内",
+      stored.truncated ? `记录超过 ${STORE_LIMIT} 条，已丢弃最旧记录` : "",
+      stored.warning || "",
       "不代提交、不代收款"
-    ]
+    ].filter(Boolean)
   };
 }
 
@@ -504,7 +543,7 @@ function dispatch(message) {
     return reply(id, {
       protocolVersion: "2024-11-05",
       capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: "piaogen-rights-finance", version: "0.4.1" }
+      serverInfo: { name: "piaogen-rights-finance", version: "0.4.2" }
     });
   }
   if (method === "tools/list") return reply(id, { tools: TOOLS });

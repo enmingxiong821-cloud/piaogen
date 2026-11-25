@@ -1,6 +1,13 @@
 # 票根 V0
 ### 付款之后的消费权利 OS · 可运行 Web 版
 
+> 2026-11-25 V11.0（已部署：GitHub Pages `97e1a14` / CloudBase 78 文件）：
+> 修复旧 Service Worker 把新页面配旧样式、按钮显示成白底白字的问题；资源统一加 `?v=110`，缓存改为网络优先。
+> 助手页新增「接入你的大模型」横幅与设置面板：DeepSeek / 通义 / Kimi / 智谱 / OpenAI / 本机 Ollama / 自定义，
+> 支持连接测试、模型候选与失败原因（Key、端点、跨域、超时）。本地助手新增问候、能力说明、权利库检索、
+> 诉求草稿、上下文指代与「找谁」路径。`v110_smoke.py` 33/33，全量回归全绿。
+> ZIP 78 文件 / 约 35.9MB / sw `piaogen-v11-0`。
+>
 > 2026-11-25 V10.9（已部署：GitHub Pages `a04d78f` / CloudBase 77 文件）：助手移到导航正中间，做成凸起圆钮；
 > 小票灵可拖拽并记住位置、眼神跟随、按真实到期数据主动冒泡；首屏收成一句话 + 一个主按钮 + 三个数字；
 > 新增 80 条可查的**权利库**（公开页 `rights.html`）与**健康账本**（支出 / 提醒 / 保障 / 怎么办）；
@@ -286,14 +293,14 @@ docker run --rm -p 8765:80 piaogen-v0
 
 | 用途 | 地址 | 说明 |
 |---|---|---|
-| 投稿主链接 | https://enmingxiong821-cloud.github.io/piaogen/ | 点开即进首页，无中间页；V10.9，sw `piaogen-v10-9` |
+| 投稿主链接 | https://enmingxiong821-cloud.github.io/piaogen/ | 点开即进首页，无中间页；V11.0，sw `piaogen-v11-0` |
 | 真人测试直链 | https://enmingxiong821-cloud.github.io/piaogen/?test=1 | 直达测试台，手机可直接发给测试者 |
 | 国内备用 | https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.tcloudbaseapp.com/piaogen/ | 腾讯 CloudBase 上海，直连 439ms；默认域名会先弹“风险提醒”，点一次“确定访问”即可 |
 
 这是纯静态站点，也可直接部署到 Netlify / Vercel / Cloudflare Pages / 任意静态文件服务器。
 `netlify.toml` / `vercel.json` 已放好；Netlify 可直接拖 `v0/` 文件夹，Vercel 导入后不用 build command。
 
-CloudBase 更新命令（V10.9 共 77 个文件，带 `--verify`）：
+CloudBase 更新命令（V11.0 共 78 个文件，带 `--verify`）：
 
 ```powershell
 tcb hosting deploy ./dist_app/piaogen-app piaogen -e xiongxiongkaifa-d4flmaia4021b1d1 --safe --verify --concurrency 8 --retry-count 3 --json

@@ -1,0 +1,58 @@
+{
+  "name": "piaogen-rights-finance",
+  "displayName": "票根 · 消费权利与资金售后",
+  "version": "0.4.2",
+  "description": "把一笔购买或一宗资金售后变成可核对的案卷：权利窗口、证据缺口、官方路径、材料与回执。",
+  "transports": [
+    {
+      "type": "stdio",
+      "command": "node mcp/server.js",
+      "note": "零依赖，本地运行"
+    },
+    {
+      "type": "http",
+      "url": "http://127.0.0.1:8787/mcp",
+      "command": "node mcp/http-server.js",
+      "note": "只绑 127.0.0.1，CORS 只放行 localhost"
+    }
+  ],
+  "tools": [
+    {
+      "name": "rights.lookup",
+      "description": "查一笔购买对应的消费权利回执：还能做什么、最近哪一天关闭、缺什么证据。"
+    },
+    {
+      "name": "rights.plan",
+      "description": "给一宗案卷生成下一步：主行动、材料清单、话术、入口和禁止事项。"
+    },
+    {
+      "name": "rights.record",
+      "description": "把办理结果写回案卷；refunded / repaired / promise 必须 confirmed=true。"
+    },
+    {
+      "name": "finance.lookup",
+      "description": "查资金售后案卷：退款没到、银行卡争议、自动续费、预付卡、分期息费或保险犹豫期。"
+    },
+    {
+      "name": "finance.plan",
+      "description": "给一宗资金案卷生成下一步：先补什么证据、官方路径、可直接说的话和禁止事项。"
+    },
+    {
+      "name": "finance.record",
+      "description": "记录资金售后进度；只有 confirmed=true 且用户确认到账/解决，才写入已解决金额。"
+    },
+    {
+      "name": "policy.parse",
+      "description": "从保单/合同文字里只提取机构、金额、期限与签单日期；不返回证件号、手机号或原文。"
+    }
+  ],
+  "safety": {
+    "readOnlyByDefault": true,
+    "confirmedGate": ["refunded", "repaired", "promise", "resolved"],
+    "noShell": true,
+    "noFilesystem": true,
+    "noPayment": true,
+    "noSubmission": true,
+    "noPiiInStore": true
+  }
+}

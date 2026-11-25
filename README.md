@@ -1,6 +1,13 @@
 # 票根 V0
 ### 付款之后的消费权利 OS · 可运行 Web 版
 
+> 2026-11-25 V10.2：智能模式从 5 个工具扩到 **7 个只读工具**（新增「查规则」「算截止日」），
+> 协议示例无需 Key 即可看；AI 配置新增本机 Ollama 检测，本机 `gemma3:12b` 已实测通过
+> （30.1 秒，先调 `list_urgent`）。生态侧新增**支付后 URL 参数契约**、PWA **系统分享
+> share_target**、可编译的 **支付宝 web-view 小程序壳源码**（未发布）、MCP 机器可读清单与
+> 公开说明页 `agent-api.html`。记录见
+> `../夺冠设计_2026-11-21/69_V10.2_AI与生态增强_2026-11-25.md`。
+>
 > 2026-11-25 V10.1：V10.0 全部能力保留；Agent 扩到七类意图（新增本月支出、会员年费、
 > 快过期券），并新增**智能模式**——可选外接任意 OpenAI 兼容模型（含本机 Ollama），
 > 模型只调用五个本地只读工具，金额/日期必须来自工具结果或用户原话，失败自动回落本地规则。
@@ -119,7 +126,7 @@
 - **可选 AI 建议**：默认关闭；用户自填 OpenAI 兼容端点与 Key；发送前预览，金额/日期默认不发；输出只建议、只进备注，不改事实；支持过期、失败、数字校验与长辈模式隐藏。
 - **双时钟一致**：今天页三行时钟改为取同组窗口里最急的一条（三包退货优先于 7 天无理由），页头与卡片天数不再出现 1 天 / 3 天的错位；次要窗口以小字并列显示。
 - **验收**：`test_users_smoke.py` 118/118；`smoke.py` OK；`real_smoke.py` 40/40；`order_samples_smoke.py` 19/19；`mcp_smoke.py` 8/8；本地 `live_check.py` 35/35；`doc_check.py` 通过。
-- **交付状态**：V10.1 已构建并部署（34.1MB / 45 文件，SHA-256 与 commit 以 `../接管_2026-11-23/HANDOFF.json` 为准）；GitHub Pages 主链接 https://enmingxiong821-cloud.github.io/piaogen/ ，CloudBase 国内备用。SW 缓存名 `piaogen-v10-1`。
+- **交付状态**：V10.2 已本地构建（34.2MB / 57 文件，SHA-256 以 `../接管_2026-11-23/HANDOFF.json` 为准，sw `piaogen-v10-2`），**尚未部署**；线上仍是 V10.1（GitHub Pages commit `6ccddfe`，CloudBase 45 文件）。GitHub Pages 主链接 https://enmingxiong821-cloud.github.io/piaogen/ ，CloudBase 国内备用。
 
 ## 2026-11-21 P0 真实性修正（已落地）
 

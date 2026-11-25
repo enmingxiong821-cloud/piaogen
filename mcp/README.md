@@ -1,6 +1,6 @@
 # 票根 MCP server
 
-版本 `piaogen-rights-finance 0.4.2`，零依赖 stdio，7 个工具。用于证明票根不仅能被人类点开，也能被外部 Agent 调用。
+版本 `piaogen-rights-finance 0.4.2`，零依赖 stdio，7 个工具。用于证明票根不仅能被人类点开，也能被外部 Agent 调用。机器可读清单见 [`manifest.json`](manifest.json)，公开说明页见 [`../agent-api.html`](../agent-api.html)。
 
 ## 启动
 

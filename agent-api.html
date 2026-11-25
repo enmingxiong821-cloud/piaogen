@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>可被调用 · 票根</title>
+<meta name="description" content="票根的 MCP 工具清单、调用方式与安全边界。7 个工具，本地 stdio 与本地 HTTP 桥。" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="docs.css" />
+<style>
+  pre{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .doc table{width:100%;table-layout:fixed}
+  .doc th,.doc td{word-break:break-word}
+  .doc code{word-break:break-word}
+</style>
+</head>
+<body>
+<main class="doc doc-shell">
+  <nav class="doc-nav" aria-label="页面导航">
+    <a class="doc-back" href="index.html"><span aria-hidden="true">&larr;</span> 返回票根</a>
+    <span class="doc-mark">票根</span>
+  </nav>
+
+  <p class="doc-kicker">票根 · MCP 0.4.2</p>
+  <h1>可被调用</h1>
+  <p class="doc-meta">核对日期：2026-11-25　·　7 个工具　·　stdio + 本地 HTTP 桥</p>
+
+  <p class="lede">票根不只是一个页面。它把“权利窗口、证据缺口、官方路径、材料与回执”做成 7 个 MCP 工具，别的 Agent 可以按标准协议调用。<strong>当前只在本机运行，公网没有托管 MCP 服务。</strong></p>
+
+  <h2>1. 工具清单</h2>
+  <table>
+    <thead><tr><th>工具</th><th>做什么</th><th>写操作</th></tr></thead>
+    <tbody>
+      <tr><td><code>rights.lookup</code></td><td data-label="做什么">查一笔购买的消费权利：还能做什么、最近哪天关闭、缺什么证据</td><td data-label="写操作">否</td></tr>
+      <tr><td><code>rights.plan</code></td><td data-label="做什么">给一宗案卷生成下一步、材料、话术、官方入口</td><td data-label="写操作">否</td></tr>
+      <tr><td><code>rights.record</code></td><td data-label="做什么">回填办理结果；<code>refunded / repaired / promise</code> 必须 <code>confirmed=true</code></td><td data-label="写操作">是，需确认</td></tr>
+      <tr><td><code>finance.lookup</code></td><td data-label="做什么">查六类资金售后：退款、拒付、续费、预付卡、分期、保险</td><td data-label="写操作">否</td></tr>
+      <tr><td><code>finance.plan</code></td><td data-label="做什么">给资金案卷生成证据门、官方路径与话术</td><td data-label="写操作">否</td></tr>
+      <tr><td><code>finance.record</code></td><td data-label="做什么">记录资金进度；只有 <code>confirmed=true</code> 才写已解决金额</td><td data-label="写操作">是，需确认</td></tr>
+      <tr><td><code>policy.parse</code></td><td data-label="做什么">从保单/合同只提取机构、金额、期限、签单日期；不返回证件号与原文</td><td data-label="写操作">否</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. 本地启动</h2>
+  <pre><code># stdio（给支持 MCP 的客户端）
+node mcp/server.js
+
+# 本地 JSON-RPC over HTTP（只绑 127.0.0.1）
+node mcp/http-server.js
+# POST http://127.0.0.1:8787/mcp</code></pre>
+
+  <h2>3. 调用示例</h2>
+  <p>先列工具：</p>
+  <pre><code>{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}</code></pre>
+  <p>再查一笔权利：</p>
+  <pre><code>{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{
+  "name":"rights.lookup",
+  "arguments":{"query":"空气炸锅","amount":299,"date":"2026-11-13"}
+}}</code></pre>
+
+  <h2>4. 安全边界</h2>
+  <ul>
+    <li>默认只读；写操作必须显式 <code>confirmed=true</code>，并只写本机 <code>records.local.json</code>。</li>
+    <li>不暴露 shell、文件系统、浏览器、支付或任意 HTTP。</li>
+    <li>不代登录、不代提交、不代收款、不托管资金。</li>
+    <li>不返回证件号、手机号、卡号、CVV、验证码；保单/合同只保留机构、金额、期限。</li>
+    <li>HTTP 桥只绑 <code>127.0.0.1</code>，CORS 只放行 localhost；公网没有托管。</li>
+  </ul>
+
+  <h2>5. 机器可读清单</h2>
+  <p><a href="mcp/manifest.json">mcp/manifest.json</a> 列出 7 个工具、传输方式与安全开关；源码与测试说明见 <a href="mcp/README.md">mcp/README.md</a>。</p>
+
+  <h2>6. 实际返回（本机 2026-11-25）</h2>
+  <p>下面是 <code>rights.lookup</code> 的一次真实 stdio 返回，原始请求与响应保存在 <a href="mcp/demo-response.json">mcp/demo-response.json</a>；不是手写示例。</p>
+  <pre><code>{
+  "count": 1,
+  "cases": [{
+    "caseId": "PG-20261113-0001",
+    "merchant": "某家电卖场",
+    "product": "某品牌空气炸锅",
+    "amount": 399,
+    "status": "进行中",
+    "missing": ["同款价格页"],
+    "nearest": {"label": "价保", "end": "2026-11-20", "daysLeft": 1},
+    "primary": "先补同款价格证据"
+  }]
+}</code></pre>
+
+  <p class="doc-foot"><a href="index.html">返回票根</a> · <a href="evidence.html">核验与边界</a> · <a href="afterpay.html">支付后入口</a></p>
+</main>
+</body>
+</html>

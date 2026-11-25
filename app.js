@@ -4268,6 +4268,7 @@ const POINT_KEY = "piaogen.v0.points";
       <div class="case-head">
         <div class="case-tags">
           <span class="case-tag ${statusClass}">${escapeHtml(result.status)}</span>
+          ${ticket.source === "afterpay" ? `<span class="case-tag">来自支付完成页</span>` : ""}
           ${nearest ? `<span class="case-tag warn">${escapeHtml(nearest.label)}剩 ${nearest.daysLeft} 天</span>` : ""}
           ${ticket.helper && ticket.helper.forWhom ? `<span class="case-tag">帮 ${escapeHtml(ticket.helper.forWhom)} 办</span>` : ""}
         </div>
@@ -4628,11 +4629,12 @@ const POINT_KEY = "piaogen.v0.points";
     });
   }
 
-  function intakeSheet() {
+  function intakeSheet(prefill = "") {
+    const preset = String(prefill || "").trim().slice(0, 500);
     openSheet("说一句，直接立案", `
       <form id="intakeSheetForm">
         <label for="intakeSheetText">要办什么？</label>
-        <input id="intakeSheetText" type="text" autocomplete="off" placeholder="例如：我上周买的空气炸锅坏了，商家不给退" />
+        <input id="intakeSheetText" type="text" autocomplete="off" value="${escapeHtml(preset)}" placeholder="例如：我上周买的空气炸锅坏了，商家不给退" />
         <p class="note">也可以说：会员连续扣了 7 个月 / 银行卡半夜被刷 1200 / 健身房关门卡里还有 3000 / 贷款每期 900 还 12 期</p>
         <div class="sheet-actions">
           <button class="btn primary" id="intakeSheetGo" type="button">立案</button>
@@ -4666,7 +4668,7 @@ const POINT_KEY = "piaogen.v0.points";
           <li>汇总本月支出、会员年费、快过期的券</li>
         </ul>
         <p class="agent-note">配置模型后可切到「智能」：先查本地案卷，再请模型回答；不配置也全部可用。</p>`,
-      chips: ["这周先办什么", "退款还没到", "这个月花了多少", "空气炸锅坏了"],
+      chips: ["帮我排今天", "这周先办什么", "退款还没到", "这个月花了多少", "空气炸锅坏了"],
       trace: []
     };
   }
@@ -4763,6 +4765,56 @@ const POINT_KEY = "piaogen.v0.points";
       trace: [["工具", "案卷 + 权利窗口"], ["口径", "只算已确认适用、未关闭、有公开依据的日期"], ["下一步", "点开案卷逐件办"]],
       actions: [{ label: "打开今天", act: "today" }],
       chips: ["帮我准备材料", "退款还没到"]
+    };
+  }
+
+  function agentDayPlan() {
+    const urgent = [];
+    caseTickets().forEach((ticket) => {
+      (ticket.windows || []).forEach((w) => {
+        if (w.applicability === "applicable" && w.status !== "closed" && typeof w.daysLeft === "number" && w.daysLeft >= 0) urgent.push({ ticket, w });
+      });
+    });
+    urgent.sort((a, b) => a.w.daysLeft - b.w.daysLeft);
+    const finance = (state.finance || [])
+      .filter((c) => c.deadline && c.status !== "resolved")
+      .map((c) => ({ c, days: Math.round((new Date(String(c.deadline).replace(/\./g, "-")) - new Date().setHours(0, 0, 0, 0)) / 86400000) }))
+      .filter((x) => Number.isFinite(x.days) && x.days >= 0)
+      .sort((a, b) => a.days - b.days);
+    const missing = caseTickets()
+      .map((ticket) => ({ ticket, missing: (ticket.missing || []).filter(Boolean) }))
+      .filter((x) => x.missing.length);
+    const subs = PG.detectSubscriptions(state.tickets || []).slice(0, 2);
+    const rows = [];
+    if (urgent[0]) rows.push(`先办 <b>${escapeHtml(urgent[0].ticket.merchant || "商家待确认")}</b> 的 <b>${escapeHtml(urgent[0].w.label)}</b>，还剩 <em>${urgent[0].w.daysLeft} 天</em>`);
+    if (finance[0]) rows.push(`跟进 <b>${escapeHtml((FINANCE_TYPES[finance[0].c.type] || FINANCE_TYPES.payment).label)}</b> · ${escapeHtml(finance[0].c.merchant || "机构待确认")}，截止还剩 <em>${finance[0].days} 天</em>`);
+    if (missing[0]) rows.push(`补 <b>${escapeHtml(missing[0].ticket.merchant || "商家待确认")}</b> 的 ${escapeHtml(missing[0].missing.slice(0, 2).join("、"))}`);
+    if (subs[0]) {
+      const next = subNextDate(subs[0]);
+      const nextDay = next ? `${next.getMonth() + 1} 月 ${next.getDate()} 日` : "日期待确认";
+      rows.push(`核对 <b>${escapeHtml(subs[0].merchant)}</b> 的自动续费，下次约 <em>${nextDay}</em>`);
+    }
+    const top = rows.slice(0, 3);
+    if (!top.length) {
+      return {
+        role: "assistant",
+        html: "<p>现在没有可排的到期项或证据缺口。先拍一张票，或粘一段账单，我按公开依据给你排。</p>",
+        trace: [["工具", "到期 + 资金 + 证据 + 订阅"], ["结果", "暂无数据"]],
+        actions: [{ label: "去导入", act: "import" }],
+        chips: ["这周先办什么", "退款还没到"]
+      };
+    }
+    if (urgent[0]) AGENT_STATE.context = { ticket: urgent[0].ticket };
+    const actions = [{ label: "打开今天", act: "today" }];
+    if (finance.length) actions.push({ label: "打开资金", act: "finance" });
+    if (subs.length) actions.push({ label: "打开资产", act: "assets" });
+    if (missing.length) actions.push({ label: "补材料", act: "case" });
+    return {
+      role: "assistant",
+      html: `<p>今天先办这 ${top.length} 件：</p><ol class="agent-list">${top.map((row) => `<li>${row}</li>`).join("")}</ol><p class="agent-note">只排有公开依据的日期；金额与期限以案卷为准，点开逐件办。</p>`,
+      trace: [["工具", "到期 + 资金 + 证据 + 订阅"], ["口径", "先排最近截止，再排能补的证据"]],
+      actions: actions.slice(0, 3),
+      chips: ["这周先办什么", "退款还没到", "我有哪些会员"]
     };
   }
 
@@ -4927,6 +4979,7 @@ const POINT_KEY = "piaogen.v0.points";
       const fin = detectFinanceIntent(merged) || prev;
       if (fin) return agentFinance(fin, merged);
     }
+    if (/帮我排|排今天|安排今天|今天先办|优先级/.test(t)) return agentDayPlan();
     if (/花了多少|花了多少钱|支出|消费.*多少|这个月.*花|上月.*花|上个月.*花/.test(t)) return agentSpend(t);
     if (/有哪些会员|会员.*多少|订阅|自动扣款.*多少|续费.*多少/.test(t)) return agentSubs();
     if (/快过期|到期的券|我的券|积分|资产/.test(t)) return agentAssets();
@@ -4959,7 +5012,11 @@ const POINT_KEY = "piaogen.v0.points";
     if (act === "assets") { closeSheet(); show("assets"); return; }
     if (act === "bill") { closeSheet(); openBill(); return; }
     if (act === "case" && ctx.ticket) { const ticket = ctx.ticket; closeSheet(); openCase(ticket); return; }
-    if (act === "finance" && ctx.intent) { const intent = ctx.intent; const parsed = ctx.parsed; closeSheet(); financeIntentSheet(intent, parsed); }
+    if (act === "finance") {
+      if (ctx.intent) { const intent = ctx.intent; const parsed = ctx.parsed; closeSheet(); financeIntentSheet(intent, parsed); }
+      else { closeSheet(); show("finance"); }
+      return;
+    }
   }
 
   function voiceTo(input, onText) {
@@ -4987,6 +5044,59 @@ const POINT_KEY = "piaogen.v0.points";
     }
   }
 
+  const AGENT_REAL_DEMO = {
+    model: "gemma3:12b",
+    at: "2026-11-25",
+    seconds: 30.1,
+    user: "这周先办什么",
+    tool: "list_urgent",
+    lines: [
+      "这周最紧急的事务是：",
+      "1. 某家电卖场的 1.5 匹空调的三包退货，只剩 1 天；",
+      "2. 同家店的空调无理由退货，还有 3 天；",
+      "3. 空调的三包换货，还有 9 天；",
+      "4. 空气炸锅的价保，还有 11 天；",
+      "5. 某电商旗舰店的支付/退款争议，还有 2 天。",
+      "您想先处理哪个？"
+    ]
+  };
+
+  function agentRealDemoSheet() {
+    openSheet("真实模型回放", `
+      <p class="sheet-hint">这是 2026-11-25 在本机跑的一次真实模型记录：Ollama <b>gemma3:12b</b>，约 30.1 秒。不是实时生成；数字来自当时的示例案卷。</p>
+      <div class="agent-demo">
+        <div class="agent-demo-row"><b>你</b>${escapeHtml(AGENT_REAL_DEMO.user)}</div>
+        <div class="agent-demo-row"><b>模型先调工具</b><code>{"tool":"${AGENT_REAL_DEMO.tool}","args":{}}</code></div>
+        <div class="agent-demo-row"><b>本地工具返回</b>5 条已确认适用、未关闭的到期项（示例数据）</div>
+        <div class="agent-demo-row"><b>模型回答</b>${AGENT_REAL_DEMO.lines.map((line) => `<span>${escapeHtml(line)}</span>`).join("<br>")}</div>
+      </div>
+      <p class="annual-note">模型 ${escapeHtml(AGENT_REAL_DEMO.model)} · ${escapeHtml(AGENT_REAL_DEMO.at)} · ${AGENT_REAL_DEMO.seconds}s · 金额与天数来自本地工具结果；未核对数字会标黄。评委仍需自备 Ollama 或 Key，不能把这段回放当成实时服务。</p>
+      <div class="sheet-actions"><button class="btn primary" id="agentRealClose" type="button">知道了</button></div>`, () => {
+      $("#agentRealClose").onclick = () => { closeSheet(); openAgent(); };
+    });
+  }
+
+  function agentDemoSheet() {
+    openSheet("智能模式怎么工作", `
+      <p class="sheet-hint">下面是一段示例对话，用来说明智能模式的“工具调用 → 核对 → 结论”流程；不是实时模型输出。实际回答由你在「模型与隐私」里配置的模型生成。</p>
+      <div class="agent-demo">
+        <div class="agent-demo-row"><b>你</b>退款还没到，商家说 3 天内退 299</div>
+        <div class="agent-demo-row"><b>模型第 1 步 · 调工具</b><code>{"tool":"search_cases","args":{"query":"退款"}}</code></div>
+        <div class="agent-demo-row"><b>本地工具返回</b>找到 1 宗资金案卷 · 退款未到账 · ¥299</div>
+        <div class="agent-demo-row"><b>模型第 2 步 · 算日期</b><code>{"tool":"deadline_calc","args":{"date":"2026-11-25","days":3}}</code></div>
+        <div class="agent-demo-row"><b>本地工具返回</b>2026-11-28 · 还剩 3 天</div>
+        <div class="agent-demo-row"><b>模型第 3 步 · 结论</b>先把商家承诺的“3 天内到账”记进回执；11-28 还没到账，再走平台介入。金额与日期都来自本地案卷。</div>
+      </div>
+      <p class="annual-note">模型只能调用只读工具；金额、日期、期限必须来自工具结果或你的原话；未核对数字会标黄。不配置模型时，本地规则 Agent 仍然可用。</p>
+      <div class="sheet-actions">
+        <button class="btn primary" id="agentRealDemo" type="button">看真实模型回放</button>
+        <button class="btn ghost" id="agentDemoClose" type="button">知道了</button>
+      </div>`, () => {
+      $("#agentDemoClose").onclick = () => { closeSheet(); openAgent(); };
+      $("#agentRealDemo").onclick = agentRealDemoSheet;
+    });
+  }
+
   function openAgent() {
     const cfg = aiConfig();
     AGENT_STATE.mode = (state.settings && state.settings.ai && state.settings.ai.agentSmart) ? "smart" : "local";
@@ -4995,6 +5105,7 @@ const POINT_KEY = "piaogen.v0.points";
         <button type="button" data-agent-mode="local">本地规则</button>
         <button type="button" data-agent-mode="smart">智能 · 用你的模型</button>
       </div>
+      <button class="agent-demo-btn" id="agentDemoBtn" type="button">看智能模式怎么工作</button>
       <div class="agent-log" id="agentLog" aria-live="polite"></div>
       <div class="agent-chips" id="agentChips"></div>
       <form class="agent-form" id="agentForm">
@@ -5035,6 +5146,7 @@ const POINT_KEY = "piaogen.v0.points";
         });
       });
       updateMode();
+      if ($("#agentDemoBtn")) $("#agentDemoBtn").addEventListener("click", agentDemoSheet);
       renderAgent();
       $("#agentForm").addEventListener("submit", (event) => {
         event.preventDefault();
@@ -5172,6 +5284,63 @@ const POINT_KEY = "piaogen.v0.points";
           context: { ticket }
         };
       }
+    },
+    search_rules: {
+      label: "查规则",
+      desc: "按关键词查本机法规库（自动续费、三包、价保、定金、预付卡、分期、保险等），返回条款号、要点、链接与施行日期。参数：{query:string}。",
+      run(args) {
+        const q = String((args && args.query) || "").trim().slice(0, 60);
+        const rows = Object.keys(PG.BASIS || {}).map((id) => {
+          const b = PG.BASIS[id] || {};
+          return {
+            id,
+            law: b.law || "",
+            article: b.article || "",
+            short: b.short || "",
+            url: b.url || "",
+            effective: (PG.EFFECTIVE && PG.EFFECTIVE[id]) || ""
+          };
+        });
+        const text = (r) => `${r.id} ${r.law} ${r.article} ${r.short}`;
+        const tokens = q.split(/[\s,，、;；]+/).filter(Boolean);
+        let hit = q ? rows.filter((r) => text(r).includes(q) || tokens.some((t) => text(r).includes(t))) : [];
+        if (!hit.length && q) {
+          const chars = Array.from(q).filter((c) => /[一-龥]/.test(c));
+          hit = rows.filter((r) => chars.length && chars.filter((c) => text(r).includes(c)).length >= Math.min(2, chars.length));
+        }
+        return {
+          data: {
+            query: q,
+            rules: hit.slice(0, 6),
+            note: hit.length ? "只返回本地规则库里的原文要点；引用时保留条款号与链接。" : "没有匹配的规则；不要编造条款，换关键词或直接说不知道。"
+          }
+        };
+      }
+    },
+    deadline_calc: {
+      label: "算截止日",
+      desc: "按起算日、天数与自然日/工作日算截止日，可选 basisId 带出规则。参数：{date:'YYYY-MM-DD', days:number, business?:boolean, basisId?:string}。",
+      run(args) {
+        const start = String((args && args.date) || "").replace(/\./g, "-").trim();
+        const days = Number(args && args.days);
+        if (!/^\d{4}-\d{1,2}-\d{1,2}$/.test(start) || !Number.isFinite(days) || days < 0 || days > 3650) {
+          return { data: { error: "日期或天数不合法；日期用 YYYY-MM-DD，天数 0–3650。" } };
+        }
+        const business = !!(args && args.business);
+        const end = business ? PG.addBusinessDays(start, days) : PG.addDays(start, days);
+        const b = args && args.basisId && PG.BASIS[args.basisId] ? PG.BASIS[args.basisId] : null;
+        return {
+          data: {
+            start,
+            days,
+            business,
+            end: PG.fmt(end),
+            daysLeft: PG.daysLeft(end),
+            basis: b ? { id: args.basisId, law: b.law, article: b.article, short: b.short, url: b.url } : null,
+            note: "按你给的天数与自然日/工作日计算；没有公开依据的期限不要倒计时。"
+          }
+        };
+      }
     }
   };
 
@@ -5182,6 +5351,7 @@ const POINT_KEY = "piaogen.v0.points";
     '{"tool":"工具名","args":{...}} 表示调用工具；',
     '{"final":{"reply":"给用户的回答","actions":[{"label":"按钮文字","act":"today|import|bill|case|finance"}],"chips":["可选追问"]}} 表示结束。',
     "规则：先查工具再回答；最多 3 步；reply 用简体中文，120 字以内，可换行；没有把握就直说缺什么信息；",
+    "涉及条款、依据、施行日期，先调 search_rules；涉及天数、截止日，先调 deadline_calc；不要把记忆里的法条当事实。",
     "不做法律、金融、医疗结论；不承诺退款或拒付成功；不代提交、不代收款；不索取卡号、CVV、验证码。",
     "可用工具：",
     Object.keys(AGENT_TOOLS).map((key) => `- ${key}：${AGENT_TOOLS[key].desc}`).join("\n")
@@ -5231,7 +5401,8 @@ const POINT_KEY = "piaogen.v0.points";
 
   async function agentLlmCall(cfg, messages) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 25000);
+    const local = /(?:127\.0\.0\.1|localhost)(?::\d+)?/i.test(String(cfg.endpoint || ""));
+    const timer = setTimeout(() => controller.abort(), local ? 90000 : 25000);
     try {
       const response = await fetch(cfg.endpoint, {
         method: "POST",
@@ -7855,10 +8026,11 @@ const POINT_KEY = "piaogen.v0.points";
       ${field("端点", "aiEndpoint", cfg.endpoint, "text", "http://127.0.0.1:11434/v1/chat/completions")}
       ${field("模型", "aiModel", cfg.model, "text", "例如 qwen2.5:7b / gpt-4o-mini")}
       ${field("Key（可留空）", "aiKey", cfg.key, "password", "只存本机，不进入备份")}
-      <p class="annual-note">本地 Ollama 需设置 OLLAMA_ORIGINS 允许浏览器访问；云端端点若不允许跨域，会显示失败，规则结论仍可用。</p>
+      <p class="annual-note">本地 Ollama 需设置 OLLAMA_ORIGINS 允许浏览器访问；首次加载 12B/14B 模型可能 30–60 秒，本机端点已放宽到 90 秒。云端端点若不允许跨域，会显示失败，规则结论仍可用。</p>
       <div class="sheet-actions">
         <button class="btn primary" id="aiCfgSave" type="button">保存</button>
         <button class="btn ghost" id="aiCfgTest" type="button">测试连接</button>
+        <button class="btn ghost" id="aiCfgOllama" type="button">检测本机 Ollama</button>
         <button class="btn ghost" id="aiCfgClear" type="button">清除 Key</button>
         <button class="btn ghost" id="aiCfgOff" type="button">关闭 AI 建议</button>
       </div>`, () => {
@@ -7885,6 +8057,24 @@ const POINT_KEY = "piaogen.v0.points";
           toast(res.ok ? `连接成功 · ${Date.now() - started}ms` : `连接失败 · HTTP ${res.status}`);
         } catch (error) {
           toast("连接失败：端点不通或被跨域拦截");
+        }
+      };
+      $("#aiCfgOllama").onclick = async () => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 3000);
+        try {
+          const res = await fetch("http://127.0.0.1:11434/api/tags", { signal: controller.signal });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          const models = (Array.isArray(data.models) ? data.models : []).map((m) => m.name).filter(Boolean);
+          if (!models.length) { toast("Ollama 在跑，但还没有模型"); return; }
+          $("#f-aiEndpoint").value = "http://127.0.0.1:11434/v1/chat/completions";
+          $("#f-aiModel").value = models[0];
+          toast(`已填入本机模型 ${models[0]}`);
+        } catch {
+          toast("没检测到本机 Ollama；先运行 ollama serve");
+        } finally {
+          clearTimeout(timer);
         }
       };
       $("#aiCfgSave").onclick = () => {
@@ -7924,7 +8114,7 @@ const POINT_KEY = "piaogen.v0.points";
     </div>`;
     const sec = (title, rows) => `<div class="evidence-sec"><h3>${escapeHtml(title)}</h3>${rows.join("")}</div>`;
     const body = `
-      <p class="sheet-hint">这一页只放能复现的事实：规则来自哪、测试跑过什么、哪些还没做。数字核对于 2026-11-23。</p>
+      <p class="sheet-hint">这一页只放能复现的事实：规则来自哪、测试跑过什么、哪些还没做。数字核对于 2026-11-25。</p>
       ${sec("参赛方向与公开愿望", [
         row("参赛方向", "生活好帮手", "个人开发者 / 创作者；官方赛道含生活记账"),
         row("揪出悄悄扣钱的自动续费", "可用", "自动续费体检、扣费日历、关闭路径"),
@@ -7942,7 +8132,12 @@ const POINT_KEY = "piaogen.v0.points";
         row("主流程冒烟", "OK", "首屏、六栏、导入、案卷、报告"),
         row("真实订单样例", "40/40", "结构已脱敏，只验证字段与规则"),
         row("订单样本", "19/19", "订单页字段与分拣"),
-        row("MCP（stdio）", "8/8", "initialize / tools/list / tools/call"),
+        row("内置 Agent", "18/18", "七类意图、槽位补齐、建案跳转"),
+        row("智能模式", "8/8", "工具调用闭环、数字校验、失败回落"),
+        row("智能工具", "6/6", "查规则、算截止日、三步闭环"),
+        row("今日排期", "7/7", "帮我排今天、多源汇总、动作落点"),
+        row("生态入口", "20/20", "支付后 URL、系统分享、真实回放、manifest、小程序壳"),
+        row("MCP（stdio）", "13/13", "initialize / tools/list / tools/call"),
         row("MCP（本地 HTTP 桥）", "6/6", "JSON-RPC over HTTP，只绑 127.0.0.1"),
         row("材料与路径", "5 类模板", "12315 / 12345 / 平台 / 黑猫 / 诉讼准备"),
         row("本地线上同构", "35/35", "以 PIAOGEN_URL 指向本地运行"),
@@ -7952,12 +8147,14 @@ const POINT_KEY = "piaogen.v0.points";
         row("数据位置", "本机", "localStorage；换设备需手动导出导入"),
         row("上传", "无", "OCR、PDF、规则与金额计算都在本机完成"),
         row("大模型调用", "可选", "默认关闭；端点与 Key 由你填写，发送前预览内容"),
+        row("智能工具", "7 个只读", "到期、搜案卷、读案卷、资金规则、材料、查规则、算截止日"),
         row("AI 建议", "仅建议", "不改金额、日期、状态、证据；与规则结论分开标注")
       ])}
       ${sec("已知局限", [
         row("真人可用性测试", "未执行", "当前测试用户是合成夹具，不是访谈样本", true),
         row("天数的性质", "规则计算", "不等于机构最终认定；以合同与机构告知为准"),
         row("平台登录", "不代登录", "不索取账号、密码、验证码"),
+        row("支付宝小程序", "未发布", "有 web-view 壳源码，但没有 AppID、没有审核、没有真实回调", true),
         row("代为提交", "不代提交", "只生成材料包、路径与回执记录"),
         row("扣费提醒", "依赖日历", "预计日期按历史间隔推算，以平台账单为准")
       ])}
@@ -7989,7 +8186,8 @@ const POINT_KEY = "piaogen.v0.points";
       ["rights.record", "写入示例案卷（仅进程内）"],
       ["finance.lookup", "按资金问题查六类售后规则"],
       ["finance.plan", "生成资金售后路径与材料"],
-      ["finance.record", "写入示例资金案卷（仅进程内）"]
+      ["finance.record", "写入示例资金案卷（仅进程内）"],
+      ["policy.parse", "保单/合同只提取机构、金额、期限"]
     ];
     openSheet("开发者调用", `<p class="sheet-hint">票根同时是一个可被外部 Agent 调用的 stdio MCP server。演示数据只读，不接触你本机的票据。</p>
       <pre class="finance-script">${escapeHtml(config)}</pre>
@@ -8003,12 +8201,14 @@ const POINT_KEY = "piaogen.v0.points";
           ["帮我把退款案卷推进下一步", "finance.plan"]
         ].map(([intent, tool]) => `<div class="setting-row"><div><b>${escapeHtml(intent)}</b><small>${escapeHtml(tool)}</small></div><span>›</span></div>`).join("")}
       </div>
-      <p class="annual-note">验证：python mcp_smoke.py 应 11/11；MCP Inspector 选 STDIO，tools/list 应出现 7 个工具。远程 MCP 尚未部署，当前是本地 stdio 调用。演示数据不是线上实时用户数据；不代提交、不收款、不访问 shell / 文件系统 / 任意 HTTP。</p>
+      <p class="annual-note">验证：python mcp_smoke.py 应 13/13；MCP Inspector 选 STDIO，tools/list 应出现 7 个工具。机器可读清单见 mcp/manifest.json，公开说明页见 agent-api.html。远程 MCP 尚未部署，当前是本地 stdio 调用。演示数据不是线上实时用户数据；不代提交、不收款、不访问 shell / 文件系统 / 任意 HTTP。</p>
       <div class="sheet-actions">
         <button class="btn primary" id="devCallCopy" type="button">复制配置</button>
+        <button class="btn ghost" id="devCallApi" type="button">可调用页</button>
         <button class="btn ghost" id="devCallClose" type="button">关闭</button>
       </div>`, () => {
       $("#devCallClose").addEventListener("click", closeSheet);
+      $("#devCallApi").addEventListener("click", () => window.open("agent-api.html", "_blank", "noopener"));
       $("#devCallCopy").addEventListener("click", async () => {
         try { await navigator.clipboard.writeText(config); toast("MCP 配置已复制"); }
         catch { toast("浏览器不允许复制，请手动选中"); }
@@ -8329,6 +8529,79 @@ const POINT_KEY = "piaogen.v0.points";
     $("#introImport").addEventListener("click", () => { dismiss(); show("import"); });
   }
 
+  function entryParam(params, key, max = 80) {
+    return String(params.get(key) || "")
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .trim()
+      .slice(0, max);
+  }
+
+  // 支付完成页 / 系统分享进入：只带少量字段，不读卡号、余额或登录态。
+  function handleEntryParams() {
+    const params = new URLSearchParams(location.search);
+    if (params.get("from") === "afterpay") {
+      const merchant = entryParam(params, "merchant", 40);
+      const product = entryParam(params, "product", 60);
+      if (!merchant && !product) return false;
+      const orderNo = entryParam(params, "order", 40);
+      const ref = orderNo || `afterpay:${merchant}|${product}|${entryParam(params, "amount", 20)}|${entryParam(params, "date", 10)}`;
+      const existing = (state.tickets || []).find((ticket) => ticket.sourceRef === ref);
+      if (existing) {
+        state.current = existing;
+        show("case");
+        toast("已打开这张回执");
+        return true;
+      }
+      const rawAmount = Number(entryParam(params, "amount", 20));
+      const amount = Number.isFinite(rawAmount) && rawAmount > 0 && rawAmount < 1e8 ? rawAmount : 0;
+      const rawDate = entryParam(params, "date", 10);
+      const date = /^\d{4}-\d{1,2}-\d{1,2}$/.test(rawDate) ? rawDate : new Date().toISOString().slice(0, 10);
+      const ticket = {
+        merchant,
+        product,
+        amount,
+        date,
+        category: PG.categoryOf(`${product} ${merchant}`),
+        channel: "alipay",
+        orderNo,
+        source: "afterpay",
+        sourceRef: ref,
+        evidence: [{
+          id: uid(),
+          type: "支付回执",
+          label: "支付完成页（示例）",
+          detail: `${merchant || "商家待确认"} · ${product || "商品待确认"} · ${amount ? money(amount) : "金额待确认"}`,
+          confidence: 90,
+          status: "active"
+        }],
+        missing: ["商家", "金额", "购买日期"].filter((key) => !ticketValue(key)),
+        notes: "从支付完成页 URL 带入；商品、金额与日期请核对，不读卡号或余额。"
+      };
+      function ticketValue(key) {
+        return key === "商家" ? merchant : key === "金额" ? amount : date;
+      }
+      ticket.windows = PG.buildWindows(ticket).map((w) => ({ ...w, id: w.id || uid() }));
+      state.tickets.unshift(ticket);
+      save();
+      state.current = ticket;
+      show("case");
+      toast("已从支付完成页带入，请核对");
+      return true;
+    }
+    if (params.get("share") === "1") {
+      const title = entryParam(params, "title", 120);
+      const text = entryParam(params, "text", 1200);
+      const link = entryParam(params, "url", 300);
+      const head = title && !(text && text.startsWith(title)) ? title : "";
+      const shared = [head, text, link].filter(Boolean).join("\n").trim();
+      if (shared) {
+        setTimeout(() => intakeSheet(shared), 350);
+        return true;
+      }
+    }
+    return false;
+  }
+
   function init() {
     window.addEventListener("beforeinstallprompt", (event) => {
       event.preventDefault();
@@ -8355,6 +8628,7 @@ const POINT_KEY = "piaogen.v0.points";
     if (navParam && navParam !== "today" && document.querySelector(`[data-nav="${navParam}"]`)) {
       show(navParam);
     }
+    handleEntryParams();
     renderToday();
     renderImport();
     maybeOnboard();

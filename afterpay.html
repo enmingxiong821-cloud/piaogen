@@ -60,9 +60,9 @@
     <div class="ap-clock"><div><b>保修</b><small>整机与主要部件不同</small></div><span>按发票</span></div>
 
     <div class="ap-actions">
-      <a class="ap-primary" href="index.html?demo=1">看权利回执</a>
-      <a class="ap-ghost" href="index.html?demo=1">先存下来，明天再说</a>
-      <button class="ap-ghost" type="button" onclick="this.textContent='原型：这里会关掉这一屏';this.disabled=true">这次不需要</button>
+      <a class="ap-primary" href="index.html?from=afterpay&amp;merchant=%E6%9F%90%E5%AE%B6%E7%94%B5%E5%8D%96%E5%9C%BA&amp;product=1.5%E5%8C%B9%E7%A9%BA%E8%B0%83&amp;amount=3299&amp;date=2026-11-25&amp;order=AP-DEMO-001">看权利回执</a>
+      <a class="ap-ghost" href="index.html?from=afterpay&amp;merchant=%E6%9F%90%E5%AE%B6%E7%94%B5%E5%8D%96%E5%9C%BA&amp;product=1.5%E5%8C%B9%E7%A9%BA%E8%B0%83&amp;amount=3299&amp;date=2026-11-25&amp;order=AP-DEMO-001">先存下来，明天再说</a>
+      <button class="ap-ghost" id="copyAfterpay" type="button">复制接入链接</button>
     </div>
     <p class="ap-note">这一屏只带订单号与金额来打开回执；不读卡号、不读余额、不代付款。示例数字不是承诺，实际天数以订单页与合同为准。</p>
   </div>
@@ -75,9 +75,41 @@
       <li>回执页用本地规则算窗口；用户确认后写入本机，再按需设置日历提醒。</li>
     </ol>
     <p>当前状态：只有这一张原型页；没有商户号、没有申请入口、没有真实支付回调。作品本身是可用 Web 应用，不依赖这个入口。</p>
-    <p><a href="miniapp.html">看小程序壳原型</a></p>
+    <p><a href="miniapp.html">看小程序壳原型</a> · <a href="alipay-mini/README.md">看支付宝小程序源码说明</a></p>
+
+    <h2>已经实现的 URL 参数契约</h2>
+    <p>支付完成页不需要 SDK，只要按下面的参数打开票根，就会生成一张带来源标记的案卷。只传交易号、商品、金额和日期；不传手机号、卡号、余额或登录态。</p>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;margin:8px 0 12px">
+      <thead><tr><th style="text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)">参数</th><th style="text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)">必填</th><th style="text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)">说明</th></tr></thead>
+      <tbody>
+        <tr><td style="padding:6px 4px;border-bottom:1px solid var(--line)"><code>from=afterpay</code></td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">是</td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">标记来源，案卷会显示“来自支付完成页”</td></tr>
+        <tr><td style="padding:6px 4px;border-bottom:1px solid var(--line)"><code>merchant</code></td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">至少一项</td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">商家名，最多 40 字</td></tr>
+        <tr><td style="padding:6px 4px;border-bottom:1px solid var(--line)"><code>product</code></td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">至少一项</td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">商品/服务名，最多 60 字</td></tr>
+        <tr><td style="padding:6px 4px;border-bottom:1px solid var(--line)"><code>amount</code></td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">否</td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">实付金额，正数；没有就留空</td></tr>
+        <tr><td style="padding:6px 4px;border-bottom:1px solid var(--line)"><code>date</code></td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">否</td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">YYYY-MM-DD；没有就用当天</td></tr>
+        <tr><td style="padding:6px 4px"><code>order</code></td><td style="padding:6px 4px">否</td><td style="padding:6px 4px">交易号，用于去重；不要传卡号</td></tr>
+      </tbody>
+    </table>
+    <p class="ap-note">同一交易号重复打开不会重复建案。接入示例：<code>index.html?from=afterpay&amp;merchant=某商家&amp;product=某商品&amp;amount=299&amp;date=2026-11-25&amp;order=AP-001</code></p>
+
     <a class="ap-back" href="index.html">← 返回票根</a>
   </section>
 </main>
+<script>
+  document.getElementById("copyAfterpay").addEventListener("click", async () => {
+    const base = location.href.replace(/afterpay\.html.*$/, "index.html");
+    const link = base + "?from=afterpay&merchant=" + encodeURIComponent("某家电卖场") +
+      "&product=" + encodeURIComponent("1.5 匹空调") + "&amount=3299&date=" +
+      new Date().toISOString().slice(0, 10) + "&order=AP-DEMO-001";
+    try {
+      await navigator.clipboard.writeText(link);
+      const btn = document.getElementById("copyAfterpay");
+      btn.textContent = "已复制";
+      setTimeout(() => { btn.textContent = "复制接入链接"; }, 1600);
+    } catch {
+      prompt("复制这个链接：", link);
+    }
+  });
+</script>
 </body>
 </html>

@@ -8,7 +8,7 @@
  * 不读文件、不读环境变量、不访问数据库、不发外部请求。
  */
 
-const VERSION = "0.4.3";
+const VERSION = "0.4.4";
 const MAX_BODY = 64 * 1024;
 const RATE_LIMIT = 60;
 const RATE_WINDOW = 60 * 1000;
@@ -223,6 +223,8 @@ function manifest() {
     endpoint: "POST /piaogen-mcp",
     mode: "read-only",
     sample: true,
+    /* 对应的站点版本：调用方可以据此对齐文档与工具行为 */
+    site: "V12.0",
     auth: process.env.MCP_READ_TOKEN ? "bearer" : "none",
     tools: TOOLS.map((tool) => ({ name: tool.name, description: tool.description })),
     boundaries: ["不代提交", "不代收款", "不托管资金", "不读用户数据", "写操作拒绝"]

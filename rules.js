@@ -886,9 +886,24 @@ ${ev}` };
       if (best.count < 2 || (best.cycle === "week" && best.count < 3)) continue;
       const avg = best.amounts.reduce((s, x) => s + x, 0) / best.amounts.length;
       if (!avg) continue;
+      /* 金额有波动不等于换了一家。涨价正是最该被看见的信号，
+         所以只在波动超过 150%（更像换了商品/套餐）时才丢弃，其余保留并标记涨跌。 */
       const drift = Math.max.apply(null, best.amounts.map((a) => Math.abs(a - avg) / avg));
-      if (drift > 0.05) continue;
-      out.push({ merchant, count: best.count, avg, lastGap: best.lastGap, lastDate: best.last, yearly: avg * perYear[best.cycle], channel: best.channel, cycle: best.cycle });
+      if (drift > 1.5) continue;
+      const firstAmt = best.amounts[0];
+      const lastAmt = best.amounts[best.amounts.length - 1];
+      const pct = firstAmt > 0 ? (lastAmt - firstAmt) / firstAmt : 0;
+      out.push({
+        merchant, count: best.count, avg, lastGap: best.lastGap, lastDate: best.last,
+        yearly: avg * perYear[best.cycle], channel: best.channel, cycle: best.cycle,
+        firstAmt, lastAmt,
+        /* 按现价推算未来一年要花多少：首月优惠转正价时，均价会低估 */
+        yearlyNow: lastAmt * perYear[best.cycle],
+        /* 涨价：末期比首期高出 5% 以上才算，避免几毛钱误差被当成涨价 */
+        priceUp: pct >= 0.05,
+        priceUpPct: Math.round(pct * 100),
+        drift
+      });
     }
     return out.sort((a, b) => b.yearly - a.yearly);
   }

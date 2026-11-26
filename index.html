@@ -23,25 +23,26 @@
   <meta name="twitter:title" content="票根 · 付款之后，权利开始计时" />
   <meta name="twitter:description" content="付款之后，权利开始计时。消费售后、退款、拒付、续费、预付卡、分期与保险，都能办成一宗有证据、有路径、有回执的案卷。" />
   <meta name="twitter:image" content="https://enmingxiong821-cloud.github.io/piaogen/og.png" />
-  <link rel="stylesheet" href="styles.css?v=111" />
-  <link rel="stylesheet" href="toolbox.css?v=111" />
-  <link rel="stylesheet" href="testkit.css?v=111" />
-  <link rel="stylesheet" href="v109.css?v=111" />
-  <link rel="stylesheet" href="v110.css?v=111" />
-  <link rel="stylesheet" href="v111.css?v=111" />
+  <link rel="stylesheet" href="styles.css?v=120" />
+  <link rel="stylesheet" href="toolbox.css?v=120" />
+  <link rel="stylesheet" href="testkit.css?v=120" />
+  <link rel="stylesheet" href="v109.css?v=120" />
+  <link rel="stylesheet" href="v110.css?v=120" />
+  <link rel="stylesheet" href="v111.css?v=120" />
+  <link rel="stylesheet" href="v112.css?v=120" />
   <script src="vendor/tesseract.min.js" defer></script>
   <script src="vendor/pdf.min.js" defer></script>
   <script src="vendor/jszip.min.js" defer></script>
-  <script src="realdata.js?v=111" defer></script>
-  <script src="rules.js?v=111" defer></script>
-  <script src="agents.js?v=111" defer></script>
-  <script src="app.js?v=111" defer></script>
-  <script src="toolbox-data.js?v=111" defer></script>
-  <script src="toolbox.js?v=111" defer></script>
-  <script src="library.js?v=111" defer></script>
-  <script src="health.js?v=111" defer></script>
-  <script src="datepicker.js?v=111" defer></script>
-  <script src="testkit.js?v=111" defer></script>
+  <script src="realdata.js?v=120" defer></script>
+  <script src="rules.js?v=120" defer></script>
+  <script src="agents.js?v=120" defer></script>
+  <script src="app.js?v=120" defer></script>
+  <script src="toolbox-data.js?v=120" defer></script>
+  <script src="toolbox.js?v=120" defer></script>
+  <script src="library.js?v=120" defer></script>
+  <script src="health.js?v=120" defer></script>
+  <script src="datepicker.js?v=120" defer></script>
+  <script src="testkit.js?v=120" defer></script>
   <script>
     if ("serviceWorker" in navigator) {
       addEventListener("load", () => {
@@ -269,6 +270,10 @@
             <button class="tab" data-tab="pending" role="tab" aria-selected="false" type="button">待确认 <span id="tabPending">0</span></button>
             <button class="tab" data-tab="flow" role="tab" aria-selected="false" type="button">仅流水 <span id="tabFlow">0</span></button>
             <button class="tab" data-tab="dup" role="tab" aria-selected="false" type="button">重复 <span id="tabDup">0</span></button>
+          </div>
+          <div class="triage-bulk">
+            <button class="btn ghost" id="triageDropSel" type="button">剔除已选</button>
+            <button class="btn ghost" id="triageDropAll" type="button">本批全不要</button>
           </div>
           <div id="triageList" class="triage-list"></div>
           <div class="actionbar">
@@ -533,8 +538,7 @@
             </button>
           </div>
           <div class="ai-status" id="aiStatus" aria-live="polite"></div>
-          <div class="ai-intro">
-            <p><b>不联网也能用。</b>本地规则先查你的案卷、到期日与证据缺口，再把结果变成下一步，也能查权利库与健康账本。<b>接入自己的大模型后</b>，可以随便问、让它起草话术；模型只能调只读工具，不改金额、日期和状态。</p>
+          <div class="ai-intro ai-intro-quick">
             <div class="ai-quick" aria-label="常用问题">
               <button type="button" data-agent-chip="帮我排今天">排今天</button>
               <button type="button" data-agent-chip="这周先办什么">查到期</button>

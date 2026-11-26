@@ -543,6 +543,15 @@ const POINT_KEY = "piaogen.v0.points";
     return FINANCE_STATUS[status] || "待办";
   }
 
+  /* 金额四态：已付 / 待退款 / 已到账。只从状态与用户确认推导，不猜。 */
+  function financeMoneyFlow(c) {
+    const amount = Number(c.amount) || 0;
+    const back = Number(c.recoveredAmount) || 0;
+    const refunded = c.status === "resolved" && back > 0;
+    const refunding = !refunded && (c.moneyState === "refunding" || c.status === "waiting" && c.refundPromised);
+    return { amount, back, refunded, refunding, pending: refunded ? 0 : amount };
+  }
+
   function financeDeadline(c) {
     const d = parseReportDate(c && c.deadline);
     if (!d) return { has: false, days: null, date: null };
@@ -1206,10 +1215,27 @@ const POINT_KEY = "piaogen.v0.points";
           replyText,
           proofText
         });
+        scheduleFollowUp(ticket, nextStatus);
         closeSheet();
       });
       $("#outcomeCancel").addEventListener("click", closeSheet);
     });
+  }
+
+  /* 周期引擎：按这次结果排下一次跟进。只在还会再联系时排，不空转。 */
+  function scheduleFollowUp(ticket, status) {
+    if (!window.PGToolbox || !PGToolbox.addReminder) return;
+    const who = (ticket && ticket.merchant) || "这笔";
+    let days = 0, note = "", label = "";
+    if (status === "acknowledged") { days = 2; label = "隔天回访"; note = "问一句进展；只说“在处理”就要求给时间点，没动静就往上走一级。"; }
+    else if (status === "rejected") { days = 1; label = "被拒后下一步"; note = "把拒绝理由记下来，换成书面投诉或平台介入，别只重打一次电话。"; }
+    else if (status === "promise") { days = 3; label = "核对承诺"; note = "对方答应的事有没有兑现；没兑现就按拒绝处理。"; }
+    if (!days) return;
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const added = PGToolbox.addReminder({ title: `${who} · ${label}`, date, note });
+    if (added) toast(`已排 ${date} 的${label}提醒`);
   }
 
   function parseDate(text) {
@@ -1381,7 +1407,7 @@ const POINT_KEY = "piaogen.v0.points";
     if (!date) missing.push("购买日期");
     if (!product) missing.push("商品名");
     const confidence = Math.max(10, Math.round(ocrConfidence - missing.length * 8));
-    const review = ocrConfidence < 82;
+    const review = ocrConfidence < 85;
     return {
       id: uid(),
       merchant: merchant || "待确认商家",
@@ -2782,6 +2808,7 @@ const POINT_KEY = "piaogen.v0.points";
     const script = financeScript(c);
     const council = financeCouncil(c, def, ready, totalEvidence);
     const conclusion = financeConclusion(c);
+    const mflow = financeMoneyFlow(c);
     $("#financeCaseTitle").textContent = `${def.short} · ${c.merchant || "待确认"}`;
     const calc = c.calculation;
     const calcHtml = calc ? `<div class="finance-calc">
@@ -2814,6 +2841,20 @@ const POINT_KEY = "piaogen.v0.points";
         <div class="fch-top"><span>${escapeHtml(def.label)}${c.source === "demo" ? " · 示例" : ""}<button class="finance-member-inline" id="financeMemberEdit" type="button" aria-label="修改归属">${escapeHtml(financeMemberText(c))}</button></span><i class="finance-state st-${escapeHtml(c.status)}">${escapeHtml(financeStatusLabel(c.status))}</i></div>
         <h2>${escapeHtml(c.merchant || "商家待确认")}</h2>
         <div class="fch-money">${money(c.amount)}<small>争议金额 / 涉及金额</small></div>
+        <div class="fch-flow" role="group" aria-label="这笔钱走到哪一步">
+          <div class="fch-step on"><span>已付</span><b>${money(mflow.amount)}</b></div>
+          <i aria-hidden="true">›</i>
+          <div class="fch-step ${mflow.refunding ? "on warn" : ""}"><span>待退款</span><b>${mflow.refunding ? money(mflow.pending) : "—"}</b></div>
+          <i aria-hidden="true">›</i>
+          <div class="fch-step ${mflow.refunded ? "on ok" : ""}"><span>已到账</span><b>${money(mflow.back)}</b></div>
+        </div>
+        ${mflow.refunded
+          ? `<p class="fch-flow-note ok">已确认到账 ${money(mflow.back)}${mflow.back < mflow.amount ? `，与争议金额差 ${money(mflow.amount - mflow.back)}` : ""}。</p>`
+          : mflow.refunding
+            ? `<p class="fch-flow-note warn">对方说在退，钱还没到账。退款中不算已解决，以流水为准。
+                <button class="link-btn" type="button" id="financeMoneyArrived">已到账，记一笔</button></p>`
+            : `<p class="fch-flow-note">钱还在对方手里。提交、受理、答应退，都不等于到账。
+                <button class="link-btn" type="button" id="financeMoneyRefunding">对方说在退</button></p>`}
         <div class="fch-meta"><span>${escapeHtml(c.date || "日期待确认")}</span><span>${escapeHtml(financeChannelLabel(c.channel))}</span>${c.account ? `<span>${escapeHtml(c.account)}</span>` : ""}</div>
         ${(() => {
           const linked = c.linkedTicketId ? state.tickets.find((ticket) => ticket.id === c.linkedTicketId) : null;
@@ -2884,6 +2925,18 @@ const POINT_KEY = "piaogen.v0.points";
       </div>
       <p class="report-note">资金案卷只在本机保存。不代提交、不代收款；不提供“保证退回 / 保证拒付成功”的结论。</p>`;
 
+    const moneyRefunding = $("#financeMoneyRefunding");
+    if (moneyRefunding) moneyRefunding.addEventListener("click", () => {
+      c.moneyState = "refunding";
+      c.refundPromised = true;
+      c.updatedAt = new Date().toISOString();
+      c.history = (c.history || []).concat([{ status: c.status || "open", note: "标记：对方称已发起退款，尚未到账。", at: c.updatedAt }]);
+      saveFinance();
+      renderFinanceCase(c);
+      toast("已记为退款中；到账后记得点“已到账，记一笔”");
+    });
+    const moneyArrived = $("#financeMoneyArrived");
+    if (moneyArrived) moneyArrived.addEventListener("click", () => openFinanceStatusSheet(c));
     $("#financeNext").addEventListener("click", () => {
       const target = ready < totalEvidence ? $("#financeEvidenceBlock") : $(".finance-routes");
       if (target) target.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
@@ -4367,6 +4420,30 @@ const POINT_KEY = "piaogen.v0.points";
     show("case");
   }
 
+  /* 备料完整度：13 项，缺哪项给具体补强提示。只读案卷已有字段与证据，不推断。 */
+  function caseCompleteness(ticket) {
+    const ev = ticket.evidence || [];
+    const has = (...keys) => ev.some((e) => keys.some((k) => String(e.type || "").includes(k) || String(e.label || "").includes(k)));
+    const prio = PG.priority ? PG.priority(ticket) : null;
+    const items = [
+      { k: "商家", ok: !!ticket.merchant && ticket.merchant !== "待确认商家", hint: "改字段里补商家全名" },
+      { k: "商品", ok: !!ticket.product, hint: "补商品名或型号" },
+      { k: "金额", ok: Number(ticket.amount) > 0, hint: "补实付金额" },
+      { k: "购买日期", ok: !!ticket.date, hint: "补购买或开票日期" },
+      { k: "订单号", ok: !!ticket.orderNo, hint: "从订单详情抄订单号" },
+      { k: "支付凭证", ok: has("支付", "小票", "发票", "收据"), hint: "拍支付记录、小票或发票" },
+      { k: "商品页截图", ok: has("商品", "页面", "详情"), hint: "截商品详情页，带型号与价格" },
+      { k: "聊天或承诺", ok: has("聊天", "回复", "承诺", "客服"), hint: "截与商家的聊天或书面承诺" },
+      { k: "问题照片", ok: ev.some((e) => e.dataUrl || e.url), hint: "拍问题部位、包装或外箱" },
+      { k: "明确诉求", ok: !!prio, hint: "先说清要退、换、修还是补差价" },
+      { k: "联系方式", ok: !!ticket.contact || !!(ticket.helper && ticket.helper.contact), hint: "留一个能接回访的电话" },
+      { k: "处理记录", ok: Array.isArray(ticket.actions) && ticket.actions.length > 0, hint: "记下已找过谁、对方怎么说" },
+      { k: "字段已复核", ok: !ticket.review, hint: "OCR 置信偏低，先在改字段里核对" }
+    ];
+    const done = items.filter((i) => i.ok).length;
+    return { done, total: items.length, items, missing: items.filter((i) => !i.ok) };
+  }
+
   function renderCase(ticket) {
     const result = PG.agents.run(ticket, {
       tickets: state.tickets,
@@ -4432,6 +4509,25 @@ const POINT_KEY = "piaogen.v0.points";
         <div class="case-meta"><span>${escapeHtml(ticket.date || "日期待确认")}</span><span>案卷 ${escapeHtml(result.caseId)}</span><span>证据 ${evidence.length} 件${missing.length ? ` · 还缺 ${missing.length} 件` : ""}</span></div>
       </div>
 
+      ${ticket.review ? `<div class="case-gate" role="note">
+        <b>先核对，再往下</b>
+        <p>这张票是识别出来的，整体把握不到 85%${(ticket.missing || []).length ? `，还缺 ${escapeHtml(ticket.missing.join("、"))}` : ""}。下面的天数、金额与结论都按现在的字段算；核对完再决定要不要办。</p>
+        <button class="btn ghost" type="button" data-case-edit>去核对字段</button>
+      </div>` : ""}
+      ${(() => {
+        const c = caseCompleteness(ticket);
+        const pct = Math.round((c.done / c.total) * 100);
+        return `<div class="case-ready">
+          <div class="case-ready-head">
+            <b>备料完整度</b>
+            <span class="${c.missing.length ? "warn" : "ok"}">已备 ${c.done}/${c.total}</span>
+          </div>
+          <div class="case-ready-bar" role="progressbar" aria-valuenow="${c.done}" aria-valuemin="0" aria-valuemax="${c.total}" aria-label="备料完整度 ${pct}%"><i style="width:${pct}%"></i></div>
+          ${c.missing.length ? `<p class="case-ready-hint">还缺 ${c.missing.length} 项：</p>
+          <ul class="case-ready-list">${c.missing.slice(0, 6).map((i) => `<li><b>${escapeHtml(i.k)}</b><span>${escapeHtml(i.hint)}</span></li>`).join("")}</ul>` : `<p class="case-ready-ok">材料齐全，可以进入主行动。</p>`}
+        </div>`;
+      })()}
+
       <div class="council-head"><b>3+1 合议</b><span>读票 · 规则 · 陪办 · 审计</span></div>
       <div class="case-consensus" role="group" aria-label="3+1 合议">
         ${orderedFindings.map((f) => `
@@ -4449,6 +4545,37 @@ const POINT_KEY = "piaogen.v0.points";
           <p>${escapeHtml(result.conflict.body)}</p>
           ${result.conflict.action === "edit" ? `<button class="btn ghost" id="caseConflictEdit" type="button">去改字段</button>` : ""}
         </div>` : `<p class="case-ok-note">规则一致，没有冲突。结论可以进入主行动。</p>`}
+
+      ${(() => {
+        const vetoed = orderedFindings.filter((f) => f.status === "veto" || f.status === "abstain");
+        if (!vetoed.length) return "";
+        return `<div class="case-vetoes">
+          <div class="case-vetoes-head"><b>谁没有点头</b><span>否决与弃权的理由</span></div>
+          <ul>${vetoed.map((f) => `<li><b>${escapeHtml(f.name)}</b><span class="case-veto-state ${f.status}">${f.status === "veto" ? "否决" : "弃权"}</span><p>${escapeHtml(f.detail)}</p></li>`).join("")}</ul>
+        </div>`;
+      })()}
+
+      ${(() => {
+        const path = (() => {
+          try {
+            if (nearest && PG.pathFor) return PG.pathFor(nearest);
+            if (nearest && PG.portalFor) return PG.portalFor(nearest);
+          } catch (e) { /* 路径缺失不阻断 */ }
+          return null;
+        })();
+        const pathText = typeof path === "string" ? path : path && (path.label || path.name || path.title) ? (path.label || path.name || path.title) : "";
+        const gapItems = [...(ticket.review ? ["金额/日期需核对"] : []), ...(ticket.missing || [])];
+        return `<div class="case-plan">
+          <div class="case-plan-head"><b>怎么办 · 五段</b><span>照着做，不用自己想</span></div>
+          <ol class="case-plan-list">
+            <li><b>先做什么</b><p>${escapeHtml(result.primary.label)}。${escapeHtml(result.primary.detail)}</p></li>
+            <li><b>别做什么</b><p>不替你提交、不代替你签字；不承诺“一定退”；不把推算日期当成确定日期。</p></li>
+            <li><b>依据里没写的</b><p>${gapItems.length ? escapeHtml(gapItems.join("、")) + " —— 先补，再谈。" : "没有缺项；规则未覆盖的部分会明说“以合同/商家告知为准”。"}</p></li>
+            <li><b>该找谁</b><p>${pathText ? escapeHtml(pathText) + "（从商家开始，谈不拢再升级）" : "先找商家客服；7 天无果再找平台；仍无果再找 12315。"}</p></li>
+            <li><b>何时复查</b><p>${nearest ? `${escapeHtml(nearest.label)}剩 ${nearest.daysLeft} 天，到期前 1 天回来看一眼；对方答应后 3 天没动静就升级。` : "先把材料补齐，日期确定后再定复查日。"}</p></li>
+          </ol>
+        </div>`;
+      })()}
 
       <div class="case-primary">
         <p class="eyebrow">今天先办</p>
@@ -4490,6 +4617,7 @@ const POINT_KEY = "piaogen.v0.points";
       <div class="case-footer">
         ${nearest ? `<button class="btn ghost" id="caseRecord" type="button">记录结果</button>` : ""}
         <button class="btn ghost" id="caseBack" type="button">回到今天</button>
+        <button class="btn text" id="caseAskFamily" type="button">问一句家人</button>
         <button class="btn text" id="caseResult" type="button">看这张票的完整结果</button>
       </div>
       </div>
@@ -4501,6 +4629,20 @@ const POINT_KEY = "piaogen.v0.points";
       openAction(ticket, PG.priority(ticket) || open[0]);
     });
     $("#caseEdit").addEventListener("click", () => openCaseEdit(ticket));
+    const askFamily = $("#caseAskFamily");
+    if (askFamily) askFamily.addEventListener("click", () => {
+      const who = (ticket.helper && ticket.helper.forWhom) || "";
+      const line1 = `${who ? who + "，" : ""}这张票我不确定是不是你花的：${ticket.merchant || "某商户"} ${ticket.product || ""} ${money(ticket.amount)}，${ticket.date || "日期不详"}。`;
+      const line2 = ticket.priceProtection && ticket.priceProtection.hasMark
+        ? "现在同款降价了，符合价保条件的话能补差价。要我去申请，还是你自己来？"
+        : "是你的就回我一声；不是的话我来处理。";
+      const text = line1 + "\n" + line2 + "\n—— 票根生成，只发给你选的人";
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => toast("已复制，粘到微信里发出去")).catch(() => toast("复制失败，请手动选中"));
+      } else toast("浏览器不让复制，请手动选中");
+    });
+    const caseGateEdit = document.querySelector("[data-case-edit]");
+    if (caseGateEdit) caseGateEdit.addEventListener("click", () => openCaseEdit(ticket));
     if ($("#caseConflictEdit")) $("#caseConflictEdit").addEventListener("click", () => openCaseEdit(ticket));
     if ($("#caseRecord")) $("#caseRecord").addEventListener("click", () => {
       outcomeSheet(ticket, nearest, "acknowledged", (outcome) => {
@@ -5091,7 +5233,10 @@ const POINT_KEY = "piaogen.v0.points";
       return `<div class="agent-msg user"><div class="agent-bubble">${escapeHtml(m.text)}</div></div>`;
     }
     const trace = (m.trace || []).length
-      ? `<dl class="agent-trace">${m.trace.map((row) => `<div><dt>${escapeHtml(row[0])}</dt><dd>${escapeHtml(row[1])}</dd></div>`).join("")}</dl>`
+      ? `<details class="agent-how"><summary>这一步是怎么来的</summary>
+          <dl class="agent-trace">${m.trace.map((row) => `<div><dt>${escapeHtml(row[0])}</dt><dd>${escapeHtml(row[1])}</dd></div>`).join("")}</dl>
+          <p class="agent-how-note">${m.mode === "smart" ? "这一段由你接的模型生成；工具只读本机数据，不改金额、日期和状态。" : "本地规则算的，没有联网。查不到依据时会直说不确定，不编数字。"}</p>
+        </details>`
       : "";
     const actions = (m.actions || []).map((a, i) => `<button class="agent-action" type="button" data-agent-act="${escapeHtml(a.act)}" data-agent-idx="${i}">${escapeHtml(a.label)}</button>`).join("");
     const badge = m.mode === "smart" ? `<span class="agent-badge">智能 · 模型生成</span>` : "";
@@ -5104,6 +5249,20 @@ const POINT_KEY = "piaogen.v0.points";
     if (!form) return;
     const rect = form.getBoundingClientRect();
     if (rect.bottom > innerHeight - 90) form.scrollIntoView({ block: "end" });
+  }
+
+  /* 刚开始对话：滚到助手页顶部，让回复从第一行开始读，而不是停在输入框边上。 */
+  function scrollAiToStart() {
+    if (AGENT_STATE.view !== "page") return;
+    const screen = document.querySelector('.screen[data-screen="ai"]');
+    if (!screen) return;
+    const top = screen.getBoundingClientRect().top + window.scrollY - 8;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }
+
+  function scrollAiAfterTurn() {
+    if (AGENT_STATE.messages.length <= 2) scrollAiToStart();
+    else scrollAiToEnd();
   }
 
   function clearAgentChat() {
@@ -5232,7 +5391,7 @@ const POINT_KEY = "piaogen.v0.points";
     AGENT_STATE.lastText = raw;
     if (AGENT_STATE.messages.length > 40) AGENT_STATE.messages = AGENT_STATE.messages.slice(-40);
     renderAgent();
-    scrollAiToEnd();
+    scrollAiAfterTurn();
   }
 
   function agentMoney(text) {
@@ -6337,7 +6496,7 @@ const POINT_KEY = "piaogen.v0.points";
       AGENT_STATE.stopped = false;
       if (AGENT_STATE.messages.length > 40) AGENT_STATE.messages = AGENT_STATE.messages.slice(-40);
       renderAgent();
-      scrollAiToEnd();
+      scrollAiAfterTurn();
       const agentInputNow = agentInputEl();
       if (agentInputNow) agentInputNow.disabled = false;
     }
@@ -9487,6 +9646,27 @@ curl -s -X POST …/piaogen-mcp -H "Content-Type: application/json" \\
     $("#triageAll").addEventListener("click", () => {
       state.pending.forEach((ticket) => state.selected.add(ticket.id));
       renderTriage();
+    });
+    if ($("#triageDropSel")) $("#triageDropSel").addEventListener("click", () => {
+      const n = state.selected.size;
+      if (!n) return toast("还没选单");
+      confirmSheet("剔除已选", `把选中的 ${n} 单移出本批，不做导入。原图仍在本地，可重新导入。`, () => {
+        state.pending = state.pending.filter((t) => !state.selected.has(t.id));
+        state.selected.clear();
+        renderTriage();
+        toast(`已剔除 ${n} 单`);
+      });
+    });
+    if ($("#triageDropAll")) $("#triageDropAll").addEventListener("click", () => {
+      const n = state.pending.length;
+      if (!n) return toast("这一批没有单");
+      confirmSheet("本批全不要", `清空这次识别的 ${n} 单，回到导入。已保存的案卷不受影响。`, () => {
+        state.pending = [];
+        state.selected.clear();
+        renderTriage();
+        show("import");
+        toast("本批已清空");
+      });
     });
     $$(".tab").forEach((tab) => tab.addEventListener("click", () => {
       state.tab = tab.dataset.tab;

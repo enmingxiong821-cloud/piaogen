@@ -142,7 +142,29 @@
     });
   }
 
+  /* 三层解读：原文 / 白话 / 能主张什么。按类别给通用解释，不下个案结论。 */
+  function layers(item) {
+    const t = `${item.title} ${item.summary}`;
+    if (item.group === "law") {
+      if (/七日|无理由/.test(t)) return { plain: "网购、电视购物等远程购物，收到货 7 天内可以不说明理由退货（定作、鲜活易腐、拆封音像制品等除外）。", claim: "可要求无理由退货退款；商家以“已拆封”拒绝时，拆封查验本身不影响。" };
+      if (/三包|修理|更换|退货/.test(t)) return { plain: "三包期内商品出问题，按“先修、修不好换、换不了退”的顺序处理。", claim: "可要求免费修理；两次修不好可要求换货；换货仍不行可要求退货。" };
+      if (/价保|价格/.test(t)) return { plain: "买完降价了，可找商家补回差价，前提是同一商品、在价保期内。", claim: "符合条件可要求补差价。" };
+      if (/定金/.test(t)) return { plain: "定金与订金不同：定金有担保效力，对方违约要双倍返还。", claim: "对方不履约时，可要求双倍返还定金。" };
+      if (/欺诈|三倍|赔偿/.test(t)) return { plain: "商家有欺诈行为的，可要求退一赔三，不足 500 元按 500 元算。", claim: "可主张退款并加三倍赔偿（最低 500 元）。" };
+      if (/个人信息|隐私/.test(t)) return { plain: "商家收集、使用你的信息要合法、必要、经你同意。", claim: "可要求删除、更正，并可向监管部门投诉。" };
+      return { plain: item.summary || "以条文原文为准。", claim: "按条文主张你的权利；能否成立以证据和受理机构判断为准。" };
+    }
+    if (item.group === "sanbao") return { plain: "这类商品有法定三包期限，期限内出故障可要求修、换、退。", claim: "期限内可要求免费修理；符合条件可换货或退货。" };
+    if (item.group === "path") return { plain: "这是投诉/办事的官方入口与顺序。", claim: "按这个顺序找少走弯路；上一层不受理再往上一层。" };
+    if (item.group === "cancel") return { plain: "这是关闭自动续费/解约的官方路径。", claim: "照着关，关完截图留证；还扣费就按“关了还在扣”维权。" };
+    if (item.group === "evidence") return { plain: "这是这类纠纷建议准备的证据。", claim: "按清单备齐，谈判和投诉都用得上。" };
+    if (item.group === "price") return { plain: "这是价保的适用条件。", claim: "符合条件可要求补差价。" };
+    return { plain: item.summary || "", claim: "" };
+  }
+
   function cardHtml(item) {
+    const L = layers(item);
+    const searchTerm = item.group === "law" ? item.title.replace("·", "") : "";
     return `<details class="right-card" data-group="${esc(item.group)}">
       <summary>
         <span class="rc-group">${esc(item.groupLabel)}</span>
@@ -151,6 +173,12 @@
         <span class="rc-chev" aria-hidden="true">›</span>
       </summary>
       <div class="rc-body">
+        <div class="rc-layers">
+          <dl class="rc-layer"><dt>原文</dt><dd>${esc(item.title)}${item.summary ? "：" + esc(item.summary) : ""}</dd></dl>
+          <dl class="rc-layer"><dt>白话</dt><dd>${esc(L.plain)}</dd></dl>
+          <dl class="rc-layer claim"><dt>能帮你主张什么</dt><dd>${esc(L.claim)}</dd></dl>
+        </div>
+        ${searchTerm ? `<button class="rc-copy" type="button" data-copy-term="${esc(searchTerm)}">复制检索式</button>` : ""}
         ${item.body || ""}
         <div class="rc-actions">
           <button class="btn ghost" type="button" data-rights-case="${esc(item.title)}">照这条建案</button>
@@ -194,6 +222,19 @@
       if (open) {
         if (window.PGApp && window.PGApp.show) window.PGApp.show("rights");
         else window.location.href = "index.html";
+        return;
+      }
+      const copyTerm = event.target.closest("[data-copy-term]");
+      if (copyTerm) {
+        const term = copyTerm.dataset.copyTerm || "";
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(term).then(() => {
+            copyTerm.textContent = "已复制，去国家法规库粘贴";
+            setTimeout(() => { copyTerm.textContent = "复制检索式"; }, 1800);
+          }).catch(() => { copyTerm.textContent = "复制失败，请手动选中"; });
+        } else {
+          copyTerm.textContent = "浏览器不允许复制，请手动选中";
+        }
         return;
       }
       const buildBtn = event.target.closest("[data-rights-case]");

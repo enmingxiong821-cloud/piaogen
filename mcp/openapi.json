@@ -1,0 +1,136 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "票根 · 消费权利计算 API",
+    "version": "1.0.0",
+    "description": "按购买日期当场计算一笔消费的权利窗口（无理由退货 / 三包退货换货 / 价保 / 保修），给出最近关闭日、证据缺口与下一步。只读、无状态、无需登录。不代提交、不承诺结果。",
+    "contact": { "url": "https://enmingxiong821-cloud.github.io/piaogen/agent-api.html" },
+    "license": { "name": "仅供赛事评审与演示使用" }
+  },
+  "servers": [
+    {
+      "url": "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com",
+      "description": "公网只读端点（CloudBase）"
+    },
+    { "url": "http://127.0.0.1:8787", "description": "本地 HTTP 桥（仅本机）" }
+  ],
+  "paths": {
+    "/piaogen-mcp/rights": {
+      "post": {
+        "operationId": "computeRights",
+        "summary": "算一笔消费还剩哪些权利、哪一天关、还缺什么",
+        "description": "传购买日期与商品名即可。返回每项权利的开始日、截止日、剩余天数、法条依据与官方链接。没有核实过的天数不返回倒计时。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RightsRequest" },
+              "examples": {
+                "空调": {
+                  "summary": "买了 6 天的空调",
+                  "value": { "product": "空调", "merchant": "某家电卖场", "amount": 3299, "date": "2026-11-20", "receivedDate": "2026-11-20", "today": "2026-11-26" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "权利窗口与证据缺口",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RightsResponse" }
+              }
+            }
+          },
+          "400": { "description": "参数不合法" },
+          "429": { "description": "超出限流（每 IP 每分钟 60 次）" }
+        }
+      }
+    },
+    "/piaogen-mcp/plan": {
+      "post": {
+        "operationId": "planRights",
+        "summary": "给下一步：做什么、带什么、去哪儿、别做什么",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RightsRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "下一步与材料清单",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlanResponse" } } }
+          }
+        }
+      }
+    },
+    "/piaogen-mcp/manifest.json": {
+      "get": {
+        "operationId": "getManifest",
+        "summary": "MCP 工具清单与安全边界",
+        "responses": {
+          "200": {
+            "description": "工具清单",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RightsRequest": {
+        "type": "object",
+        "properties": {
+          "product": { "type": "string", "description": "商品名，例如「空调」「冰箱」「手机」" },
+          "merchant": { "type": "string", "description": "商家名，用于判断线上 / 线下" },
+          "amount": { "type": "number", "description": "购买金额" },
+          "date": { "type": "string", "format": "date", "description": "购买日期" },
+          "receivedDate": { "type": "string", "format": "date", "description": "签收日期；线上 7 天无理由从这天算" },
+          "invoiceDate": { "type": "string", "format": "date", "description": "发票日期；三包从这天算" },
+          "category": { "type": "string", "description": "品类 key：appliance / digital / apparel / food / prepaid 等" },
+          "channel": { "type": "string", "description": "渠道：taobao / jd / alipay / offline 等" },
+          "currentPrice": { "type": "number", "description": "当前同款价格；有价保截止日时用来算差价" },
+          "today": { "type": "string", "format": "date", "description": "按哪天算，默认今天" }
+        }
+      },
+      "RightsWindow": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string", "enum": ["return", "three_return", "three_exchange", "price", "warranty", "warranty_main", "quality", "unknown"] },
+          "label": { "type": "string" },
+          "start": { "type": "string" },
+          "end": { "type": ["string", "null"] },
+          "daysLeft": { "type": ["integer", "null"] },
+          "applicability": { "type": "string", "enum": ["applicable", "not_applicable", "unknown"] },
+          "basis": { "type": "string", "description": "法条或规则名称" },
+          "basisUrl": { "type": "string", "description": "官方原文链接" },
+          "note": { "type": "string" }
+        }
+      },
+      "RightsResponse": {
+        "type": "object",
+        "properties": {
+          "sample": { "type": "boolean", "description": "true 表示没传参数，返回的是示例" },
+          "input": { "type": "object" },
+          "windows": { "type": "array", "items": { "$ref": "#/components/schemas/RightsWindow" } },
+          "nearest": { "oneOf": [{ "$ref": "#/components/schemas/RightsWindow" }, { "type": "null" }] },
+          "evidenceGaps": { "type": "array", "items": { "type": "string" } },
+          "ruleVersion": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      },
+      "PlanResponse": {
+        "type": "object",
+        "properties": {
+          "sample": { "type": "boolean" },
+          "next": { "type": "array", "items": { "type": "string" } },
+          "materials": { "type": "array", "items": { "type": "string" } },
+          "official": { "type": "string" },
+          "doNot": { "type": "array", "items": { "type": "string" } },
+          "note": { "type": "string" }
+        }
+      }
+    }
+  }
+}

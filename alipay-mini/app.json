@@ -1,0 +1,11 @@
+{
+  "pages": [
+    "pages/index/index"
+  ],
+  "window": {
+    "defaultTitle": "票根",
+    "titleBarColor": "#0A0E0F",
+    "backgroundColor": "#0A0E0F",
+    "pullRefresh": false
+  }
+}

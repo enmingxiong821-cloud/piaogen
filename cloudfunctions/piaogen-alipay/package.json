@@ -1,0 +1,11 @@
+{
+  "name": "piaogen-alipay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "票根 · 支付宝只读交易查询适配层（CloudBase HTTP 函数，未部署）",
+  "main": "index.js",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "selftest": "node selftest.js"
+  }
+}

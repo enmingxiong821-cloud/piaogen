@@ -1,0 +1,30 @@
+{
+  "capturedAt": "2026-11-25",
+  "transport": "stdio",
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "rights.lookup",
+      "arguments": {
+        "query": "空气炸锅",
+        "amount": 399,
+        "date": "2026-11-13"
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"count\": 1,\n  \"cases\": [\n    {\n      \"caseId\": \"PG-20261113-0001\",\n      \"merchant\": \"某家电卖场\",\n      \"product\": \"某品牌空气炸锅\",\n      \"amount\": 399,\n      \"date\": \"2026-11-13\",\n      \"status\": \"进行中\",\n      \"evidenceCount\": 3,\n      \"missing\": [\n        \"同款价格页\"\n      ],\n      \"nearest\": {\n        \"type\": \"price\",\n        \"label\": \"价保\",\n        \"end\": \"2026-11-20\",\n        \"daysLeft\": 1\n      },\n      \"primary\": \"先补同款价格证据\"\n    }\n  ]\n}"
+        }
+      ],
+      "isError": false
+    }
+  }
+}

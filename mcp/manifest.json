@@ -1,0 +1,129 @@
+{
+  "name": "piaogen-rights-finance",
+  "displayName": "票根 · 消费权利与资金售后",
+  "version": "0.5.0",
+  "description": "把一笔购买或一宗资金售后变成可核对的案卷：按购买日期当场计算权利窗口、证据缺口、官方路径、材料与回执。",
+  "site": "V14.0",
+  "rulesVersion": "2026.11.21",
+  "transports": [
+    {
+      "type": "stdio",
+      "command": "node mcp/server.js",
+      "note": "零依赖，本地运行"
+    },
+    {
+      "type": "http",
+      "url": "http://127.0.0.1:8787/mcp",
+      "command": "node mcp/http-server.js",
+      "note": "只绑 127.0.0.1，CORS 只放行 localhost"
+    },
+    {
+      "type": "http-json-rpc",
+      "url": "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp",
+      "note": "公网只读，无需登录，每 IP 每分钟 60 次"
+    }
+  ],
+  "tools": [
+    {
+      "name": "rights.lookup",
+      "description": "按购买日期当场计算消费权利窗口：无理由退货、三包退货/换货、价保、保修各剩几天，还缺什么证据。传 date + product 即可；不传参数返回示例。",
+      "computes": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "product": { "type": "string", "description": "商品名，例如「空调」「冰箱」「手机」" },
+          "merchant": { "type": "string", "description": "商家名，用于判断线上/线下" },
+          "amount": { "type": "number", "description": "购买金额" },
+          "date": { "type": "string", "description": "购买日期 YYYY-MM-DD" },
+          "receivedDate": { "type": "string", "description": "签收日期；线上 7 天无理由从这天算" },
+          "invoiceDate": { "type": "string", "description": "发票日期；三包从这天算" },
+          "category": { "type": "string", "description": "品类 key：appliance / digital / apparel / food / prepaid 等" },
+          "channel": { "type": "string", "description": "渠道：taobao / jd / alipay / offline 等" },
+          "currentPrice": { "type": "number", "description": "当前同款价格；有价保截止日时用来算差价" },
+          "today": { "type": "string", "description": "可选，按哪天算；默认今天" }
+        }
+      }
+    },
+    {
+      "name": "rights.plan",
+      "description": "基于同一次计算生成下一步：主行动、材料清单、官方入口、禁止事项。",
+      "computes": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "product": { "type": "string" },
+          "date": { "type": "string" },
+          "receivedDate": { "type": "string" },
+          "channel": { "type": "string" },
+          "caseId": { "type": "string" }
+        }
+      }
+    },
+    {
+      "name": "rights.record",
+      "description": "把办理结果写回案卷；refunded / repaired / promise 必须 confirmed=true。公网端点不支持。",
+      "writes": true
+    },
+    {
+      "name": "finance.lookup",
+      "description": "查资金售后案卷：退款没到、银行卡争议、自动续费、预付卡、分期息费或保险犹豫期。"
+    },
+    {
+      "name": "finance.plan",
+      "description": "给一宗资金案卷生成下一步：先补什么证据、官方路径、可直接说的话和禁止事项。"
+    },
+    {
+      "name": "finance.record",
+      "description": "记录资金售后进度；只有 confirmed=true 且用户确认到账/解决，才写入已解决金额。公网端点不支持。",
+      "writes": true
+    },
+    {
+      "name": "policy.parse",
+      "description": "从保单/合同文字里只提取机构、金额、期限与签单日期；不返回证件号、手机号或原文。",
+      "computes": true
+    }
+  ],
+  "rest": {
+    "rights": "POST /piaogen-mcp/rights",
+    "plan": "POST /piaogen-mcp/plan",
+    "manifest": "GET /piaogen-mcp/manifest.json",
+    "openapi": "GET /piaogen-mcp/openapi.json",
+    "note": "与 MCP tools/call 走同一个计算函数，结果一致"
+  },
+  "skillPackage": {
+    "name": "piaogen-rights",
+    "version": "1.0.0",
+    "entry": "SKILL.md",
+    "files": 6,
+    "bytes": 17983,
+    "sha256": "edb9e3d1a1aadcfe12703c547ab4a67c6e8d8bc9e3af9da865859cc6c647dbe1"
+  },
+  "safety": {
+    "readOnlyByDefault": true,
+    "confirmedGate": [
+      "refunded",
+      "repaired",
+      "promise",
+      "resolved"
+    ],
+    "noShell": true,
+    "noFilesystem": true,
+    "noPayment": true,
+    "noSubmission": true,
+    "noPiiInStore": true,
+    "noCountdownWithoutBasis": true
+  },
+  "publicMirror": {
+    "status": "live_read_only",
+    "url": "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp",
+    "health": "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp/health",
+    "manifest": "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp/manifest.json",
+    "openapi": "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp/openapi.json",
+    "path": "cloudfunctions/piaogen-mcp",
+    "mode": "read-only",
+    "protocol": "http-json-rpc",
+    "auth": "optional_bearer_MCP_READ_TOKEN",
+    "rateLimit": "60/min per IP",
+    "note": "与本地七工具同名同参；rights.record/finance.record 返回 public_read_only。rights.lookup / rights.plan 传参数时当场计算，不传参才返回示例。不存输入、不落库。"
+  }
+}

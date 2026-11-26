@@ -1,0 +1,166 @@
+/* 票根 V11.0 · 助手接入与灵动化
+   只追加，不覆盖既有排版；所有颜色沿用石墨黑 / 薄荷绿。 */
+
+.ai-status { margin: 0 0 12px; }
+.ai-status button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out);
+}
+.ai-status button:hover { border-color: rgba(157, 240, 194, .42); }
+.ai-status.off button {
+  border-color: rgba(157, 240, 194, .3);
+  background: linear-gradient(180deg, rgba(157, 240, 194, .09), rgba(157, 240, 194, .02));
+}
+.ai-status.on button { border-color: rgba(157, 240, 194, .5); }
+.ai-status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.ai-status.off .ai-status-dot {
+  background: var(--mint);
+  box-shadow: 0 0 0 4px rgba(157, 240, 194, .14);
+}
+.ai-status.on .ai-status-dot { background: var(--mint); animation: aiPulse 1.8s ease-in-out infinite; }
+.ai-status-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ai-status-copy b { font-size: 12.5px; font-weight: 650; }
+.ai-status-copy small {
+  font-size: 11px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-status-go { flex: none; font-size: 11.5px; color: var(--mint); white-space: nowrap; }
+
+@keyframes aiPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(157, 240, 194, .34); }
+  50% { box-shadow: 0 0 0 5px rgba(157, 240, 194, 0); }
+}
+
+.ai-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 2px 0 14px;
+}
+.ai-presets button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 56px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: left;
+}
+.ai-presets button b { font-size: 12px; font-weight: 650; }
+.ai-presets button small { font-size: 10px; color: var(--text-3); }
+.ai-presets button:hover { border-color: rgba(157, 240, 194, .42); }
+.ai-presets button.on {
+  border-color: rgba(157, 240, 194, .62);
+  background: rgba(157, 240, 194, .1);
+  color: var(--mint);
+}
+.ai-presets button.on small { color: rgba(157, 240, 194, .72); }
+
+.ai-cfg-status {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel-2);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-2);
+  word-break: break-word;
+}
+.ai-cfg-status.ok { border-color: rgba(157, 240, 194, .42); color: var(--mint); }
+.ai-cfg-status.warn { border-color: rgba(255, 113, 91, .42); color: #FFB4A9; }
+.ai-cfg-status.busy { color: var(--text-2); }
+.ai-cfg-status small {
+  display: block;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--text-3);
+  word-break: break-all;
+}
+
+/* 设置面板按钮多：悬在面板底部，两列排，避免 390 宽被挤成一条。 */
+.ai-cfg-actions {
+  position: sticky;
+  bottom: calc(-20px - env(safe-area-inset-bottom));
+  z-index: 2;
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding: 10px 0 8px;
+  background: linear-gradient(180deg, rgba(20, 27, 29, 0), var(--panel) 26%);
+}
+.ai-cfg-actions .btn { flex: 0 0 calc(50% - 6px); min-height: 44px; margin: 0; }
+.ai-cfg-actions #aiCfgSaveOn { flex-basis: 100%; }
+
+.agent-draft {
+  white-space: pre-wrap;
+  margin: 8px 0 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-2);
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--text);
+}
+
+/* 助手在思考时：状态点呼吸，底栏圆钮轻微起伏。 */
+body.agent-busy .ai-status-dot { animation: aiPulse 1.2s ease-in-out infinite; }
+body.agent-busy .tab-orb { animation: orbThink 1.6s ease-in-out infinite; }
+@keyframes orbThink {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-2px) scale(1.04); }
+}
+
+/* 新消息入场：只动最后一条，避免整页重播。 */
+.agent-msg:last-child .agent-bubble { animation: agentRise .26s var(--ease-out) both; }
+@keyframes agentRise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.agent-chips .agent-chip { animation: chipRise .2s var(--ease-out) both; }
+.agent-chips .agent-chip:nth-child(2) { animation-delay: 40ms; }
+.agent-chips .agent-chip:nth-child(3) { animation-delay: 80ms; }
+.agent-chips .agent-chip:nth-child(4) { animation-delay: 120ms; }
+@keyframes chipRise {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (min-width: 760px) {
+  .ai-presets { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 430px) {
+  .ai-status-copy small { white-space: normal; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-status.on .ai-status-dot,
+  body.agent-busy .ai-status-dot,
+  body.agent-busy .tab-orb,
+  .agent-msg:last-child .agent-bubble,
+  .agent-chips .agent-chip { animation: none; }
+}

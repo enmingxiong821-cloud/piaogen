@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>可被调用 · 票根</title>
+<meta name="description" content="票根的三种调用形态：MCP 工具、REST 接口、Skill 包。按购买日期当场计算权利窗口，只读、无状态、不托管用户数据。" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="styles.css?v=130" />
+<link rel="stylesheet" href="docs.css?v=130" />
+<style>
+  pre{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .doc table{width:100%;table-layout:fixed}
+  .doc th,.doc td{word-break:break-word}
+  .doc code{word-break:break-word}
+  .api-pick{display:grid;gap:10px;margin:16px 0 22px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .api-pick div{border:1px solid var(--rule-2);border-radius:10px;padding:12px 14px;background:var(--panel)}
+  .api-pick b{display:block;font-size:13px;margin-bottom:4px}
+  .api-pick span{font-size:12px;line-height:1.65;color:var(--ink-2)}
+  .api-pick code{font-size:11px}
+  .skill-box{border:1px solid var(--rule-2);border-radius:10px;padding:14px 16px;background:var(--panel);margin:14px 0}
+  .skill-box dl{display:grid;grid-template-columns:88px minmax(0,1fr);gap:6px 10px;margin:10px 0 0;font-size:12px}
+  .skill-box dt{color:var(--ink-3)}
+  .skill-box dd{margin:0;overflow-wrap:anywhere;font-family:var(--mono,monospace);font-size:11.5px}
+</style>
+</head>
+<body>
+<main class="doc doc-shell">
+  <nav class="doc-nav" aria-label="页面导航">
+    <a class="doc-back" href="index.html"><span aria-hidden="true">&larr;</span> 返回票根</a>
+    <span class="doc-mark">票根</span>
+  </nav>
+
+  <p class="doc-kicker">票根 · MCP 0.5.0 · 规则库 2026.11.21</p>
+  <h1>可被调用</h1>
+  <p class="doc-meta">核对日期：2026-11-26　·　7 个工具　·　3 种接入形态　·　当场计算，不是返回固定示例</p>
+
+  <p class="lede">票根把「权利窗口、证据缺口、官方路径、材料与回执」做成可调用的接口。<strong>传日期和商品名，它当场算出还剩几天；不传参数才返回示例。</strong>同一个计算核心跑在三个地方：本地 stdio MCP、公网只读 MCP、以及给不认识 MCP 的调用方准备的 REST 接口。</p>
+
+  <div class="api-pick">
+    <div><b>MCP</b><span>标准 JSON-RPC 2.0，<code>initialize</code> / <code>tools/list</code> / <code>tools/call</code>。适合支持 MCP 的客户端。</span></div>
+    <div><b>REST</b><span>一个 <code>POST</code> 带 JSON 就出结果。适合脚本、低代码平台、只会发 HTTP 的调用方。</span></div>
+    <div><b>Skill 包</b><span>整包 zip，含说明、引擎与契约。适合按技能加载的智能体平台。</span></div>
+  </div>
+
+  <h2>1. 工具清单</h2>
+  <table>
+    <thead><tr><th>工具</th><th>做什么</th><th>写操作</th></tr></thead>
+    <tbody>
+      <tr><td><code>rights.lookup</code></td><td data-label="做什么"><b>按购买日期当场算</b>：无理由退货、三包退货/换货、价保、保修各剩几天，还缺什么证据。传 <code>date</code> + <code>product</code> 即可</td><td data-label="写操作">否</td></tr>
+      <tr><td><code>rights.plan</code></td><td data-label="做什么">基于同一次计算给下一步：做什么、带什么、去哪儿、别做什么</td><td data-label="写操作">否</td></tr>
+      <tr><td><code>rights.record</code></td><td data-label="做什么">回填办理结果；<code>refunded / repaired / promise</code> 必须 <code>confirmed=true</code></td><td data-label="写操作">是，需确认</td></tr>
+      <tr><td><code>finance.lookup</code></td><td data-label="做什么">查六类资金售后：退款、拒付、续费、预付卡、分期、保险</td><td data-label="写操作">否</td></tr>
+      <tr><td><code>finance.plan</code></td><td data-label="做什么">给资金案卷生成证据门、官方路径与话术</td><td data-label="写操作">否</td></tr>
+      <tr><td><code>finance.record</code></td><td data-label="做什么">记录资金进度；只有 <code>confirmed=true</code> 才写已解决金额</td><td data-label="写操作">是，需确认</td></tr>
+      <tr><td><code>policy.parse</code></td><td data-label="做什么">从保单/合同只提取机构、金额、期限、签单日期；不返回证件号与原文</td><td data-label="写操作">否</td></tr>
+    </tbody>
+  </table>
+  <p>公网端点只读，<code>*.record</code> 一律返回 <code>public_read_only</code>；写操作只在本地 stdio 与本地 HTTP 桥可用。</p>
+
+  <h2>2. 三种接入</h2>
+
+  <h3>2.1 公网 MCP（已上线，推荐）</h3>
+  <pre><code>POST https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp
+Content-Type: application/json
+
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}
+{"jsonrpc":"2.0","id":2,"method":"tools/list"}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
+  "name":"rights.lookup",
+  "arguments":{"product":"空调","amount":3299,"date":"2026-11-20",
+               "receivedDate":"2026-11-20","today":"2026-11-26"}}}</code></pre>
+  <p>上面第三个请求真的会算出「无理由退货剩 1 天」——因为 <code>today</code> 是 11-26、签收日是 11-20。不传 <code>today</code> 就按服务器当天算。</p>
+  <div class="try-mcp">
+    <button class="btn primary" id="mcpTry" type="button">当场算一张空调票</button>
+    <pre id="mcpTryOut"><code>点一下，直接请求公网端点；不需要 Key。</code></pre>
+  </div>
+
+  <h3>2.2 公网 REST（不会说 MCP 也行）</h3>
+  <pre><code># 算权利窗口
+POST /piaogen-mcp/rights
+{"product":"空调","date":"2026-11-20","today":"2026-11-26"}
+
+# 要下一步与材料
+POST /piaogen-mcp/plan
+{"product":"空调","date":"2026-11-20","today":"2026-11-26"}
+
+# 机器可读清单
+GET  /piaogen-mcp/manifest.json
+GET  /piaogen-mcp/openapi.json</code></pre>
+  <p>REST 和 MCP 走的是同一个计算函数，返回内容一致。契约是 OpenAPI 3.1，可以直接导入 Postman / Apifox / 低代码平台。<a href="mcp/openapi.json">mcp/openapi.json</a></p>
+
+  <h3>2.3 本地（数据不出本机）</h3>
+  <pre><code># stdio（给支持 MCP 的客户端）
+node mcp/server.js
+
+# 本地 JSON-RPC over HTTP（只绑 127.0.0.1）
+node mcp/http-server.js
+# POST http://127.0.0.1:8787/mcp</code></pre>
+
+  <h2>3. Skill 包</h2>
+  <p>把说明、计算引擎、规则数据与接口契约打成一个 zip，按技能加载的平台整包吃进去就能用；引擎是纯函数、零依赖，不联网也能算。</p>
+  <div class="skill-box">
+    <b>piaogen-rights · 1.0.0</b>
+    <dl>
+      <dt>下载</dt><dd><a href="dist_app/piaogen-rights-skill-1.0.0.zip">piaogen-rights-skill-1.0.0.zip</a>（17,983 字节 / 6 文件）</dd>
+      <dt>声明</dt><dd><a href="dist_app/piaogen-rights-skill.json">piaogen-rights-skill.json</a></dd>
+      <dt>SHA-256</dt><dd>edb9e3d1a1aadcfe12703c547ab4a67c6e8d8bc9e3af9da865859cc6c647dbe1</dd>
+      <dt>包含</dt><dd>SKILL.md · skill.json · README.md · mcp/rights-engine.js · mcp/rights-data.json · mcp/openapi.json</dd>
+      <dt>能力</dt><dd>rights.lookup · rights.plan · policy.parse · finance.lookup · finance.plan</dd>
+    </dl>
+  </div>
+  <p>包里不含任何用户数据、密钥或测试图；<code>rights-data.json</code> 只有三包 18 类目录、渠道与品类别名。</p>
+
+  <h2>4. 算的是什么</h2>
+  <table>
+    <thead><tr><th>权利</th><th>起算日</th><th>依据</th><th>没有依据时</th></tr></thead>
+    <tbody>
+      <tr><td>线上 7 天无理由</td><td>签收日</td><td>消保法第 25 条</td><td>缺签收日 → 标「待确认」，不猜</td></tr>
+      <tr><td>三包退货 7 天</td><td>发票日</td><td>三包规定（18 类目录）</td><td>不在目录 → 明说「无法定三包」</td></tr>
+      <tr><td>三包换货 15 天</td><td>发票日</td><td>三包规定</td><td>同上</td></tr>
+      <tr><td>三包修理</td><td>发票日</td><td>三包规定</td><td>同上</td></tr>
+      <tr><td>整机 / 主要部件保修</td><td>发票日</td><td>三包规定 + 品牌承诺</td><td>按品牌承诺，不套法定年限</td></tr>
+      <tr><td>价保</td><td>订单页标识</td><td>平台承诺（<b>不是法定权利</b>）</td><td>没有标识就不倒计时</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. 安全边界</h2>
+  <ul>
+    <li>默认只读；写操作必须显式 <code>confirmed=true</code>，并只写本机 <code>records.local.json</code>。</li>
+    <li>不暴露 shell、文件系统、浏览器、支付或任意 HTTP。</li>
+    <li>不代登录、不代提交、不代收款、不托管资金。</li>
+    <li>不返回证件号、手机号、卡号、CVV、验证码；保单/合同只保留机构、金额、期限。</li>
+    <li>公网端点无状态：不存输入、不落库、不发外部请求；每 IP 每分钟 60 次，请求体上限 64KB，CORS 只放行票根自己的页面。</li>
+    <li>只接受票根认可的几个源站；其他来源不带 CORS 头，浏览器侧读不到响应。</li>
+  </ul>
+
+  <h2>6. 机器可读清单</h2>
+  <p><a href="mcp/manifest.json">mcp/manifest.json</a> 列出 7 个工具、传输方式、<code>computes</code> 与安全开关；公网端点同路径也返回一份 <code>/manifest.json</code>。源码与测试说明见 <a href="mcp/README.md">mcp/README.md</a>。</p>
+
+  <h2>7. 实际返回（本机 2026-11-26）</h2>
+  <p><code>rights.lookup</code> 传 <code>{"product":"空调","date":"2026-11-20","receivedDate":"2026-11-20","today":"2026-11-26"}</code> 的真实返回（节选）：</p>
+  <pre><code>{
+  "sample": false,
+  "windows": [
+    {"type":"return","label":"无理由退货","end":"2026-11-27","daysLeft":1,"applicability":"applicable"},
+    {"type":"three_return","label":"三包退货","end":"2026-11-27","daysLeft":1},
+    {"type":"three_exchange","label":"三包换货","end":"2026-12-05","daysLeft":9},
+    {"type":"price","label":"价保","end":null,"daysLeft":null,"applicability":"unknown"},
+    {"type":"warranty","label":"保修·整机","end":"2029-11-20","daysLeft":359},
+    {"type":"warranty_main","label":"保修·主要部件","end":"2032-11-20","daysLeft":1090}
+  ],
+  "nearest": {"label":"无理由退货","daysLeft":1},
+  "evidenceGaps": ["订单页价保标识与截止日"],
+  "ruleVersion": "2026.11.21"
+}</code></pre>
+  <p>价保那一项 <code>daysLeft</code> 是 <code>null</code>——订单页没写标识，票根就不给倒计时。这是设计，不是缺陷。</p>
+
+  <p class="doc-foot"><a href="index.html">返回票根</a> · <a href="evidence.html">核验与边界</a> · <a href="afterpay.html">支付后入口</a></p>
+</main>
+<script>
+(() => {
+  const ENDPOINT = "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp";
+  const btn = document.getElementById("mcpTry");
+  const out = document.getElementById("mcpTryOut");
+  if (!btn || !out) return;
+  btn.addEventListener("click", async () => {
+    out.textContent = "请求中…";
+    try {
+      const res = await fetch(ENDPOINT + "/rights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product: "空调", amount: 3299, date: "2026-11-20", receivedDate: "2026-11-20", today: "2026-11-26" })
+      }).then((r) => r.json());
+      const brief = {
+        nearest: res.nearest && { label: res.nearest.label, daysLeft: res.nearest.daysLeft },
+        windows: (res.windows || []).map((w) => `${w.label} · ${w.daysLeft === null ? "待确认" : w.daysLeft + " 天"}`),
+        evidenceGaps: res.evidenceGaps,
+        ruleVersion: res.ruleVersion
+      };
+      out.textContent = JSON.stringify(brief, null, 2);
+    } catch (e) {
+      out.textContent = "请求失败：" + e.message + "\n（公网端点需要网络；本地预览也可能被浏览器拦截。）";
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>支付后入口 · 原型 · 票根</title>
+<meta name="description" content="票根的支付后入口原型：付款成功那一屏，权利开始计时。当前未接入支付宝。" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="styles.css?v=130" />
+<style>
+  body{background:var(--bg);color:var(--text)}
+  .ap-wrap{max-width:560px;margin:0 auto;padding:20px 16px 48px}
+  .ap-banner{display:flex;gap:8px;align-items:center;border:1px solid var(--amber);background:rgba(244,184,96,.08);color:var(--amber);font-size:12px;line-height:1.5;padding:10px 12px;border-radius:12px;margin-bottom:16px}
+  .ap-banner b{font-weight:600;flex:0 0 auto;white-space:nowrap}
+  .ap-phone{border:1px solid var(--line);border-radius:26px;padding:18px 16px;background:var(--panel)}
+  .ap-top{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-3)}
+  .ap-ok{display:flex;align-items:center;gap:10px;margin-top:18px}
+  .ap-ok i{width:28px;height:28px;border-radius:50%;background:var(--mint);color:#06110C;display:grid;place-items:center;font-style:normal;font-weight:700}
+  .ap-ok b{font-size:15px}
+  .ap-amount{font-family:var(--num);font-size:40px;font-weight:700;color:var(--mint);margin:10px 0 2px;letter-spacing:-.02em}
+  .ap-merchant{font-size:13px;color:var(--text-2)}
+  .ap-divide{height:1px;background:var(--line);margin:16px 0}
+  .ap-title{font-size:17px;font-weight:700;margin:0 0 4px}
+  .ap-sub{font-size:12px;color:var(--text-3);margin:0 0 12px}
+  .ap-clock{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)}
+  .ap-clock:last-child{border-bottom:0}
+  .ap-clock b{font-size:13px}
+  .ap-clock span{font-family:var(--num);font-size:13px;color:var(--mint)}
+  .ap-clock small{display:block;font-size:10px;color:var(--text-3);margin-top:2px;font-weight:400}
+  .ap-actions{display:grid;gap:8px;margin-top:16px}
+  .ap-actions a,.ap-actions button{display:grid;place-items:center;min-height:46px;border-radius:12px;font-size:14px;font-weight:600;text-decoration:none;font-family:inherit;cursor:pointer}
+  .ap-primary{background:var(--mint);color:#06110C;border:0}
+  .ap-ghost{border:1px solid var(--line);color:var(--text);background:transparent}
+  .ap-ghost:disabled{opacity:.55;cursor:default}
+  .ap-note{font-size:10.5px;line-height:1.6;color:var(--text-3);margin:14px 0 0}
+  .ap-section{margin-top:22px;font-size:12.5px;line-height:1.75;color:var(--text-2)}
+  .ap-section h2{font-size:14px;color:var(--text);margin:0 0 6px}
+  .ap-section ol{padding-left:18px;margin:6px 0}
+  .ap-section a{color:var(--mint)}
+  .ap-back{display:inline-block;margin-top:20px;font-size:12px;color:var(--text-3)}
+</style>
+</head>
+<body>
+<main class="ap-wrap">
+  <p class="ap-banner"><b>原型演示</b> · 未接入支付宝。下面这一屏是“如果拿到支付后入口，票根会怎么出现”的设计稿，所有数据都是示例。</p>
+
+  <div class="ap-phone" aria-label="支付后回执原型">
+    <div class="ap-top"><span>票根 · 支付后</span><span>示例</span></div>
+    <div class="ap-ok"><i>✓</i><b>支付成功</b></div>
+    <p class="ap-amount">¥3,299.00</p>
+    <p class="ap-merchant">某家电卖场 · 1.5 匹空调</p>
+
+    <div class="ap-divide"></div>
+
+    <h1 class="ap-title">这笔钱的权利，开始计时。</h1>
+    <p class="ap-sub">先把三个截止日记下来，过期再找就晚了。</p>
+    <div class="ap-clock"><div><b>退货</b><small>线上 7 天无理由</small></div><span>剩 3 天</span></div>
+    <div class="ap-clock"><div><b>价保</b><small>以订单页标识为准</small></div><span>待确认</span></div>
+    <div class="ap-clock"><div><b>保修</b><small>整机与主要部件不同</small></div><span>按发票</span></div>
+
+    <div class="ap-actions">
+      <a class="ap-primary" href="index.html?from=afterpay&amp;merchant=%E6%9F%90%E5%AE%B6%E7%94%B5%E5%8D%96%E5%9C%BA&amp;product=1.5%E5%8C%B9%E7%A9%BA%E8%B0%83&amp;amount=3299&amp;date=2026-11-25&amp;order=AP-DEMO-001">看权利回执</a>
+      <a class="ap-ghost" href="index.html?from=afterpay&amp;merchant=%E6%9F%90%E5%AE%B6%E7%94%B5%E5%8D%96%E5%9C%BA&amp;product=1.5%E5%8C%B9%E7%A9%BA%E8%B0%83&amp;amount=3299&amp;date=2026-11-25&amp;order=AP-DEMO-001">先存下来，明天再说</a>
+      <button class="ap-ghost" id="copyAfterpay" type="button">复制接入链接</button>
+    </div>
+    <p class="ap-note">这一屏只带订单号与金额来打开回执；不读卡号、不读余额、不代付款。示例数字不是承诺，实际天数以订单页与合同为准。</p>
+  </div>
+
+  <section class="ap-section">
+    <h2>接入会怎么做（现在没做）</h2>
+    <ol>
+      <li>支付宝开放平台申请“支付后推荐位 / 小程序跳转”能力；审核通过后才会有真实入口。</li>
+      <li>支付成功回调里带 <code>out_trade_no</code> 与金额，打开票根回执页；不传手机号、不传卡信息。</li>
+      <li>回执页用本地规则算窗口；用户确认后写入本机，再按需设置日历提醒。</li>
+    </ol>
+    <p>当前状态：只有这一张原型页；没有商户号、没有申请入口、没有真实支付回调。作品本身是可用 Web 应用，不依赖这个入口。</p>
+    <p><a href="miniapp.html">看小程序壳原型</a> · <a href="alipay-mini/README.md">看支付宝小程序源码说明</a></p>
+
+    <h2>已经实现的 URL 参数契约</h2>
+    <p>支付完成页不需要 SDK，只要按下面的参数打开票根，就会生成一张带来源标记的案卷。只传交易号、商品、金额和日期；不传手机号、卡号、余额或登录态。</p>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;margin:8px 0 12px">
+      <thead><tr><th style="text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)">参数</th><th style="text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)">必填</th><th style="text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)">说明</th></tr></thead>
+      <tbody>
+        <tr><td style="padding:6px 4px;border-bottom:1px solid var(--line)"><code>from=afterpay</code></td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">是</td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">标记来源，案卷会显示“来自支付完成页”</td></tr>
+        <tr><td style="padding:6px 4px;border-bottom:1px solid var(--line)"><code>merchant</code></td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">至少一项</td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">商家名，最多 40 字</td></tr>
+        <tr><td style="padding:6px 4px;border-bottom:1px solid var(--line)"><code>product</code></td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">至少一项</td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">商品/服务名，最多 60 字</td></tr>
+        <tr><td style="padding:6px 4px;border-bottom:1px solid var(--line)"><code>amount</code></td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">否</td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">实付金额，正数；没有就留空</td></tr>
+        <tr><td style="padding:6px 4px;border-bottom:1px solid var(--line)"><code>date</code></td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">否</td><td style="padding:6px 4px;border-bottom:1px solid var(--line)">YYYY-MM-DD；没有就用当天</td></tr>
+        <tr><td style="padding:6px 4px"><code>order</code></td><td style="padding:6px 4px">否</td><td style="padding:6px 4px">交易号，用于去重；不要传卡号</td></tr>
+      </tbody>
+    </table>
+    <p class="ap-note">同一交易号重复打开不会重复建案。接入示例：<code>index.html?from=afterpay&amp;merchant=某商家&amp;product=某商品&amp;amount=299&amp;date=2026-11-25&amp;order=AP-001</code></p>
+
+    <a class="ap-back" href="index.html">← 返回票根</a>
+  </section>
+</main>
+<script>
+  document.getElementById("copyAfterpay").addEventListener("click", async () => {
+    const base = location.href.replace(/afterpay\.html.*$/, "index.html");
+    const link = base + "?from=afterpay&merchant=" + encodeURIComponent("某家电卖场") +
+      "&product=" + encodeURIComponent("1.5 匹空调") + "&amount=3299&date=" +
+      new Date().toISOString().slice(0, 10) + "&order=AP-DEMO-001";
+    try {
+      await navigator.clipboard.writeText(link);
+      const btn = document.getElementById("copyAfterpay");
+      btn.textContent = "已复制";
+      setTimeout(() => { btn.textContent = "复制接入链接"; }, 1600);
+    } catch {
+      prompt("复制这个链接：", link);
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "name": "piaogen-rights",
+  "displayName": "票根 · 消费权利计算",
+  "version": "1.0.0",
+  "description": "给一张票，算出还能退几天、三包哪几项、价保截没截止、保修到哪天，还缺什么证据、该找谁、别做什么。只读计算，不代提交、不承诺结果。",
+  "license": "仅供赛事评审与演示",
+  "entry": "SKILL.md",
+  "rulesVersion": "2026.11.21",
+  "site": "V14.0",
+  "tags": ["消费维权", "退货换货", "价保", "保修", "自动续费", "预付卡", "保险犹豫期", "拒付"],
+  "capabilities": {
+    "mcp": {
+      "transport": "http-json-rpc",
+      "endpoint": "https://xiongxiongkaifa-d4flmaia4021b1d1-1506832756.ap-shanghai.app.tcloudbase.com/piaogen-mcp",
+      "mode": "read-only",
+      "tools": ["rights.lookup", "rights.plan", "policy.parse", "finance.lookup", "finance.plan"]
+    },
+    "rest": {
+      "rights": "POST /piaogen-mcp/rights",
+      "plan": "POST /piaogen-mcp/plan",
+      "manifest": "GET /piaogen-mcp/manifest.json",
+      "openapi": "GET /piaogen-mcp/openapi.json"
+    },
+    "local": {
+      "stdio": "node mcp/server.js",
+      "http": "node mcp/http-server.js"
+    }
+  },
+  "inputs": {
+    "product": "商品名，例如「空调」",
+    "amount": "购买金额",
+    "date": "购买日期 YYYY-MM-DD",
+    "receivedDate": "签收日期；线上 7 天无理由从这天算",
+    "invoiceDate": "发票日期；三包从这天算",
+    "channel": "taobao / jd / alipay / offline 等",
+    "currentPrice": "当前同款价格；有价保时用来算差价",
+    "today": "按哪天算，默认今天"
+  },
+  "outputs": ["windows", "nearest", "evidenceGaps", "next", "materials", "official", "doNot"],
+  "boundaries": [
+    "不代提交任何投诉或申请",
+    "不代收款、不托管资金",
+    "不索取完整卡号 / CVV / 验证码",
+    "不承诺保证退回或保证拒付成功",
+    "没有公开依据的天数不倒计时"
+  ],
+  "files": ["SKILL.md", "README.md", "mcp/rights-engine.js", "mcp/rights-data.json", "mcp/openapi.json"]
+}

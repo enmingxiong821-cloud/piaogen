@@ -1,0 +1,8 @@
+{
+  "name": "piaogen-mcp",
+  "version": "0.5.0",
+  "private": true,
+  "description": "票根公网只读 MCP 端点（CloudBase HTTP 函数）",
+  "main": "index.js",
+  "engines": { "node": ">=18" }
+}

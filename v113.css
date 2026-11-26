@@ -1,0 +1,273 @@
+/* V13 · 首屏判断前置 + 三色结论 + 一键拨号
+   借鉴：米缸/让我看看/合同纠纷的首屏判断卡，长辈防坑保镖的红黄绿与直拨。
+   不新增色值，用已有的 mint / amber / coral 三档。 */
+
+/* ========== 首屏：判断卡 ========== */
+.verdict{
+  width:100%;max-width:420px;
+  margin:22px 0 0;
+  padding:18px 18px 16px;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:var(--panel);
+  box-shadow:none;
+}
+.verdict-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.verdict-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:var(--ink-3)}
+.verdict-dot.urgent{background:var(--coral);box-shadow:0 0 0 4px rgba(255,113,91,.14)}
+.verdict-lead{font-size:13px;letter-spacing:.01em;color:var(--ink)}
+.verdict-tag{
+  margin-left:auto;font-size:10px;letter-spacing:.08em;color:var(--ink-3);
+  border:1px solid var(--line);border-radius:6px;padding:1px 6px;
+}
+.verdict-title{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding-bottom:12px;border-bottom:1px solid var(--line);
+}
+.verdict-title span{font-size:12.5px;color:var(--ink-2);line-height:1.4}
+.verdict-title b{
+  font-family:var(--num);font-size:26px;line-height:1;
+  letter-spacing:-.02em;color:var(--mint);flex:0 0 auto;
+}
+.verdict-rows{margin:0;padding:0;display:grid;gap:0}
+.verdict-rows > div{
+  display:flex;justify-content:space-between;gap:12px;
+  padding:9px 0;border-bottom:1px solid var(--line);font-size:12px;
+}
+.verdict-rows > div:last-child{border-bottom:0}
+.verdict-rows dt{color:var(--ink-3);margin:0}
+.verdict-rows dd{margin:0;font-family:var(--num);color:var(--ink-2);text-align:right}
+.verdict-rows dd.urgent{color:var(--coral)}
+.verdict-cta{width:100%;margin-top:14px}
+.verdict-note{
+  margin:10px 0 0;font-size:10.5px;line-height:1.6;
+  color:var(--ink-3);text-align:center;
+}
+
+/* 办事台是核心入口，不折叠，用一条文字链带出去 */
+.hero-toolbox{
+  margin-top:14px;font-size:12.5px;color:var(--ink-3);align-self:flex-start;
+}
+.hero-toolbox:hover{color:var(--mint)}
+
+/* 首屏更多入口：默认折叠 */
+.hero-more{
+  width:100%;max-width:420px;margin:18px 0 0;
+  border-top:1px solid var(--line);padding-top:12px;
+}
+.hero-more > summary{
+  cursor:pointer;list-style:none;font-size:12px;color:var(--ink-3);
+  padding:4px 0;display:flex;align-items:center;gap:6px;
+}
+.hero-more > summary::-webkit-details-marker{display:none}
+.hero-more > summary::after{content:"›";margin-left:2px;transition:transform .2s var(--ease)}
+.hero-more[open] > summary::after{transform:rotate(90deg)}
+.hero-more[open] > summary{color:var(--ink-2)}
+.hero-more .hero-grid{margin-top:12px}
+
+/* 首屏 h1 里的数字用薄荷绿 */
+.empty h1 em{
+  font-style:normal;font-family:var(--num);
+  color:var(--mint);letter-spacing:-.02em;
+}
+
+@media (max-width:420px){
+  .verdict{margin-top:18px;padding:16px 16px 14px}
+  .verdict-title b{font-size:24px}
+  .verdict-rows > div{padding:8px 0}
+}
+@media (max-width:360px){
+  .verdict-title{flex-direction:column;align-items:flex-start;gap:6px}
+  .verdict-title b{font-size:22px}
+}
+/* 900 起：左文案 + 右判断卡两栏，右边界对齐；判断卡不再压在大标题下面。
+   外壳内容宽约 680（980 壳减内边距），所以按真实可用宽分栏，不硬塞 392。
+   768–899 仍用单栏：那里两栏会把标题挤成 4 行、按钮文字换行。 */
+@media (min-width:900px){
+  .empty{align-items:center;padding-bottom:96px;min-height:calc(100dvh - 200px)}
+  .hero-copy{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(268px,304px);
+    grid-template-areas:"top card" "quick card" "toolbox card" "proof card" "more card" "fine card";
+    column-gap:36px;row-gap:0;align-items:start;width:100%;
+  }
+  .hero-top{grid-area:top;min-width:0}
+  .hero-copy .verdict{grid-area:card;max-width:none;margin-top:0;align-self:start;padding:16px 16px 14px}
+  .hero-copy .verdict-title b{font-size:24px}
+  .hero-copy .quick-row{grid-area:quick;max-width:none}
+  .hero-copy .hero-toolbox{grid-area:toolbox;justify-self:start;margin-top:12px}
+  .hero-copy .hero-proof{grid-area:proof;margin-top:16px}
+  .hero-copy .hero-more{grid-area:more;width:100%;max-width:none;margin-top:12px}
+  .hero-copy .fine{grid-area:fine;max-width:none;margin-top:10px}
+  .hero-copy h1{max-width:none;font-size:36px;line-height:1.18}
+  .hero-copy .lede{max-width:none;margin-top:12px}
+  .hero-copy .eyebrow{margin-bottom:8px}
+}
+@media (min-width:1100px){
+  .hero-copy{grid-template-columns:minmax(0,1fr) 336px;column-gap:48px}
+  .hero-copy h1{font-size:40px}
+}
+
+/* ========== 三色结论与一键拨号 ========== */
+
+/* —— 红黄绿结论条 —— */
+.tb-signal{
+  display:flex;align-items:center;gap:9px;
+  margin:-2px 0 12px;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid var(--line);
+  background:var(--panel);
+}
+.tb-signal-dot{
+  width:9px;height:9px;border-radius:50%;flex:0 0 auto;
+  background:var(--ink-3);
+}
+.tb-signal-word{
+  font-size:14px;letter-spacing:.02em;flex:0 0 auto;
+}
+.tb-signal-why{
+  font-size:11.5px;color:var(--ink-3);line-height:1.4;
+  min-width:0;
+}
+
+/* 红：别动 */
+.signal-red .tb-signal{border-color:rgba(255,113,91,.4);background:rgba(255,113,91,.07)}
+.signal-red .tb-signal-dot{background:var(--coral);box-shadow:0 0 0 4px rgba(255,113,91,.16)}
+.signal-red .tb-signal-word{color:var(--coral)}
+.signal-red{border-left:2px solid var(--coral)}
+
+/* 黄：小心 */
+.signal-amber .tb-signal{border-color:rgba(244,184,96,.36);background:rgba(244,184,96,.06)}
+.signal-amber .tb-signal-dot{background:var(--amber);box-shadow:0 0 0 4px rgba(244,184,96,.14)}
+.signal-amber .tb-signal-word{color:var(--amber)}
+.signal-amber{border-left:2px solid var(--amber)}
+
+/* 绿：放心 */
+.signal-green .tb-signal{border-color:rgba(157,240,194,.3);background:rgba(157,240,194,.05)}
+.signal-green .tb-signal-dot{background:var(--mint);box-shadow:0 0 0 4px rgba(157,240,194,.14)}
+.signal-green .tb-signal-word{color:var(--mint)}
+.signal-green{border-left:2px solid var(--mint)}
+
+/* —— 一键直拨 —— */
+.call-row{
+  display:flex;gap:8px;flex-wrap:wrap;
+  margin:12px 0 4px;
+}
+.call-btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 14px;
+  border-radius:99px;
+  border:1px solid var(--line);
+  background:var(--panel);
+  color:var(--ink);
+  font-size:13px;
+  font-weight:600;
+  text-decoration:none;
+  line-height:1;
+}
+.call-btn svg{flex:0 0 auto;opacity:.75}
+.call-btn:hover{border-color:var(--mint);color:var(--mint)}
+.call-btn.hot{
+  border-color:rgba(255,113,91,.45);
+  background:rgba(255,113,91,.08);
+  color:var(--coral);
+}
+.call-btn.hot:hover{background:rgba(255,113,91,.14);color:var(--coral)}
+.call-note{
+  margin:6px 0 0;
+  font-size:10.5px;line-height:1.6;color:var(--ink-3);
+}
+
+/* —— 案卷：三色结论 —— */
+.case-signal{
+  display:flex;align-items:flex-start;gap:10px;
+  margin:0 0 14px;
+  padding:13px 15px;
+  border-radius:14px;
+  border:1px solid var(--line);
+  background:var(--panel);
+}
+.case-signal-dot{
+  width:10px;height:10px;border-radius:50%;flex:0 0 auto;margin-top:5px;
+}
+.case-signal-body{min-width:0;flex:1}
+.case-signal-body b{display:block;font-size:14px;margin-bottom:3px}
+.case-signal-body p{margin:0;font-size:12.5px;line-height:1.6;color:var(--ink-2)}
+.case-signal.red{border-color:rgba(255,113,91,.4);background:rgba(255,113,91,.06)}
+.case-signal.red .case-signal-dot{background:var(--coral);box-shadow:0 0 0 4px rgba(255,113,91,.16)}
+.case-signal.red b{color:var(--coral)}
+.case-signal.amber{border-color:rgba(244,184,96,.36);background:rgba(244,184,96,.05)}
+.case-signal.amber .case-signal-dot{background:var(--amber);box-shadow:0 0 0 4px rgba(244,184,96,.14)}
+.case-signal.amber b{color:var(--amber)}
+.case-signal.green{border-color:rgba(157,240,194,.3);background:rgba(157,240,194,.04)}
+.case-signal.green .case-signal-dot{background:var(--mint);box-shadow:0 0 0 4px rgba(157,240,194,.14)}
+.case-signal.green b{color:var(--mint)}
+
+/* —— 置信度三级标签（借鉴 PAWGO 的「带来源三级置信」）—— */
+.conf-tag{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;font-weight:400;padding:0 5px;border-radius:4px;
+  border:1px solid currentColor;line-height:1.6;
+  vertical-align:middle;letter-spacing:0;
+  opacity:.92;flex:0 0 auto;
+}
+.conf-tag.high{color:var(--mint)}
+.conf-tag.mid{color:var(--amber)}
+.conf-tag.low{color:var(--ink-3)}
+.conf-tag::before{content:"";width:4px;height:4px;border-radius:50%;background:currentColor}
+
+/* —— 390 压缩 —— */
+@media (max-width:420px){
+  .tb-signal{padding:9px 11px;gap:8px}
+  .tb-signal-word{font-size:13.5px}
+  .tb-signal-why{font-size:11px}
+  .call-btn{padding:8px 12px;font-size:12.5px}
+}
+
+/* —— 减少动效 —— */
+@media (prefers-reduced-motion:reduce){
+  .call-btn,.tb-signal,.call-btn:active{transition:none;transform:none}
+}
+
+/* —— 置信度图例 —— */
+.conf-legend{
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+  margin:0 0 12px;font-size:11px;line-height:1.6;color:var(--ink-3);
+}
+.conf-legend > span:not(.conf-tag){
+  margin-left:2px;flex:1 1 100%;font-size:10.5px;line-height:1.55;
+}
+@media (max-width:420px){
+  .conf-legend{gap:4px}
+  .conf-legend > span:not(.conf-tag){font-size:10px}
+}
+
+/* —— V13.1 交互反馈层（12 种高级交互 → 状态反馈）与数字排版（标准化组件系统）—— */
+
+/* 可点的折叠摘要也要有键盘焦点环（全局规则只覆盖 button/a） */
+summary:focus-visible{outline:2px solid var(--mint);outline-offset:2px;border-radius:6px}
+
+/* 首屏折叠入口按钮：补按压反馈（hover/焦点已有） */
+.hero-grid button:active{transform:scale(.985);border-color:rgba(157,240,194,.5)}
+.hero-grid button:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
+
+/* 文字链按钮按压反馈 */
+.link-btn:active,.text-btn:active{opacity:.72}
+.link-btn:active{transition:opacity 120ms var(--ease-out)}
+
+/* 判断卡行与首屏指标：数字统一等宽（一行一列排齐，不随数字位数抖动） */
+.verdict-rows dd,.hero-proof b{font-variant-numeric:tabular-nums}
+
+/* —— 减少动效（V13.1 新增元素并入）—— */
+@media (prefers-reduced-motion:reduce){
+  .hero-grid button:active,.link-btn:active{transform:none;transition:none}
+}
+
+/* 首屏三项：数字用大字号，文字型（本地/免注册）降一档，避免「看起来都是数字」 */
+.hero-proof{padding:12px 6px}
+.hero-proof b{font-size:20px;line-height:1.15;letter-spacing:-.01em}
+.hero-proof span{font-size:10px;line-height:1.45;margin-top:4px;overflow-wrap:anywhere}
+.hero-proof div:nth-child(2) b,
+.hero-proof div:nth-child(3) b{font-size:13px;font-weight:600;letter-spacing:.01em;line-height:1.6}
+
+

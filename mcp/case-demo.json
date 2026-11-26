@@ -1,0 +1,84 @@
+{
+  "version": "2026-11-19",
+  "cases": [
+    {
+      "caseId": "PG-20261113-0001",
+      "merchant": "某家电卖场",
+      "amount": 399,
+      "date": "2026-11-13",
+      "product": "某品牌空气炸锅",
+      "category": "appliance",
+      "status": "进行中",
+      "evidence": [
+        { "type": "订单截图", "label": "淘宝订单截图", "detail": "实付 ¥399 · 2026-11-13", "confidence": 96 },
+        { "type": "电子发票", "label": "电子发票 PDF", "detail": "价税合计 ¥399", "confidence": 94 },
+        { "type": "聊天承诺", "label": "商家承诺", "detail": "7 天无理由、30 天价保", "confidence": 70 }
+      ],
+      "missing": ["同款价格页"],
+      "windows": [
+        { "type": "price", "label": "价保", "end": "2026-11-20", "daysLeft": 1, "source": "淘宝价保 7 天，以订单页为准", "amount": 120 },
+        { "type": "return", "label": "退货", "end": "2026-11-20", "daysLeft": 1, "source": "消保法第二十五条 / 三包第九条", "amount": 399 },
+        { "type": "warranty", "label": "保修", "end": "2027-11-13", "daysLeft": 359, "source": "三包第八条", "amount": 0 }
+      ],
+      "primary": {
+        "label": "先补同款价格证据",
+        "detail": "比价员找到 ¥279，但页面是 AF-399 Pro；型号对不上，价差结论不进入主行动。",
+        "checklist": ["订单截图", "当前降价页面", "同款商品链接"],
+        "script": "你好，我在某家电卖场购买的空气炸锅（¥399，2026-11-13）现在同款降价。请帮我核对是否符合价保条件、能退多少差价、需要提交哪些截图。",
+        "portal": "https://www.taobao.com"
+      },
+      "doNot": ["不替用户提交", "不承诺一定退", "不拿 AF-399 Pro 冒充 AF-399"]
+    },
+    {
+      "caseId": "PG-20261108-0002",
+      "merchant": "某家具城",
+      "amount": 1280,
+      "date": "2026-11-08",
+      "product": "实木餐桌 1.4m",
+      "category": "furniture",
+      "status": "进行中",
+      "evidence": [
+        { "type": "订单截图", "label": "京东订单截图", "detail": "实付 ¥1,280 · 2026-11-08", "confidence": 93 },
+        { "type": "电子发票", "label": "电子发票 PDF", "detail": "价税合计 ¥1,280", "confidence": 91 }
+      ],
+      "missing": ["承诺确认"],
+      "windows": [
+        { "type": "warranty", "label": "保修", "end": "2028-11-07", "daysLeft": 719, "source": "商家承诺整机保修 2 年" },
+        { "type": "promise", "label": "承诺", "end": "", "daysLeft": null, "source": "30 天内降价退差；商家未在平台确认" }
+      ],
+      "primary": {
+        "label": "确认商家承诺",
+        "detail": "聊天里写了 30 天降价退差，但商家没有在平台确认；先让商家确认，再谈价差。",
+        "checklist": ["订单截图", "商家承诺截图", "同款价格页"],
+        "script": "你好，购买时你方承诺整机保修 2 年、30 天内降价退差。请确认这条承诺是否仍然有效，以及兑现需要什么条件。",
+        "portal": "https://www.jd.com"
+      },
+      "doNot": ["不把聊天承诺写成平台规则", "不替用户提交"]
+    },
+    {
+      "caseId": "PG-20261101-0003",
+      "merchant": "某装修公司",
+      "amount": 5000,
+      "date": "2026-11-01",
+      "product": "厨房改造定金",
+      "category": "renovation",
+      "status": "待补证据",
+      "evidence": [
+        { "type": "合同照片", "label": "定金收据", "detail": "定金 ¥5,000 · 2026-11-01", "confidence": 88 },
+        { "type": "合同照片", "label": "合同第 3 页", "detail": "开工前可退，扣 10% 设计费", "confidence": 79 }
+      ],
+      "missing": ["合同原件"],
+      "windows": [
+        { "type": "deposit", "label": "定金", "end": "", "daysLeft": null, "source": "民法典第五百八十六至五百八十八条" }
+      ],
+      "primary": {
+        "label": "补合同原件",
+        "detail": "收据只能证明付了钱，退款条件要看合同原件；补齐后再判断能退多少。",
+        "checklist": ["合同原件", "定金收据", "沟通记录"],
+        "script": "你好，我在某装修公司支付的厨房改造定金（¥5,000，2026-11-01）想确认退还或转尾款的条件。请提供合同里的定金条款。",
+        "portal": ""
+      },
+      "doNot": ["不判断合同效力", "不承诺双倍返还", "不替用户签字"]
+    }
+  ]
+}

@@ -1,0 +1,235 @@
+/* ============================================================
+   V14.0 · 全站设计升级：瓷片区 + 错位布局 + Bento + 大字留白
+   来源：130 条抖音设计视频提炼（91 号文档）。
+   红线：零新色值；圆角只用 6/12/18；动效只动 transform/opacity；
+   reduced-motion 全部归零；既有选择器一律保留（测试契约）。
+   ============================================================ */
+
+/* ---------- 0. 动效令牌 ---------- */
+:root{
+  --dur-1:150ms;--dur-2:240ms;--dur-3:380ms;
+  --ease-out:cubic-bezier(.22,1,.36,1);
+  --num-xl:clamp(44px,9.6vw,72px);
+}
+
+/* ---------- 1. 石墨黑底加同色系数字纹理（视频70：别用纯黑） ---------- */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    repeating-linear-gradient(0deg,rgba(255,255,255,.012) 0 1px,transparent 1px 3px);
+  opacity:.5;
+}
+#app,body>*{position:relative;z-index:1}
+
+/* ---------- 2. 瓷片区（视频48/90：首页主视觉承载核心数字） ---------- */
+/* 判断卡升级为瓷片区：保留 .verdict 类名（测试契约），视觉重排 */
+.verdict{
+  position:relative;overflow:hidden;
+  border-radius:24px;
+  background:
+    radial-gradient(320px 160px at 92% -10%,rgba(157,240,194,.16),transparent 72%),
+    linear-gradient(158deg,rgba(31,43,45,.98),rgba(14,21,22,.99));
+  box-shadow:0 28px 70px -50px #000;
+}
+.verdict::after{
+  content:"";position:absolute;right:-46px;bottom:-70px;width:160px;height:160px;
+  border-radius:50%;border:1px solid rgba(157,240,194,.15);pointer-events:none;
+}
+/* 金额行升级为大字：¥3,299 → 主角 */
+.verdict-title b{
+  font-size:var(--num-xl);
+  letter-spacing:-.045em;
+  color:var(--mint);
+  font-variant-numeric:tabular-nums;
+  line-height:.95;
+}
+.verdict-title span{
+  font-size:12px;color:var(--ink-2);line-height:1.5;
+}
+.verdict-head .verdict-lead{font-size:14.5px}
+
+/* ---------- 3. 错位示例卡（视频13/90：打破齐排模板感） ---------- */
+.stagger-row{
+  display:grid;grid-template-columns:1fr 1.35fr;gap:10px;
+  margin:14px 0 0;max-width:420px;
+}
+.stagger-chip{
+  padding:12px 14px;border:1px solid var(--line);border-radius:12px;
+  background:var(--panel);display:flex;flex-direction:column;gap:4px;
+}
+.stagger-chip small{font-size:10px;color:var(--ink-3);letter-spacing:.04em}
+.stagger-chip b{font-family:var(--num);font-size:15px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.stagger-chip b.coral{color:var(--coral)}
+.stagger-chip b.amber{color:var(--amber)}
+.stagger-chip:nth-child(1){transform:translateY(10px)}
+.stagger-chip:nth-child(2){transform:translateY(-4px)}
+.stagger-chip:nth-child(3){grid-column:1/-1;transform:translateX(14px)}
+@media (prefers-reduced-motion:reduce){.stagger-chip{transform:none}}
+
+/* ---------- 4. Bento 统计（视频114：大小不一的块，职责明确） ---------- */
+/* 保留 .stats/.stat 类名，视觉重排为 bento */
+.stats{
+  grid-template-columns:1.4fr 1fr 1fr;gap:8px;
+  background:transparent;border:0;border-radius:0;overflow:visible;margin-top:18px;
+}
+.stat{
+  border:1px solid var(--line);border-radius:18px;background:var(--panel);
+  padding:14px 14px 12px;position:relative;overflow:hidden;
+  transition:border-color var(--dur-2) var(--ease-out);
+}
+.stat:first-child{
+  background:
+    radial-gradient(220px 120px at 100% 0,rgba(255,113,91,.10),transparent 70%),
+    var(--panel);
+}
+.stat b{
+  font-size:28px;letter-spacing:-.03em;line-height:1;
+}
+.stat.warn b{color:var(--coral)}
+.stat.ok b{color:var(--mint)}
+.stat span{font-size:10px;color:var(--ink-3);margin-top:6px;display:block;letter-spacing:.02em}
+.stat:hover{border-color:rgba(157,240,194,.4)}
+
+/* ---------- 5. 骨架屏扫光（视频33：等待时给用户看什么） ---------- */
+.sk{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--panel);padding:16px}
+.sk-line{height:12px;border-radius:5px;background:var(--line);margin:10px 0;position:relative}
+.sk-line.w40{width:40%}
+.sk-line.w70{width:70%}
+.sk::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(100deg,transparent 30%,rgba(157,240,194,.07) 50%,transparent 70%);
+  transform:translateX(-100%);animation:sk-sweep 1.4s ease-in-out infinite;
+}
+@keyframes sk-sweep{to{transform:translateX(100%)}}
+
+/* ---------- 6. 图片模糊进场（视频33） ---------- */
+img[data-blur]{
+  filter:blur(8px);opacity:.4;
+  transition:filter var(--dur-3) var(--ease-out),opacity var(--dur-3) var(--ease-out);
+}
+img[data-blur].blur-done{filter:blur(0);opacity:1}
+
+/* ---------- 7. 标题逐字浮现（视频30） ---------- */
+.char-reveal .ch{
+  display:inline-block;opacity:0;transform:translateY(5px);
+  animation:ch-in var(--dur-2) var(--ease-out) both;
+}
+@keyframes ch-in{to{opacity:1;transform:none}}
+
+/* ---------- 8. 图表 hover 数值浮层（视频21：数据会反馈） ---------- */
+.report-bar{position:relative;cursor:default}
+.report-bar::before{
+  content:attr(data-v);
+  position:absolute;bottom:calc(100% + 6px);left:50%;
+  transform:translateX(-50%) translateY(4px);
+  padding:4px 8px;border-radius:8px;
+  background:#141B1D;border:1px solid var(--line);
+  font-family:var(--num);font-size:10px;color:var(--ink);
+  white-space:nowrap;opacity:0;pointer-events:none;
+  transition:opacity var(--dur-1) var(--ease-out),transform var(--dur-1) var(--ease-out);
+  z-index:2;
+}
+.report-bar:hover::before{opacity:1;transform:translateX(-50%)}
+.report-bar:hover i{filter:brightness(1.25)}
+
+/* ---------- 9. 案卷卡错位与 hover 层次（视频13/34） ---------- */
+.case-list-item{
+  border-radius:18px;position:relative;overflow:hidden;
+  transition:transform var(--dur-2) var(--ease-out),border-color var(--dur-2) var(--ease-out);
+}
+.case-list-item:hover{transform:translateY(-2px)}
+.case-list-item:active{transform:scale(.985)}
+
+/* ticket 列表：错位节奏 */
+.ticket-item{transition:transform var(--dur-2) var(--ease-out)}
+.ticket-item:hover{transform:translateX(3px)}
+.ticket-item:active{transform:scale(.985)}
+
+/* ---------- 10. 层叠卡（视频34：重叠排列） ---------- */
+.stack-cards{position:relative}
+.stack-cards > * + *{margin-top:-8px}
+.stack-cards > *:nth-child(2){transform:translateX(10px)}
+.stack-cards > *:nth-child(3){transform:translateX(20px)}
+@media (prefers-reduced-motion:reduce){
+  .stack-cards > *:nth-child(2),
+  .stack-cards > *:nth-child(3){transform:none}
+}
+
+/* ---------- 11. 共享元素转场（视频27/30：卡片长成整页） ---------- */
+body.pg-zooming .screen{overflow:hidden}
+.pg-zoom-origin{position:relative;z-index:1;animation:pg-grow var(--dur-3) var(--ease-out) both}
+@keyframes pg-grow{
+  from{transform:scale(1);opacity:1}
+  to{transform:scale(.985);opacity:.86}
+}
+.screen.on.pg-enter{animation:pg-screen-grow var(--dur-3) var(--ease-out) both}
+@keyframes pg-screen-grow{
+  from{opacity:.4;transform:translateY(14px) scale(.985)}
+  to{opacity:1;transform:none}
+}
+
+/* ---------- 12. 手风琴（视频34：横向折叠） ---------- */
+.acc{display:flex;gap:6px;overflow:hidden;border-radius:14px}
+.acc > *{
+  flex:1;min-width:0;overflow:hidden;white-space:nowrap;
+  transition:flex var(--dur-3) var(--ease-out);
+  border:1px solid var(--line);border-radius:12px;background:var(--panel);
+  padding:10px 12px;cursor:pointer;
+}
+.acc > *.on{flex:2.6;background:var(--panel);border-color:rgba(157,240,194,.4)}
+
+/* ---------- 13. 焦点环统一（V13.1 并入全站） ---------- */
+:where(.btn,.link-btn,.text-btn,summary,[role="button"],.case-list-item,.ticket-item,.stagger-chip,.forgotten-card):focus-visible{
+  outline:2px solid var(--mint);outline-offset:2px;border-radius:6px;
+}
+
+/* ---------- 14. 按钮微交互升级 ---------- */
+.btn{transition:transform var(--dur-1) var(--ease-out),background-color var(--dur-2) var(--ease-out),border-color var(--dur-2) var(--ease-out),color var(--dur-2) var(--ease-out)}
+.btn:active{transform:scale(.985)}
+.btn[data-loading="true"]{pointer-events:none;opacity:.7}
+.btn[data-loading="true"]::after{
+  content:"";display:inline-block;width:11px;height:11px;margin-left:7px;vertical-align:-1px;
+  border:1.5px solid currentColor;border-right-color:transparent;border-radius:50%;
+  animation:pg-spin .8s linear infinite;
+}
+@keyframes pg-spin{to{transform:rotate(360deg)}}
+.btn[disabled],.btn[aria-disabled="true"]{opacity:.45;pointer-events:none;color:var(--ink-3)}
+
+/* ---------- 15. 屏幕进场升级（保留 softIn 位置，覆盖为更有层次） ---------- */
+.screen.on{animation:pg-unseal var(--dur-3) var(--ease-out) both}
+@keyframes pg-unseal{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ---------- 16. tabbar 指示条（视频63：滑动指示线） ---------- */
+.tabbar-item{position:relative}
+.tabbar-item::after{
+  content:"";position:absolute;left:50%;right:50%;bottom:6px;height:2px;
+  background:var(--mint);border-radius:2px;opacity:0;
+  transition:left var(--dur-2) var(--ease-out),right var(--dur-2) var(--ease-out),opacity var(--dur-2) var(--ease-out);
+}
+.tabbar-item.on::after{left:calc(50% - 12px);right:calc(50% - 12px);opacity:1}
+
+/* ---------- 17. 报告页编辑分栏（视频90：杂志式） ---------- */
+@media (min-width:900px){
+  .report-kpis{grid-template-columns:repeat(4,1fr)}
+  .report-section{display:grid;grid-template-columns:200px minmax(0,1fr);column-gap:24px;align-items:start}
+  .report-section-head{padding-top:2px}
+  .report-chart{height:140px}
+  .report-advice div{font-size:12px}
+  .report-hero h2{font-size:30px}
+  .report-big strong{font-size:56px}
+}
+
+/* ---------- 18. 减少动效：一处归零（并入全部新增元素） ---------- */
+@media (prefers-reduced-motion:reduce){
+  .screen.on,
+  .sk::after,
+  .char-reveal .ch,
+  .btn[data-loading="true"]::after,
+  .report-bar::before,
+  .pg-zoom-origin,
+  .screen.on.pg-enter{animation:none!important}
+  img[data-blur]{filter:none;opacity:1;transition:none}
+  .report-bar::before{transition:none}
+  .btn:active,.btn,.case-list-item,.ticket-item,.acc > *{transition:none;transform:none}
+  .tabbar-item::after{transition:none}
+}

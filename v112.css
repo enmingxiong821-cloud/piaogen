@@ -1,0 +1,192 @@
+/* V12 · 融合升级：案卷备料完整度、否决清单、五段式；导入撤销；诉求四版；法条三层
+   只新增局部组件，沿用石墨黑/薄荷绿令牌，不改整体调性。 */
+
+/* —— 案卷 · 备料完整度 —— */
+.case-ready{
+  margin:14px 0 4px;
+  padding:14px 16px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:linear-gradient(180deg,var(--panel-2),var(--panel));
+}
+.case-ready-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+.case-ready-head b{font-size:13.5px;letter-spacing:.02em}
+.case-ready-head span{font-family:var(--num);font-size:12px}
+.case-ready-head .ok{color:var(--mint)}
+.case-ready-head .warn{color:var(--amber)}
+.case-ready-bar{height:6px;border-radius:99px;background:var(--line-2);overflow:hidden}
+.case-ready-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--mint-2),var(--mint));transition:width .4s var(--ease)}
+.case-ready-hint{margin:10px 0 6px;font-size:12px;color:var(--text-2)}
+.case-ready-list{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.case-ready-list li{display:flex;gap:8px;align-items:baseline;font-size:12.5px;line-height:1.5}
+.case-ready-list li b{flex:0 0 auto;color:var(--text);font-weight:600}
+.case-ready-list li span{color:var(--text-3)}
+.case-ready-ok{margin:10px 0 0;font-size:12.5px;color:var(--mint)}
+
+/* —— 案卷 · 谁没有点头 —— */
+.case-vetoes{
+  margin:12px 0;
+  border:1px solid rgba(244,184,96,.28);
+  border-radius:14px;
+  background:rgba(244,184,96,.05);
+  padding:12px 16px;
+}
+.case-vetoes-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+.case-vetoes-head b{font-size:13px}
+.case-vetoes-head span{font-size:11.5px;color:var(--text-3)}
+.case-vetoes ul{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+.case-vetoes li{display:grid;grid-template-columns:auto auto 1fr;gap:8px;align-items:baseline}
+.case-vetoes li > b{font-size:12.5px}
+.case-veto-state{font-size:10.5px;padding:1px 6px;border-radius:6px;border:1px solid currentColor}
+.case-veto-state.veto{color:var(--coral)}
+.case-veto-state.abstain{color:var(--text-3)}
+.case-vetoes li p{grid-column:1/-1;margin:2px 0 0;font-size:12px;color:var(--text-2);line-height:1.55}
+
+/* —— 案卷 · 五段式 —— */
+.case-plan{
+  margin:12px 0;
+  padding:14px 16px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--panel);
+}
+.case-plan-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+.case-plan-head b{font-size:13.5px}
+.case-plan-head span{font-size:11.5px;color:var(--text-3)}
+.case-plan-list{margin:0;padding:0;list-style:none;counter-reset:plan;display:grid;gap:10px}
+.case-plan-list li{position:relative;padding-left:30px}
+.case-plan-list li::before{
+  counter-increment:plan;content:counter(plan);
+  position:absolute;left:0;top:1px;
+  width:20px;height:20px;border-radius:50%;
+  display:grid;place-items:center;
+  font-family:var(--num);font-size:11px;
+  color:var(--bg);background:var(--mint);
+}
+.case-plan-list li b{display:block;font-size:12.5px;margin-bottom:2px}
+.case-plan-list li p{margin:0;font-size:12.5px;line-height:1.6;color:var(--text-2)}
+
+/* —— 分拣 · 批量撤销 —— */
+.triage-bulk{display:flex;gap:8px;align-items:center;margin:0 0 10px}
+.triage-bulk .btn{padding:7px 12px;font-size:12.5px}
+
+/* —— 诉求 · 四版切换 —— */
+.cf-versions{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.cf-versions button{
+  padding:6px 11px;font-size:12px;border-radius:99px;
+  border:1px solid var(--line);background:transparent;color:var(--text-2);
+}
+.cf-versions button.on{border-color:var(--mint);color:var(--mint);background:rgba(157,240,194,.1)}
+.cf-score{display:flex;align-items:center;gap:10px;margin:8px 0 4px}
+.cf-score-bar{flex:1;height:6px;border-radius:99px;background:var(--line-2);overflow:hidden}
+.cf-score-bar i{display:block;height:100%;background:var(--mint);border-radius:99px}
+.cf-score b{font-family:var(--num);font-size:12.5px}
+.cf-score-miss{margin:4px 0 10px;padding:0;list-style:none;display:grid;gap:4px}
+.cf-score-miss li{font-size:12px;color:var(--amber)}
+
+/* —— 权利库 · 法条三层 —— */
+.rc-layers{display:grid;gap:8px;margin:8px 0 10px}
+.rc-layer{padding:9px 11px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line-2)}
+.rc-layer dt{font-size:10.5px;letter-spacing:.06em;color:var(--text-3);margin-bottom:3px}
+.rc-layer dd{margin:0;font-size:12.5px;line-height:1.6;color:var(--text-2)}
+.rc-layer.claim{border-color:rgba(157,240,194,.3);background:rgba(157,240,194,.06)}
+.rc-layer.claim dd{color:var(--text)}
+.rc-copy{font-size:11.5px;padding:4px 9px;border-radius:7px;border:1px solid var(--line);background:transparent;color:var(--text-2);margin-top:6px}
+
+/* 案卷长页：给底部操作让出小票灵浮标的位置，避免遮挡 */
+.screen[data-screen="case"] .case-col-foot{padding-bottom:92px}
+.screen[data-screen="case"] .case-footer{position:relative;z-index:1}
+@media (max-width:760px){
+  .screen[data-screen="case"] .case-col-foot{padding-bottom:104px}
+}
+
+@media (max-width:480px){
+  .case-ready,.case-vetoes,.case-plan{padding:12px}
+  .case-plan-list li p{font-size:12px}
+}
+@media (prefers-reduced-motion:reduce){
+  .case-ready-bar i{transition:none}
+}
+
+/* —— 续费 · 涨价检出与关闭路径 —— */
+.tb-sub{border-bottom:1px solid var(--line-2)}
+.tb-sub:last-child{border-bottom:0}
+.tb-sub .tb-sub-row{border-bottom:0}
+.tb-priceup{display:block;margin-top:4px;font-style:normal;font-family:var(--num);font-size:10.5px;color:var(--coral)}
+.tb-sub-more{margin:-2px 0 10px}
+.tb-sub-more summary{cursor:pointer;font-size:11.5px;color:var(--text-2);list-style:none;padding:2px 0 6px}
+.tb-sub-more summary::-webkit-details-marker{display:none}
+.tb-sub-more summary::before{content:"› ";color:var(--mint)}
+.tb-sub-more[open] summary::before{content:"⌄ "}
+.tb-close-steps{margin:4px 0 8px;padding-left:18px;display:grid;gap:3px}
+.tb-close-steps li{font-size:11.5px;color:var(--text-2);line-height:1.5}
+.tb-sub-more-actions{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+
+/* —— 资金 · 金额四态—— */
+.fch-flow{display:flex;align-items:center;gap:8px;margin:10px 0 6px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.02)}
+.fch-step{flex:1;min-width:0}
+.fch-step span{display:block;font-size:10px;color:var(--text-3);letter-spacing:.04em}
+.fch-step b{display:block;font-family:var(--num);font-size:13px;color:var(--text-2);margin-top:2px}
+.fch-step.on b{color:var(--text)}
+.fch-step.warn b{color:var(--amber)}
+.fch-step.ok b{color:var(--mint)}
+.fch-flow > i{font-style:normal;color:var(--text-3);font-size:12px}
+.fch-flow-note{margin:0 0 8px;font-size:11.5px;line-height:1.55;color:var(--text-2)}
+.fch-flow-note.warn{color:var(--amber)}
+.fch-flow-note.ok{color:var(--mint)}
+
+/* —— 助手页 · 去掉介绍段，只留常用问题 —— */
+.ai-intro-quick{padding:12px}
+.ai-intro-quick .ai-quick{margin-top:0}
+.fch-flow > i{align-self:center;line-height:1;margin-top:9px;font-size:11px}
+
+/* —— 案卷 · 置信度闸门 —— */
+.case-gate{margin:14px 0 0;padding:13px 15px;border:1px solid rgba(244,184,96,.32);border-radius:14px;background:rgba(244,184,96,.06)}
+.case-gate b{display:block;font-size:13px;color:var(--amber);margin-bottom:6px}
+.case-gate p{margin:0 0 10px;font-size:12.5px;line-height:1.65;color:var(--text-2)}
+.case-gate .btn{padding:7px 12px;font-size:12px}
+
+/* —— 收件箱 · 先定心 —— */
+.tb-reassure{margin:6px 0 8px;padding:9px 11px;border-radius:10px;font-size:12.5px;line-height:1.6;border:1px solid var(--line-2);background:var(--panel-2);color:var(--text-2)}
+.tb-reassure.mint{border-color:rgba(157,240,194,.28);background:rgba(157,240,194,.07);color:var(--text)}
+.tb-reassure.amber{border-color:rgba(244,184,96,.3);background:rgba(244,184,96,.07);color:var(--text)}
+.tb-reassure.coral{border-color:rgba(255,113,91,.34);background:rgba(255,113,91,.08);color:var(--text)}
+
+/* —— 收件箱 · 防骗双保险 —— */
+.tb-fraud-hits{margin:6px 0 10px;padding:11px 12px;border-radius:10px;border:1px solid rgba(255,113,91,.4);background:rgba(255,113,91,.08)}
+.tb-fraud-hits b{display:block;font-size:12.5px;color:var(--coral);margin-bottom:6px}
+.tb-fraud-hits.hard b{font-size:13px}
+.tb-fraud-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px}
+.tb-fraud-chips span{font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid rgba(255,113,91,.45);color:var(--coral)}
+.tb-fraud-hits p{margin:0;font-size:12px;line-height:1.6;color:var(--text-2)}
+
+/* —— 续费 · 订阅体检 —— */
+.tb-sub-check{padding:10px 12px;margin-bottom:8px;border:1px solid rgba(244,184,96,.26);border-radius:11px;background:rgba(244,184,96,.05)}
+.tb-sub-check b{display:block;font-size:12.5px;color:var(--amber);margin-bottom:3px}
+.tb-sub-check small{display:block;font-size:11px;color:var(--text-3);line-height:1.55;margin-bottom:5px}
+.tb-sub-check p{margin:0;font-size:12px;line-height:1.6;color:var(--text-2)}
+
+/* —— 助手 · 这一步是怎么来的 —— */
+.agent-how{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
+.agent-how summary{cursor:pointer;list-style:none;font-size:11.5px;color:var(--text-3);padding:2px 0}
+.agent-how summary::-webkit-details-marker{display:none}
+.agent-how summary::before{content:"› ";color:var(--mint)}
+.agent-how[open] summary::before{content:"⌄ "}
+.agent-how-note{margin:6px 0 0;font-size:11px;line-height:1.55;color:var(--text-3)}
+
+/* —— 找谁 · 紧急度与电话话术 —— */
+.tb-urgent{display:flex;align-items:baseline;gap:8px;padding:9px 12px;border-radius:11px;margin-bottom:10px;border:1px solid var(--line-2);background:var(--panel-2)}
+.tb-urgent b{font-size:11px;padding:1px 7px;border-radius:5px;flex:none}
+.tb-urgent span{font-size:12px;color:var(--text-2);line-height:1.5}
+.tb-urgent.hot{border-color:rgba(255,113,91,.34);background:rgba(255,113,91,.07)}
+.tb-urgent.hot b{color:var(--coral);border:1px solid rgba(255,113,91,.5)}
+.tb-urgent.warm b{color:var(--amber);border:1px solid rgba(244,184,96,.5)}
+.tb-call-chips{display:grid;gap:7px;margin-bottom:8px}
+.tb-chip{text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--text);font-size:12.5px;line-height:1.5}
+.tb-chip:hover{border-color:rgba(157,240,194,.45)}
+
+/* —— 找谁 · 渠道阶梯 —— */
+.tb-ladder-strip{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.tb-ladder-strip span{font-size:11px;padding:4px 9px;border-radius:99px;border:1px solid var(--line);color:var(--text-3)}
+.tb-ladder-strip span.on{border-color:var(--mint);color:var(--mint);background:rgba(157,240,194,.08)}
+.tb-ladder-strip span + span::before{content:"›";margin-right:8px;color:var(--text-3)}

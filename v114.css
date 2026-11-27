@@ -27,13 +27,13 @@ body::before{
   position:relative;overflow:hidden;
   border-radius:24px;
   background:
-    radial-gradient(320px 160px at 92% -10%,rgba(157,240,194,.16),transparent 72%),
+    radial-gradient(320px 160px at 92% -10%,rgba(63,125,99,.16),transparent 72%),
     linear-gradient(158deg,rgba(31,43,45,.98),rgba(14,21,22,.99));
   box-shadow:0 28px 70px -50px #000;
 }
 .verdict::after{
   content:"";position:absolute;right:-46px;bottom:-70px;width:160px;height:160px;
-  border-radius:50%;border:1px solid rgba(157,240,194,.15);pointer-events:none;
+  border-radius:50%;border:1px solid rgba(63,125,99,.15);pointer-events:none;
 }
 /* 金额行升级为大字：¥3,299 → 主角 */
 .verdict-title b{
@@ -88,7 +88,7 @@ body::before{
 .stat.warn b{color:var(--coral)}
 .stat.ok b{color:var(--mint)}
 .stat span{font-size:10px;color:var(--ink-3);margin-top:6px;display:block;letter-spacing:.02em}
-.stat:hover{border-color:rgba(157,240,194,.4)}
+.stat:hover{border-color:rgba(63,125,99,.4)}
 
 /* ---------- 5. 骨架屏扫光（视频33：等待时给用户看什么） ---------- */
 .sk{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--panel);padding:16px}
@@ -97,7 +97,7 @@ body::before{
 .sk-line.w70{width:70%}
 .sk::after{
   content:"";position:absolute;inset:0;
-  background:linear-gradient(100deg,transparent 30%,rgba(157,240,194,.07) 50%,transparent 70%);
+  background:linear-gradient(100deg,transparent 30%,rgba(63,125,99,.07) 50%,transparent 70%);
   transform:translateX(-100%);animation:sk-sweep 1.4s ease-in-out infinite;
 }
 @keyframes sk-sweep{to{transform:translateX(100%)}}
@@ -176,7 +176,7 @@ body.pg-zooming .screen{overflow:hidden}
   border:1px solid var(--line);border-radius:12px;background:var(--panel);
   padding:10px 12px;cursor:pointer;
 }
-.acc > *.on{flex:2.6;background:var(--panel);border-color:rgba(157,240,194,.4)}
+.acc > *.on{flex:2.6;background:var(--panel);border-color:rgba(63,125,99,.4)}
 
 /* ---------- 13. 焦点环统一（V13.1 并入全站） ---------- */
 :where(.btn,.link-btn,.text-btn,summary,[role="button"],.case-list-item,.ticket-item,.stagger-chip,.forgotten-card):focus-visible{

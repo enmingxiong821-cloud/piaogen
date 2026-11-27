@@ -302,7 +302,7 @@ function manifest() {
     computes: ["rights.lookup", "rights.plan", "policy.parse"],
     ruleVersion: engine.DATA.version,
     /* 对应的站点版本：调用方可以据此对齐文档与工具行为 */
-    site: "V14.0",
+    site: "V16.0",
     auth: process.env.MCP_READ_TOKEN ? "bearer" : "none",
     tools: TOOLS.map((tool) => ({ name: tool.name, description: tool.description })),
     boundaries: ["不代提交", "不代收款", "不托管资金", "不读用户数据", "写操作拒绝"]

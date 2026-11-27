@@ -1,4 +1,4 @@
-const CACHE = "piaogen-v14-0";
+const CACHE = "piaogen-v16-0";
 const CORE = [
   "./",
   "./index.html",
@@ -20,7 +20,9 @@ const CORE = [
   "./v112.css",
   "./v113.css",
   "./v114.css",
+  "./v115.css",
   "./motion.js",
+  "./motion15.js",
   "./rights.html",
   "./app.js",
   "./toolbox-data.js",
@@ -36,6 +38,11 @@ const CORE = [
   "./favicon.svg",
   "./icon-192.png",
   "./icon-512.png",
+  "./icon-maskable-192.png",
+  "./icon-maskable-512.png",
+  "./apple-touch-icon.png",
+  "./favicon-32.png",
+  "./favicon-16.png",
   "./vendor/tesseract.min.js",
   "./vendor/jszip.min.js",
   "./vendor/pdf.min.js",

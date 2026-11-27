@@ -1861,15 +1861,15 @@
     const cv = document.createElement("canvas");
     cv.width = W; cv.height = H;
     const g = cv.getContext("2d");
-    g.fillStyle = "#0A0E0F"; g.fillRect(0, 0, W, H);
-    g.fillStyle = "#9DF0C2"; g.fillRect(0, 0, W, 12);
-    g.fillStyle = "#9DF0C2";
+    g.fillStyle = "#18211C"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#3F7D63"; g.fillRect(0, 0, W, 12);
+    g.fillStyle = "#3F7D63";
     g.font = '700 34px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("票根 · 我的续费战报", 78, 110);
     g.fillStyle = "#B6C4C0";
     g.font = '400 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("一年在自动扣的钱（按现价算）", 78, 190);
-    g.fillStyle = "#9DF0C2";
+    g.fillStyle = "#3F7D63";
     g.font = '600 104px "Space Grotesk","Consolas",monospace';
     g.fillText(money(annual), 78, 310);
     g.fillStyle = "#B6C4C0";
@@ -1878,7 +1878,7 @@
     let y = 470;
     subs.slice(0, 4).forEach((x, i) => {
       g.fillStyle = "#1A2426"; g.fillRect(78, y - 36, W - 156, 78);
-      g.fillStyle = "#9DF0C2";
+      g.fillStyle = "#3F7D63";
       g.font = '600 22px "Space Grotesk","Consolas",monospace';
       g.fillText(String(i + 1).padStart(2, "0"), 104, y + 12);
       g.fillStyle = "#F1F7F4";

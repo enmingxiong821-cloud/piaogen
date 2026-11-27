@@ -3912,7 +3912,7 @@ const POINT_KEY = "piaogen.v0.points";
         <h2>今年你家悄悄亏了</h2>
         <div class="audit-total" id="auditTotal">¥0</div>
         <div class="audit-ring-row">
-          <div class="audit-ring" style="--p:${pct}">
+          <div class="audit-ring" style="--pp:${pct}">
             <span>${pct}%</span>
             <small>可追回</small>
           </div>
@@ -3933,8 +3933,8 @@ const POINT_KEY = "piaogen.v0.points";
       </div>`;
     const ring = $(".audit-ring");
     if (ring && !reduce) {
-      ring.style.setProperty("--p", "0");
-      requestAnimationFrame(() => requestAnimationFrame(() => ring.style.setProperty("--p", String(pct))));
+      ring.style.setProperty("--pp", "0");
+      requestAnimationFrame(() => requestAnimationFrame(() => ring.style.setProperty("--pp", String(pct))));
     }
     animateNumber($("#auditTotal"), r.total, 700);
     $("#auditGo").addEventListener("click", () => {
@@ -3964,36 +3964,37 @@ const POINT_KEY = "piaogen.v0.points";
     const cv = document.createElement("canvas");
     cv.width = W; cv.height = H;
     const g = cv.getContext("2d");
-    g.fillStyle = "#0A0E0F"; g.fillRect(0, 0, W, H);
-    g.fillStyle = "#9DF0C2"; g.fillRect(0, 0, W, 12);
-    g.fillStyle = "#9DF0C2";
-    g.font = '700 34px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#F7F6F1"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#3E9B63"; g.fillRect(0, 0, W, 12);
+    g.fillStyle = "#276B46";
+    g.font = '800 34px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("票根 · 家庭隐形损失", 78, 110);
-    g.fillStyle = "#B6C4C0";
+    g.fillStyle = "#5B665E";
     g.font = '400 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("今年你家悄悄亏了（估算）", 78, 190);
-    g.fillStyle = "#FF715B";
-    g.font = '600 104px "Space Grotesk","Consolas",monospace';
+    g.fillStyle = "#B4552F";
+    g.font = '600 104px "Bahnschrift","Segoe UI Variable Display",sans-serif';
     g.fillText(money(r.total), 78, 310);
-    g.fillStyle = "#B6C4C0";
+    g.fillStyle = "#5B665E";
     g.font = '400 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText(`已损失 ${money(r.lost)} · 将损失 ${money(r.atRisk)} · 可追回 ${money(r.recoverable)}`, 78, 360);
     let y = 470;
     (r.items || []).slice(0, 4).forEach((x, i) => {
-      g.fillStyle = "#1A2426"; g.fillRect(78, y - 36, W - 156, 78);
-      g.fillStyle = "#9DF0C2";
-      g.font = '600 22px "Space Grotesk","Consolas",monospace';
+      g.fillStyle = "#FFFFFF"; g.fillRect(78, y - 36, W - 156, 78);
+      g.strokeStyle = "#E9E5D9"; g.strokeRect(78, y - 36, W - 156, 78);
+      g.fillStyle = "#3E9B63";
+      g.font = '600 22px "Bahnschrift","Segoe UI Variable Display",sans-serif';
       g.fillText(String(i + 1).padStart(2, "0"), 104, y + 12);
-      g.fillStyle = "#F1F7F4";
+      g.fillStyle = "#16211B";
       g.font = '500 26px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText(String(x.label).slice(0, 14), 170, y + 12);
-      g.fillStyle = "#FF715B";
-      g.font = '600 26px "Space Grotesk","Consolas",monospace';
+      g.fillStyle = "#B4552F";
+      g.font = '600 26px "Bahnschrift","Segoe UI Variable Display",sans-serif';
       g.textAlign = "right"; g.fillText(money(x.amount), W - 104, y + 12); g.textAlign = "left";
       y += 96;
     });
-    g.strokeStyle = "#273234"; g.beginPath(); g.moveTo(78, H - 210); g.lineTo(W - 78, H - 210); g.stroke();
-    g.fillStyle = "#82918D";
+    g.strokeStyle = "#E9E5D9"; g.beginPath(); g.moveTo(78, H - 210); g.lineTo(W - 78, H - 210); g.stroke();
+    g.fillStyle = "#8E988F";
     g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("先算损失，再把还能拿回的钱办回来。", 78, H - 150);
     g.fillText("票根 · 付款之后，权利开始计时", 78, H - 110);
@@ -7952,79 +7953,79 @@ const POINT_KEY = "piaogen.v0.points";
     const cv = document.createElement("canvas");
     cv.width = W; cv.height = H;
     const g = cv.getContext("2d");
-    g.fillStyle = "#0A0E0F"; g.fillRect(0, 0, W, H);
-    g.fillStyle = "#9DF0C2"; g.fillRect(0, 0, W, 12);
-    g.fillStyle = "#9DF0C2"; g.beginPath(); g.arc(110, 116, 34, 0, Math.PI * 2); g.fill();
-    g.fillStyle = "#06110C"; g.font = '700 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#F7F6F1"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#3E9B63"; g.fillRect(0, 0, W, 12);
+    g.fillStyle = "#3E9B63"; g.beginPath(); g.arc(110, 116, 34, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#FFFFFF"; g.font = '700 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("票", 96, 128);
-    g.fillStyle = "#F1F7F4"; g.font = '700 38px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#276B46"; g.font = '800 38px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("票根", 162, 126);
-    g.fillStyle = "#82918D"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#8E988F"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("消费权利回执", 162, 156);
     g.textAlign = "right";
-    g.fillStyle = "#82918D"; g.font = '400 18px "Space Grotesk","Consolas",monospace';
+    g.fillStyle = "#8E988F"; g.font = '400 18px "Bahnschrift","Segoe UI Variable Display",sans-serif';
     g.fillText(ticket.date || "日期待确认", W - 88, 126);
     g.textAlign = "left";
-    g.strokeStyle = "#273234"; g.lineWidth = 2;
+    g.strokeStyle = "#E9E5D9"; g.lineWidth = 2;
     g.beginPath(); g.moveTo(88, 204); g.lineTo(W - 88, 204); g.stroke();
 
-    g.fillStyle = "#B6C4C0"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#5B665E"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("商家", 88, 260);
-    g.fillStyle = "#F1F7F4"; g.font = '600 44px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#16211B"; g.font = '700 44px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     let merchantText = String(ticket.merchant || "商家待确认");
     while (merchantText.length > 4 && g.measureText(merchantText).width > W - 176) {
       merchantText = merchantText.slice(0, -1);
     }
     if (merchantText !== String(ticket.merchant || "商家待确认")) merchantText = merchantText.slice(0, -1) + "…";
     g.fillText(merchantText, 88, 316);
-    g.fillStyle = "#9DF0C2"; g.font = '600 76px "Space Grotesk","Consolas",monospace';
+    g.fillStyle = "#276B46"; g.font = '600 76px "Bahnschrift","Segoe UI Variable Display",sans-serif';
     g.fillText(money(ticket.amount), 88, 410);
-    g.fillStyle = "#82918D"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#5B665E"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText(`${ticket.date || "日期待确认"} · ${PG.CATEGORY[ticket.category]?.label || "其他"}`, 88, 452);
 
     const wins = (ticket.windows || []).filter((w) => w.applicability === "applicable" && w.daysLeft !== null && w.daysLeft >= 0).slice(0, 3);
     const nearest = wins[0];
     if (nearest) {
       const urgent = nearest.daysLeft <= 3;
-      const color = urgent ? "#FF715B" : "#9DF0C2";
+      const color = urgent ? "#B4552F" : "#3E9B63";
       const pct = Math.max(0.04, Math.min(1, windowProgress(nearest) / 100));
-      g.strokeStyle = "#273234"; g.lineWidth = 16;
+      g.strokeStyle = "#E9E5D9"; g.lineWidth = 16;
       g.beginPath(); g.arc(190, 630, 92, -Math.PI / 2, Math.PI * 1.5); g.stroke();
       g.strokeStyle = color;
       g.beginPath(); g.arc(190, 630, 92, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct); g.stroke();
-      g.fillStyle = "#F1F7F4"; g.textAlign = "center";
-      g.font = '600 64px "Space Grotesk","Consolas",monospace';
+      g.fillStyle = "#16211B"; g.textAlign = "center";
+      g.font = '600 64px "Bahnschrift","Segoe UI Variable Display",sans-serif';
       g.fillText(String(nearest.daysLeft), 190, 640);
-      g.fillStyle = "#82918D"; g.font = '400 18px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      g.fillStyle = "#8E988F"; g.font = '400 18px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText("天", 190, 670);
       g.textAlign = "left";
-      g.fillStyle = urgent ? "#FF715B" : "#9DF0C2";
+      g.fillStyle = urgent ? "#B4552F" : "#3E9B63";
       g.font = '500 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText(urgent ? "临期" : "最急的一项", 330, 590);
-      g.fillStyle = "#F1F7F4"; g.font = '600 36px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      g.fillStyle = "#16211B"; g.font = '700 36px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText(nearest.label, 330, 640);
-      g.fillStyle = "#B6C4C0"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      g.fillStyle = "#5B665E"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText(nearest.end ? `到 ${nearest.end} 关闭` : "截止日待确认", 330, 680);
-      g.fillStyle = "#9DF0C2"; g.font = '600 30px "Space Grotesk","Consolas",monospace';
+      g.fillStyle = "#3E9B63"; g.font = '600 30px "Bahnschrift","Segoe UI Variable Display",sans-serif';
       g.fillText(nearest.amount ? `可退 ${money(nearest.amount)}` : "先补证据再算", 330, 724);
     } else {
-      g.fillStyle = "#B6C4C0"; g.font = '400 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      g.fillStyle = "#5B665E"; g.font = '400 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText("暂时没有可主张的权利；先补资格或证据。", 88, 620);
     }
 
-    g.strokeStyle = "#273234"; g.beginPath(); g.moveTo(88, 790); g.lineTo(W - 88, 790); g.stroke();
+    g.strokeStyle = "#E9E5D9"; g.beginPath(); g.moveTo(88, 790); g.lineTo(W - 88, 790); g.stroke();
     const rights = (ticket.windows || []).filter((w) => ["return", "price", "warranty", "three_return", "quality"].includes(w.type)).slice(0, 3);
     rights.forEach((w, i) => {
       const y = 850 + i * 92;
-      g.fillStyle = "#B6C4C0"; g.font = '500 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      g.fillStyle = "#5B665E"; g.font = '500 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText(w.label, 88, y);
       const pct = w.applicability === "not_applicable" ? 0 : Math.max(0.03, Math.min(1, windowProgress(w) / 100));
-      g.fillStyle = "#273234"; g.fillRect(330, y - 12, 500, 5);
-      g.fillStyle = w.daysLeft !== null && w.daysLeft <= 3 ? "#FF715B" : "#9DF0C2";
+      g.fillStyle = "#E9E5D9"; g.fillRect(330, y - 12, 500, 5);
+      g.fillStyle = w.daysLeft !== null && w.daysLeft <= 3 ? "#B4552F" : "#3E9B63";
       g.fillRect(330, y - 12, 500 * pct, 5);
       g.textAlign = "right";
-      g.fillStyle = w.applicability === "not_applicable" ? "#82918D" : (w.daysLeft !== null && w.daysLeft <= 3 ? "#FF715B" : "#F1F7F4");
-      g.font = '600 22px "Space Grotesk","Consolas",monospace';
+      g.fillStyle = w.applicability === "not_applicable" ? "#8E988F" : (w.daysLeft !== null && w.daysLeft <= 3 ? "#B4552F" : "#16211B");
+      g.font = '600 22px "Bahnschrift","Segoe UI Variable Display",sans-serif';
       g.fillText(w.applicability === "not_applicable" ? "不适用" : w.daysLeft === null ? "待确认" : `${w.daysLeft} 天`, W - 88, y);
       g.textAlign = "left";
     });
@@ -8032,25 +8033,25 @@ const POINT_KEY = "piaogen.v0.points";
     const nextWin = PG.priority(ticket);
     const confirmed = confirmedAmountOf(ticket);
     const expected = expectedAmountOf(ticket);
-    g.strokeStyle = "#273234"; g.lineWidth = 2;
+    g.strokeStyle = "#E9E5D9"; g.lineWidth = 2;
     g.beginPath(); g.moveTo(88, 1064); g.lineTo(W - 88, 1064); g.stroke();
-    g.fillStyle = "#9DF0C2"; g.font = '700 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#276B46"; g.font = '700 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("权利护照", 88, 1112);
     g.textAlign = "right";
-    g.fillStyle = "#B6C4C0"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#5B665E"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText(`已确认 ${money(confirmed)} · 预计 ${money(expected)}`, W - 88, 1110);
     g.textAlign = "left";
-    g.fillStyle = "#82918D"; g.font = '400 18px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#8E988F"; g.font = '400 18px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText(`${todayLabel().replace("今天 · ", "")} 生成 · 可转给家人一起核对`, 88, 1142);
-    g.fillStyle = missingFields.length ? "#F4B860" : "#9DF0C2";
+    g.fillStyle = missingFields.length ? "#A8792F" : "#276B46";
     g.font = '500 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText(missingFields.length ? `还缺 ${missingFields.length} 项：${missingFields.slice(0, 3).join("、")}` : "关键字段已齐，按证据清单再核一遍", 88, 1180);
-    g.fillStyle = "#B6C4C0"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#5B665E"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText(nextWin ? `下一步：${nextWin.label} · 还剩 ${nextWin.daysLeft} 天` : "下一步：补一张订单页或发票", 88, 1212);
-    g.strokeStyle = "#273234"; g.beginPath(); g.moveTo(88, H - 210); g.lineTo(W - 88, H - 210); g.stroke();
-    g.fillStyle = "#9DF0C2"; g.font = '600 26px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.strokeStyle = "#E9E5D9"; g.beginPath(); g.moveTo(88, H - 210); g.lineTo(W - 88, H - 210); g.stroke();
+    g.fillStyle = "#276B46"; g.font = '600 26px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("付款之后，权利开始计时。", 88, H - 150);
-    g.fillStyle = "#82918D"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#8E988F"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("不代提交 · 不承诺结果 · 依据以原文为准", 88, H - 112);
     cv.toBlob((blob) => {
       const url = URL.createObjectURL(blob);
@@ -8072,93 +8073,93 @@ const POINT_KEY = "piaogen.v0.points";
     const cv = document.createElement("canvas");
     cv.width = W; cv.height = H;
     const g = cv.getContext("2d");
-    g.fillStyle = "#0A0E0F"; g.fillRect(0, 0, W, H);
-    g.fillStyle = "#8BD3FF"; g.fillRect(0, 0, W, 12);
+    g.fillStyle = "#F7F6F1"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#3E9B63"; g.fillRect(0, 0, W, 12);
 
-    g.fillStyle = "#9DF0C2"; g.beginPath(); g.arc(110, 116, 34, 0, Math.PI * 2); g.fill();
-    g.fillStyle = "#06110C"; g.font = '700 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#3E9B63"; g.beginPath(); g.arc(110, 116, 34, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#FFFFFF"; g.font = '700 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("票", 96, 128);
-    g.fillStyle = "#F1F7F4"; g.font = '700 38px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#276B46"; g.font = '800 38px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("票根", 162, 126);
-    g.fillStyle = "#82918D"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#8E988F"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("资金售后回执", 162, 156);
     g.textAlign = "right";
-    g.fillStyle = "#82918D"; g.font = '400 18px "Space Grotesk","Consolas",monospace';
+    g.fillStyle = "#8E988F"; g.font = '400 18px "Bahnschrift","Segoe UI Variable Display",sans-serif';
     g.fillText(c.date || "日期待确认", W - 88, 126);
     g.textAlign = "left";
 
-    const statusColor = c.status === "resolved" ? "#9DF0C2" : c.status === "rejected" ? "#FF715B" : c.status === "open" ? "#F4B860" : "#8BD3FF";
-    g.strokeStyle = "#273234"; g.lineWidth = 2;
+    const statusColor = c.status === "resolved" ? "#276B46" : c.status === "rejected" ? "#B4552F" : c.status === "open" ? "#A8792F" : "#3F7C9E";
+    g.strokeStyle = "#E9E5D9"; g.lineWidth = 2;
     g.beginPath(); g.moveTo(88, 204); g.lineTo(W - 88, 204); g.stroke();
-    g.fillStyle = "#B6C4C0"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#5B665E"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText(`${def.label}${c.source === "demo" ? " · 示例" : ""}`, 88, 260);
     g.fillStyle = statusColor; g.font = '600 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.textAlign = "right";
     g.fillText(financeStatusLabel(c.status), W - 88, 260);
     g.textAlign = "left";
 
-    g.fillStyle = "#F1F7F4"; g.font = '600 52px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#16211B"; g.font = '700 52px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     let merchantText = String(c.merchant || "商家 / 机构待确认");
     while (merchantText.length > 4 && g.measureText(merchantText).width > W - 176) merchantText = merchantText.slice(0, -1);
     if (merchantText !== String(c.merchant || "商家 / 机构待确认")) merchantText = merchantText.slice(0, -1) + "…";
     g.fillText(merchantText, 88, 330);
 
-    g.fillStyle = "#8BD3FF"; g.font = '600 84px "Space Grotesk","Consolas",monospace';
+    g.fillStyle = "#276B46"; g.font = '600 84px "Bahnschrift","Segoe UI Variable Display",sans-serif';
     g.fillText(money(c.amount), 88, 446);
-    g.fillStyle = "#82918D"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#5B665E"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("争议金额 / 涉及金额", 88, 486);
     g.fillText(`${financeChannelLabel(c.channel)} · ${c.member ? "帮家人办" : "本人"}`, 88, 524);
 
-    g.strokeStyle = "#273234"; g.beginPath(); g.moveTo(88, 588); g.lineTo(W - 88, 588); g.stroke();
+    g.strokeStyle = "#E9E5D9"; g.beginPath(); g.moveTo(88, 588); g.lineTo(W - 88, 588); g.stroke();
     const stats = [
-      ["证据", `${ready}/${totalEvidence} 件`, ready >= totalEvidence && totalEvidence ? "#9DF0C2" : "#F4B860"],
-      ["确认解决", c.status === "resolved" ? money(c.recoveredAmount || c.amount) : "—", c.status === "resolved" ? "#9DF0C2" : "#82918D"],
-      ["时限", due.has ? (due.days < 0 ? `已过 ${-due.days} 天` : `还剩 ${due.days} 天`) : "未填截止日", due.has && due.days <= 3 ? "#FF715B" : "#F1F7F4"]
+      ["证据", `${ready}/${totalEvidence} 件`, ready >= totalEvidence && totalEvidence ? "#276B46" : "#A8792F"],
+      ["确认解决", c.status === "resolved" ? money(c.recoveredAmount || c.amount) : "—", c.status === "resolved" ? "#276B46" : "#5B665E"],
+      ["时限", due.has ? (due.days < 0 ? `已过 ${-due.days} 天` : `还剩 ${due.days} 天`) : "未填截止日", due.has && due.days <= 3 ? "#B4552F" : "#16211B"]
     ];
     stats.forEach(([label, value, color], i) => {
       const x = 88 + i * 310;
-      g.fillStyle = "#82918D"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      g.fillStyle = "#8E988F"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText(label, x, 648);
-      g.fillStyle = color; g.font = '600 34px "Space Grotesk","Consolas",monospace';
+      g.fillStyle = color; g.font = '600 34px "Bahnschrift","Segoe UI Variable Display",sans-serif';
       g.fillText(value, x, 696);
     });
 
-    g.fillStyle = "#82918D"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#8E988F"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("下一步", 88, 790);
-    g.fillStyle = "#F1F7F4"; g.font = '500 28px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#16211B"; g.font = '500 28px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     const nextStep = (def.routes[0] && def.routes[0].path && def.routes[0].path[0]) || "先补齐证据，再打开官方路径";
     let line = nextStep;
     while (line.length > 4 && g.measureText(line).width > W - 176) line = line.slice(0, -1);
     if (line !== nextStep) line = line.slice(0, -1) + "…";
     g.fillText(line, 88, 838);
-    g.fillStyle = "#82918D"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#8E988F"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("规则结论由确定性代码生成；AI 建议默认关闭，不改变金额、日期、状态。", 88, 890);
 
-    g.fillStyle = "#82918D"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#8E988F"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("证据清单", 88, 962);
     (c.evidence || []).slice(0, 4).forEach((item, i) => {
       const y = 1012 + i * 56;
       const ok = item.status === "ready";
-      g.fillStyle = ok ? "#9DF0C2" : "#F4B860";
+      g.fillStyle = ok ? "#276B46" : "#A8792F";
       g.font = '600 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText(ok ? "✓" : "○", 88, y);
-      g.fillStyle = ok ? "#F1F7F4" : "#B6C4C0";
+      g.fillStyle = ok ? "#16211B" : "#5B665E";
       g.font = '400 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       let label = String(item.label || "");
       while (label.length > 4 && g.measureText(label).width > W - 300) label = label.slice(0, -1);
       if (label !== String(item.label || "")) label = label.slice(0, -1) + "…";
       g.fillText(label, 132, y);
       g.textAlign = "right";
-      g.fillStyle = ok ? "#9DF0C2" : "#82918D";
+      g.fillStyle = ok ? "#276B46" : "#8E988F";
       g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText(ok ? "已备" : "待补", W - 88, y);
       g.textAlign = "left";
     });
 
-    g.strokeStyle = "#273234"; g.beginPath(); g.moveTo(88, H - 210); g.lineTo(W - 88, H - 210); g.stroke();
-    g.fillStyle = "#8BD3FF"; g.font = '600 26px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.strokeStyle = "#E9E5D9"; g.beginPath(); g.moveTo(88, H - 210); g.lineTo(W - 88, H - 210); g.stroke();
+    g.fillStyle = "#276B46"; g.font = '600 26px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("付款之后，权利开始计时。", 88, H - 150);
-    g.fillStyle = "#82918D"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#8E988F"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("不代提交 · 不代收款 · 金额以流水为准", 88, H - 112);
     g.fillText("本卡不含卡号、订单号与凭证图。", 88, H - 76);
     cv.toBlob((blob) => {
@@ -9015,31 +9016,31 @@ const POINT_KEY = "piaogen.v0.points";
     const cv = document.createElement("canvas");
     cv.width = W; cv.height = H;
     const g = cv.getContext("2d");
-    g.fillStyle = "#0A0E0F"; g.fillRect(0, 0, W, H);
-    g.fillStyle = "#9DF0C2"; g.fillRect(0, 0, W, 12);
-    g.fillStyle = "#9DF0C2"; g.beginPath(); g.arc(110, 116, 34, 0, Math.PI * 2); g.fill();
-    g.fillStyle = "#06110C"; g.font = '700 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#F7F6F1"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#3E9B63"; g.fillRect(0, 0, W, 12);
+    g.fillStyle = "#3E9B63"; g.beginPath(); g.arc(110, 116, 34, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#FFFFFF"; g.font = '700 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("票", 96, 128);
-    g.fillStyle = "#F1F7F4"; g.font = '700 38px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#276B46"; g.font = '800 38px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("票根", 162, 126);
-    g.fillStyle = "#82918D"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#8E988F"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("家庭权利报告", 162, 156);
     g.textAlign = "right";
-    g.fillStyle = "#82918D"; g.font = '400 20px "Space Grotesk","Consolas",monospace';
+    g.fillStyle = "#646D65"; g.font = '400 20px "Bahnschrift","Segoe UI Variable Display",sans-serif';
     g.fillText(data.info.title, W - 88, 126);
     g.textAlign = "left";
-    g.strokeStyle = "#273234"; g.lineWidth = 2;
+    g.strokeStyle = "#E9E5D9"; g.lineWidth = 2;
     g.beginPath(); g.moveTo(88, 204); g.lineTo(W - 88, 204); g.stroke();
 
     const hasFinished = data.confirmedTotal > 0;
-    g.fillStyle = "#B6C4C0"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#5B665E"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText(hasFinished ? "已确认守住" : "还可争取（估算）", 88, 266);
-    g.fillStyle = hasFinished ? "#9DF0C2" : "#FF715B"; g.font = '600 92px "Space Grotesk","Consolas",monospace';
+    g.fillStyle = hasFinished ? "#276B46" : "#B4552F"; g.font = '600 92px "Bahnschrift","Segoe UI Variable Display",sans-serif';
     g.fillText(money(hasFinished ? data.confirmedTotal : data.dueAmount), 88, 374);
-    g.fillStyle = "#B6C4C0"; g.font = '400 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#5B665E"; g.font = '400 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText(hasFinished ? `${data.completedCount} 件确认办结 · 只算到账/兑现` : `${data.dueWindows.length} 件临近截止 · 预计不是到账`, 88, 424);
 
-    g.strokeStyle = "#273234"; g.beginPath(); g.moveTo(88, 484); g.lineTo(W - 88, 484); g.stroke();
+    g.strokeStyle = "#E9E5D9"; g.beginPath(); g.moveTo(88, 484); g.lineTo(W - 88, 484); g.stroke();
     const metrics = [
       ["到期窗口", String(data.dueWindows.length)],
       ["确认办结", String(data.completedCount)],
@@ -9048,36 +9049,36 @@ const POINT_KEY = "piaogen.v0.points";
     ];
     metrics.forEach(([label, value], index) => {
       const x = 88 + index * 236;
-      g.fillStyle = "#82918D"; g.font = '400 18px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      g.fillStyle = "#646D65"; g.font = '400 18px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText(label, x, 542);
-      g.fillStyle = "#F1F7F4"; g.font = '600 36px "Space Grotesk","Consolas",monospace';
+      g.fillStyle = "#16211B"; g.font = '600 36px "Bahnschrift","Segoe UI Variable Display",sans-serif';
       g.fillText(value, x, 592);
     });
 
-    g.strokeStyle = "#273234"; g.beginPath(); g.moveTo(88, 650); g.lineTo(W - 88, 650); g.stroke();
-    g.fillStyle = "#F1F7F4"; g.font = '600 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.strokeStyle = "#E9E5D9"; g.beginPath(); g.moveTo(88, 650); g.lineTo(W - 88, 650); g.stroke();
+    g.fillStyle = "#16211B"; g.font = '700 30px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("最急的几件", 88, 710);
     const due = data.dueWindows.slice(0, 3);
     due.forEach((row, index) => {
       const y = 780 + index * 92;
-      g.fillStyle = "#B6C4C0"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      g.fillStyle = "#5B665E"; g.font = '400 22px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText(`${row.member} · ${row.win.label}`, 88, y);
       g.textAlign = "right";
-      g.fillStyle = row.win.daysLeft <= 3 ? "#FF715B" : "#9DF0C2";
-      g.font = '600 24px "Space Grotesk","Consolas",monospace';
+      g.fillStyle = row.win.daysLeft <= 3 ? "#B4552F" : "#3E9B63";
+      g.font = '600 24px "Bahnschrift","Segoe UI Variable Display",sans-serif';
       g.fillText(`${row.win.daysLeft} 天`, W - 88, y);
       g.textAlign = "left";
-      g.strokeStyle = "#1D2729"; g.beginPath(); g.moveTo(88, y + 28); g.lineTo(W - 88, y + 28); g.stroke();
+      g.strokeStyle = "#E9E5D9"; g.beginPath(); g.moveTo(88, y + 28); g.lineTo(W - 88, y + 28); g.stroke();
     });
     if (!due.length) {
-      g.fillStyle = "#82918D"; g.font = '400 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+      g.fillStyle = "#5B665E"; g.font = '400 24px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
       g.fillText("这一期没有临近截止的窗口。", 88, 790);
     }
 
-    g.strokeStyle = "#273234"; g.beginPath(); g.moveTo(88, H - 210); g.lineTo(W - 88, H - 210); g.stroke();
-    g.fillStyle = "#9DF0C2"; g.font = '600 26px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.strokeStyle = "#E9E5D9"; g.beginPath(); g.moveTo(88, H - 210); g.lineTo(W - 88, H - 210); g.stroke();
+    g.fillStyle = "#276B46"; g.font = '600 26px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("先办最急的一件，再记到账。", 88, H - 150);
-    g.fillStyle = "#82918D"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
+    g.fillStyle = "#646D65"; g.font = '400 20px "Noto Sans SC","Microsoft YaHei UI",sans-serif';
     g.fillText("不暴露订单号 / 电话 / 地址 · 预计金额不是到账", 88, H - 112);
     cv.toBlob((blob) => {
       const url = URL.createObjectURL(blob);

@@ -143,8 +143,8 @@
 .signal-amber{border-left:2px solid var(--amber)}
 
 /* 绿：放心 */
-.signal-green .tb-signal{border-color:rgba(157,240,194,.3);background:rgba(157,240,194,.05)}
-.signal-green .tb-signal-dot{background:var(--mint);box-shadow:0 0 0 4px rgba(157,240,194,.14)}
+.signal-green .tb-signal{border-color:rgba(63,125,99,.3);background:rgba(63,125,99,.05)}
+.signal-green .tb-signal-dot{background:var(--mint);box-shadow:0 0 0 4px rgba(63,125,99,.14)}
 .signal-green .tb-signal-word{color:var(--mint)}
 .signal-green{border-left:2px solid var(--mint)}
 
@@ -199,8 +199,8 @@
 .case-signal.amber{border-color:rgba(244,184,96,.36);background:rgba(244,184,96,.05)}
 .case-signal.amber .case-signal-dot{background:var(--amber);box-shadow:0 0 0 4px rgba(244,184,96,.14)}
 .case-signal.amber b{color:var(--amber)}
-.case-signal.green{border-color:rgba(157,240,194,.3);background:rgba(157,240,194,.04)}
-.case-signal.green .case-signal-dot{background:var(--mint);box-shadow:0 0 0 4px rgba(157,240,194,.14)}
+.case-signal.green{border-color:rgba(63,125,99,.3);background:rgba(63,125,99,.04)}
+.case-signal.green .case-signal-dot{background:var(--mint);box-shadow:0 0 0 4px rgba(63,125,99,.14)}
 .case-signal.green b{color:var(--mint)}
 
 /* —— 置信度三级标签（借鉴 PAWGO 的「带来源三级置信」）—— */
@@ -248,7 +248,7 @@
 summary:focus-visible{outline:2px solid var(--mint);outline-offset:2px;border-radius:6px}
 
 /* 首屏折叠入口按钮：补按压反馈（hover/焦点已有） */
-.hero-grid button:active{transform:scale(.985);border-color:rgba(157,240,194,.5)}
+.hero-grid button:active{transform:scale(.985);border-color:rgba(63,125,99,.5)}
 .hero-grid button:focus-visible{outline:2px solid var(--mint);outline-offset:2px}
 
 /* 文字链按钮按压反馈 */

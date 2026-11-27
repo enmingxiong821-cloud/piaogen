@@ -1,5 +1,66 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="票根">
-  <rect width="32" height="32" rx="8" fill="#0A0E0F"/>
-  <path d="M5 9.4h22a1.6 1.6 0 0 1 1.6 1.6v3.1a2.9 2.9 0 0 0 0 5.8V21a1.6 1.6 0 0 1-1.6 1.6H5A1.6 1.6 0 0 1 3.4 21v-3.1a2.9 2.9 0 0 0 0-5.8V11A1.6 1.6 0 0 1 5 9.4Z" fill="#9DF0C2"/>
-  <path d="M21.2 11.2v9.6" stroke="#0A0E0F" stroke-width="1.15" stroke-linecap="round" stroke-dasharray="1.7 1.7"/>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgm" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0" stop-color="#5FBF63"/><stop offset=".62" stop-color="#2C8A3B"/><stop offset="1" stop-color="#123D1C"/>
+    </linearGradient>
+    <radialGradient id="vigm" cx="50%" cy="42%" r="72%">
+      <stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".26"/>
+    </radialGradient>
+    <linearGradient id="topm" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".22"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="paperm" x1=".12" y1="0" x2=".72" y2="1">
+      <stop offset="0" stop-color="#AAF4A2"/><stop offset=".5" stop-color="#7CDC80"/><stop offset="1" stop-color="#46AE50"/>
+    </linearGradient>
+    <radialGradient id="sheenm" cx="42%" cy="22%" r="58%">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".40"/><stop offset=".62" stop-color="#FFFFFF" stop-opacity=".10"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sidem" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#143D1D"/><stop offset="1" stop-color="#0B2411"/>
+    </linearGradient>
+    <linearGradient id="ringm" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#FFFFFF" stop-opacity=".78"/>
+    </linearGradient>
+    <clipPath id="cpm"><path d="M92 108 H286 L318 84 L344 116 L378 96 L380 160 V384 a46 46 0 0 1 -46 46 H138 a46 46 0 0 1 -46 -46 Z"/></clipPath>
+    <filter id="shm" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="12"/></filter>
+    <filter id="ckm" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.5"/></filter>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bgm)"/>
+  <rect width="512" height="512" rx="112" fill="url(#topm)"/>
+  <rect width="512" height="512" rx="112" fill="url(#vigm)"/>
+  <rect x="2" y="2" width="508" height="508" rx="110" fill="none" stroke="#000" stroke-opacity=".20" stroke-width="4"/>
+  <rect x="7" y="7" width="498" height="498" rx="105" fill="none" stroke="#FFFFFF" stroke-opacity=".16" stroke-width="2"/>
+
+  <ellipse cx="250" cy="436" rx="130" ry="15" fill="#000" opacity=".34" filter="url(#shm)"/>
+
+  <!-- 侧面 -->
+  <path d="M92 108 H286 L318 84 L344 116 L378 96 L380 160 V384 a46 46 0 0 1 -46 46 H138 a46 46 0 0 1 -46 -46 Z" transform="translate(0 28)" fill="url(#sidem)" stroke="#0A2110" stroke-width="8" stroke-linejoin="round"/>
+  <!-- 主体 -->
+  <path d="M92 108 H286 L318 84 L344 116 L378 96 L380 160 V384 a46 46 0 0 1 -46 46 H138 a46 46 0 0 1 -46 -46 Z" fill="url(#paperm)" stroke="#0A2110" stroke-width="8" stroke-linejoin="round"/>
+  <!-- 椭圆柔光 -->
+  <g clip-path="url(#cpm)"><ellipse cx="222" cy="178" rx="206" ry="146" fill="url(#sheenm)"/></g>
+  <!-- 内侧亮边（裁一半） -->
+  <path d="M92 108 H286 L318 84 L344 116 L378 96 L380 160 V384 a46 46 0 0 1 -46 46 H138 a46 46 0 0 1 -46 -46 Z" fill="none" stroke="#FFFFFF" stroke-opacity=".34" stroke-width="7" clip-path="url(#cpm)"/>
+
+  <!-- 票根虚线 -->
+  <line x1="196" y1="158" x2="196" y2="398" stroke="#FFFFFF" stroke-opacity=".88" stroke-width="9" stroke-dasharray="12 17" stroke-linecap="round"/>
+
+  <!-- 进度环：底环 + 进度弧（缺口右上） -->
+  <g transform="rotate(-64 304 268)">
+    <circle cx="304" cy="268" r="54" fill="none" stroke="#FFFFFF" stroke-opacity=".30" stroke-width="13"/>
+    <circle cx="304" cy="268" r="54" fill="none" stroke="url(#ringm)" stroke-width="13" stroke-dasharray="244 96" stroke-linecap="round"/>
+  </g>
+  <!-- 刻度点 -->
+  <g fill="#FFFFFF" fill-opacity=".55">
+    <circle cx="304" cy="206" r="3.4"/><circle cx="366" cy="268" r="3.4"/>
+    <circle cx="304" cy="330" r="3.4"/><circle cx="242" cy="268" r="3.4"/>
+  </g>
+  <!-- 勾（带极轻投影） -->
+  <path d="M286 270 L302 288 L336 246" fill="none" stroke="#0A2110" stroke-opacity=".22" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" filter="url(#ckm)" transform="translate(0 3)"/>
+  <path d="M286 270 L302 288 L336 246" fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- 金额线 -->
+  <line x1="126" y1="380" x2="218" y2="380" stroke="#FFFFFF" stroke-opacity=".95" stroke-width="13" stroke-linecap="round"/>
+  <line x1="244" y1="380" x2="320" y2="380" stroke="#FFFFFF" stroke-opacity=".5" stroke-width="13" stroke-linecap="round"/>
 </svg>

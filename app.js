@@ -5194,6 +5194,7 @@ const POINT_KEY = "piaogen.v0.points";
       if (moved) { event.preventDefault(); event.stopPropagation(); moved = false; }
     }, true);
     window.addEventListener("resize", () => {
+      if (btn.hidden) return; /* 悬浮球隐藏时 rect 全为 0，重定位会被钳到 y=120 顶部并永久存盘 */
       const rect = btn.getBoundingClientRect();
       const root = $("#buddy");
       const side = root ? root.dataset.side : "right";
